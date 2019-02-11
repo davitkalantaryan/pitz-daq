@@ -1,0 +1,158 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\include">
+      <UniqueIdentifier>{d9b0817b-e708-43c3-a29a-fd27254883aa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\include\desy">
+      <UniqueIdentifier>{9847787d-e071-4f1c-b2dd-bb01755712b2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\contrib">
+      <UniqueIdentifier>{25b990d9-bc0b-4b64-aa82-dbf6e39d0a2d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\contrib\cpp-raft">
+      <UniqueIdentifier>{4add3fcd-8dc8-4c6c-adc1-4e981fb3d1d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\contrib\cpp-raft\cpp11+">
+      <UniqueIdentifier>{a1297bd9-8981-4ed1-9d04-4d252662da7e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\contrib\cpp-raft\common">
+      <UniqueIdentifier>{a8f61d6f-ec02-486c-be0b-517f8c8baeac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="doc">
+      <UniqueIdentifier>{ee6ede01-f82c-4ef6-8c4c-b9bf3f779b59}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\server\main_interlock_notifier_server.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\server\desy_interlocknotifier_server.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\contrib\cpp-raft\common\common_iodevice.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\contrib\cpp-raft\common\common_servertcp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\contrib\cpp-raft\common\common_socketbase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\contrib\cpp-raft\common\common_sockettcp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="V:\develop\common\RWLock\multyProcSharedLock_Win_lav.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\contrib\cpp-raft\common\cpp11+\mutex_cpp11.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\contrib\cpp-raft\common\cpp11+\shared_mutex_cpp14.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\contrib\cpp-raft\common\cpp11+\thread_cpp11.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\common\common_argument_parser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\desy\interlocknotifier\server.hpp">
+      <Filter>Header Files\include\desy</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\desy\interlocknotifier\server_client_common.h">
+      <Filter>Header Files\include\desy</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\cpp11+\shared_mutex_cpp14.hpp">
+      <Filter>Header Files\contrib\cpp-raft\cpp11+</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\cpp11+\thread_cpp11.hpp">
+      <Filter>Header Files\contrib\cpp-raft\cpp11+</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\cpp11+\thread_cpp11.impl.hpp">
+      <Filter>Header Files\contrib\cpp-raft\cpp11+</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\cpp11+\mutex_cpp11.hpp">
+      <Filter>Header Files\contrib\cpp-raft\cpp11+</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\common\common_argument_parser.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\common\common_argument_parser.impl.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\common_iodevice.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\common_servertcp.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\common_socketbase.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\common_sockettcp.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\common_unnamedsemaphorelite.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\impl.common_hashtbl.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\impl.common_servertcp.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\impl.common_socketbase.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\impl.newlockguards.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\cpp11+\common_defination.h">
+      <Filter>Header Files\contrib\cpp-raft\cpp11+</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\common_hashtbl.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\impl.lists.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\impl.listspecialandhashtbl.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\lists.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\listspecialandhashtbl.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\newlockguards.hpp">
+      <Filter>Header Files\contrib\cpp-raft\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\emulators\driver\i4\user\daq_driver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\ilock4\driver\i4\hal\daq.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\..\docs\notes\notes_2018.06.28.txt">
+      <Filter>doc</Filter>
+    </Text>
+  </ItemGroup>
+</Project>

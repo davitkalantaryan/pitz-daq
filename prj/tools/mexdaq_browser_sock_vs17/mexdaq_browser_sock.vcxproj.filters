@@ -1,0 +1,111 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\engine">
+      <UniqueIdentifier>{2aaac4d3-d4dd-474c-b6ed-1e495321aaba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\getter">
+      <UniqueIdentifier>{b986c031-618f-467d-a1bb-0a794e2b4ac9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\memory">
+      <UniqueIdentifier>{0601d38d-28ef-4fe3-a81a-e13dcbd987c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\bypipe">
+      <UniqueIdentifier>{7b375ff0-6ad8-4b00-91a2-b871e7b9b2e7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\tools\mex_daq_browser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_engine_base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_entryinfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_getter_base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_getter_noindexing.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_getter_tobuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_memory_base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\pitz_daq_base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\utils\cross_compiler_and_platform_functions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_engine_bypipe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_getter_fromsocket.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\tools\pitz_daq_data_bypipe_base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\pitz\daq\base.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\callbackn.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\entryinfo.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\common_daq_definations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\engine\base.hpp">
+      <Filter>Header Files\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\engine\bypipe.hpp">
+      <Filter>Header Files\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\getter\base.hpp">
+      <Filter>Header Files\getter</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\memory\base.hpp">
+      <Filter>Header Files\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\getter\fromsocket.hpp">
+      <Filter>Header Files\getter</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\getter\impl.tobuffer.hpp">
+      <Filter>Header Files\getter</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\getter\tobuffer.hpp">
+      <Filter>Header Files\getter</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\getter\noindexing.hpp">
+      <Filter>Header Files\getter</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\contrib\cpp-raft\include\common\common_socketbase.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\pitz\daq\data\bypipe\base.hpp">
+      <Filter>Header Files\bypipe</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,19 @@
+<RCC>
+    <qresource prefix="/">
+        <file>img/quit_pik.png</file>
+        <file>img/connect_btn.png</file>
+        <file>img/disconnect_btn.png</file>
+        <file>img/rescan_btn.png</file>
+        <file>img/execute_btn.png</file>
+        <file>img/nm_btn.png</file>
+        <file>img/ncal_btn.png</file>
+        <file>img/nsave_btn.png</file>
+        <file>img/nr1_btn.png</file>
+        <file>img/nr2_btn.png</file>
+        <file>img/nrm_btn.png</file>
+        <file>img/nreset_btn.png</file>
+        <file>img/stop_all_btn.png</file>
+        <file>img/home_btn.png</file>
+        <file>img/zero_btn.png</file>
+    </qresource>
+</RCC>
