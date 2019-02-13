@@ -9,6 +9,8 @@ include(../../common/common_qt/doocs_server_common.pri)
 
 # g++ -Wall -I/doocs/lib/include -fPIC -c *.cpp
 # g++ -shared -W1 -o libDOOCS_Funcs.so *.o
+#CONFIG += c++11
+QMAKE_CXXFLAGS += -std=c++0x
 CONFIG += debug
 # CONFIG += release
 # TEMPLATE = lib

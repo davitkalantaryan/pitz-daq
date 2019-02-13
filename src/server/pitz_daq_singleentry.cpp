@@ -33,6 +33,7 @@ pitz::daq::SingleEntry::SingleEntry(entryCreationType::Type a_creationType,const
     if(!pLine){throw errorsFromConstructor::syntax;}
 
     m_isMemoriesInited = 0;
+    m_nLastEventNumber = 0;
 
     daqNameLen = (size_t)(pLine-a_entryLine);
     m_daqName = (char*)malloc(daqNameLen+1);
@@ -287,6 +288,18 @@ void pitz::daq::SingleEntry::UnmaskErrors()
 }
 
 
+int pitz::daq::SingleEntry::LastEventNumberHandled(void)const
+{
+    return m_nLastEventNumber;
+}
+
+
+void pitz::daq::SingleEntry::SetLastEventNumberHandled(int a_nLastEventNumber)
+{
+    if(a_nLastEventNumber>m_nLastEventNumber){m_nLastEventNumber=a_nLastEventNumber;}
+}
+
+
 void pitz::daq::SingleEntry::SetProperty(const char* a_propertyAndAttributes)
 {
     const char* pcNext = strstr(a_propertyAndAttributes,MASK_KEY_STR);
@@ -359,7 +372,7 @@ void pitz::daq::SingleEntry::SetRootTree3(TTree* a_tree, const char* a_cpcBranch
 }
 
 
-void pitz::daq::SingleEntry::SetBranchAddress(bool* a_pbAutosave, pitz::daq::MemoryBase* a_pNewMemory)
+void pitz::daq::SingleEntry::SetBranchAddress(bool* a_pbAutosave, data::memory::ForServerBase* a_pNewMemory)
 {
     *a_pbAutosave = false;
     if(!m_pTreeOnRoot){return;}

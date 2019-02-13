@@ -6,7 +6,7 @@
 #define PITZ_DAQ_SINGLEENTRY_HPP
 
 #include "common/common_fifofast.hpp"
-#include "pitz_daq_memory.hpp"
+#include <pitz/daq/data/memory/forserver.hpp>
 #include <cpp11+/thread_cpp11.hpp>
 #include "eq_fct.h"
 #include "TTree.h"
@@ -30,6 +30,7 @@
 
 #define STACK_SIZE          32
 #define SIGNAL_FOR_CANCELATION  SIGTSTP
+#define NUMBER_OF_PENDING_PACKS 4
 
 namespace pitz{ namespace daq{
 
@@ -88,7 +89,7 @@ public:
     SingleEntry(entryCreationType::Type creationType,const char* entryLine);
 
     virtual const char* rootFormatString()const=0;
-    virtual pitz::daq::MemoryBase* CreateMemoryInherit()=0;
+    virtual pitz::daq::data::memory::ForServerBase* CreateMemoryInherit()=0;
     virtual void PermanentDataIntoFile(FILE* fpFile)const=0;
 
 private:
@@ -96,7 +97,7 @@ private:
 
 public:
     //m_pBranchOnTree
-    void SetBranchAddress(bool* pbTimeToSave, pitz::daq::MemoryBase* pNewMemory);
+    void SetBranchAddress(bool* pbTimeToSave, pitz::daq::data::memory::ForServerBase* pNewMemory);
     pitz::daq::SNetworkStruct* networkParent();
     void SetRootTree3(TTree* tree, const char* a_cpcBranchName);
     TTree* tree2(){return m_pTreeOnRoot;}
@@ -117,6 +118,8 @@ public:
     // APIs for DOOCS property
     void ValueStringByKey2(const char* request, char* buffer, int bufferLength)const;
     void SetProperty(const char* propertyAndAttributes);
+    int LastEventNumberHandled(void)const;
+    void SetLastEventNumberHandled(int a_nLastEventNumber);
 
     // This API will be used only by
 private:
@@ -125,11 +128,11 @@ private:
         
 public:
     SingleEntry *next,*prev;
-    common::SimpleStack<pitz::daq::MemoryBase*,STACK_SIZE>  stack;
+    common::SimpleStack<pitz::daq::data::memory::ForServerBase*,STACK_SIZE>  stack;
 
 private:
     char*                   m_daqName;
-    pitz::daq::MemoryBase*  m_forRoot;
+    data::memory::ForServerBase*  m_forRoot;
     bool                    m_isPresent;
     int                     m_firstEventNumber,m_lastEventNumber;
     int                     m_firstSecond,m_lastSecond;
@@ -143,6 +146,7 @@ private:
     int                     m_nError2;
     int                     m_nFillUnsavedCount;
     int                     m_nMaxFillUnsavedCount;
+    int                     m_nLastEventNumber;
 
     uint32_t                m_isMemoriesInited;
 

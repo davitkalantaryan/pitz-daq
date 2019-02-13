@@ -451,7 +451,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 {
     TTree* pTree2;
     TFile*  file;
-    MemoryBase* pMemToProc;
+    data::memory::ForServerBase* pMemToProc;
     SingleEntry *pCurEntry;
     //volatile struct timeval prevTime={0,0};
     //struct timeval currentTime;
@@ -555,7 +555,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
             while(m_fifoToFill.Extract(&pMemToProc)>0){
                 pCurEntry = (SingleEntry*)pMemToProc->Parent();
                 //pCurEntry->copyForRoot(pMemToProc);   // --> possible error place
-                nSeconds = pMemToProc->time();nEventNumber=pMemToProc->eventNumber();
+                nSeconds = pMemToProc->time();nEventNumber=pMemToProc->gen_event();
                 //DEBUG_("set to stack (num=%d)",++g_nInTheStack);
                 //pCurEntry->stack.SetToStack(pMemToProc); // we have all necessary info, we can free mem  -->   1.
 
@@ -680,7 +680,7 @@ pitz::daq::SingleEntry* pitz::daq::EqFctCollector::RemoveOneEntry(SingleEntry* a
 }
 
 
-bool pitz::daq::EqFctCollector::AddJobForRootThread(pitz::daq::MemoryBase* a_pData)
+bool pitz::daq::EqFctCollector::AddJobForRootThread(data::memory::ForServerBase* a_pData)
 {
     if(m_fifoToFill.AddElement(a_pData)){
         m_semaForRootThread.post();

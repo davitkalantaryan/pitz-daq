@@ -3,7 +3,7 @@
 #define PITZ_DAQ_COLLECTORPROPERTIES_HPP
 
 #include <eq_fct.h>
-#include "pitz_daq_memory.hpp"
+#include <pitz/daq/data/memory/base.hpp>
 #include "pitz_daq_singleentry.hpp"
 #include "common/common_unnamedsemaphorelite.hpp"
 #include "cpp11+/shared_mutex_cpp14.hpp"

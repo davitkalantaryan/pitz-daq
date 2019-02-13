@@ -35,7 +35,7 @@
 #include "udpmcastdaq_commonheader.h"
 #include "pitz_daq_globalfunctionsiniter.hpp"
 #include "common_daq_definations.h"
-#include "alog.h"
+//#include "alog.h"
 #include <TPluginManager.h> // https://root.cern.ch/phpBB3/viewtopic.php?t=9816
 #ifdef _TEST_GUI_
 #include <simple_plotter_c.h>
@@ -52,19 +52,30 @@ public:
     ~SingleEntryUdp();
 
     const char* rootFormatString()const;
-    pitz::daq::MemoryBase* CreateMemoryInherit();
+    data::memory::ForServerBase* CreateMemoryInherit();
     void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const;
     void PermanentDataIntoFile(FILE* fpFile)const;
 
     void SetFctParent(EqFctUdpMcast*  a_pFctParent);
     int channelNumber()const{return m_nChannelNumber;}
 
+    void ResetPending(int indexOrEventNumber);
+    unsigned int IsAnyPending()const;
+    unsigned int IsPending(int indexOrEventNumber)const;
+
+    data::memory::ForServerBase* GetPendingBuffer(int indexOrEventNumber);
+    void SetPendingBuffer(int a_indexOrEventNumber, data::memory::ForServerBase* a_pBuffer);
+
 private:
     EqFctUdpMcast*  m_pFctParent;
     int             m_nChannelNumber;
+    unsigned int    m_isPending;
+    data::memory::ForServerBase* m_vPendings[NUMBER_OF_PENDING_PACKS];
 
 };
 }}
+
+using namespace pitz::daq;
 
 
 EqFct* eq_create(int a_eq_code, void* /*a_arg*/)
@@ -128,15 +139,15 @@ pitz::daq::SingleEntry* pitz::daq::EqFctUdpMcast::CreateNewEntry(entryCreationTy
 void pitz::daq::EqFctUdpMcast::DataGetterThread(SNetworkStruct* /*pNet*/)
 {
     SingleEntryUdp* pCurEntry;
-    pitz::daq::MemoryBase *pMemory, *pMemoryTmp;
-    Memory19* pMemForRcv = new Memory19(NULL,2048,3*sizeof(int));
+    data::memory::ForServerBase *pMemory, *pMemoryTmp;
+    data::memory::M19* pMemForRcv = new data::memory::M19(NULL,2048,3*sizeof(int));
     MClistener      aListener;
     //MClistener
     int nBranchNum;
     int nbytes;
     int GH;
-    int nError=0;
-    int nEventNumber2(0);
+    int nEventNumberToTryPending,nLastEventToTryPending, nError=0;
+    int nEventNumber(0), nLastEventNumberHandled;
     bool bErrorNoEntrySet(false);
 
     if(aListener.ConnectToTheMGroup(m_hostName.value())){
@@ -180,32 +191,77 @@ void pitz::daq::EqFctUdpMcast::DataGetterThread(SNetworkStruct* /*pNet*/)
         pCurEntry = (SingleEntryUdp*)m_vMapper[nBranchNum];
         if(!pCurEntry){m_mutexForEntries.unlock();continue;}
 
-        if(pCurEntry->stack.GetFromStack(&pMemory)){
-            nEventNumber2 = pMemForRcv->eventNumber();
-            GH = nEventNumber2% s_H_count;
-            pMemForRcv->time()=::g_shareptr[GH].seconds;
+        nLastEventNumberHandled = pCurEntry->LastEventNumberHandled();
+        nEventNumber = pMemForRcv->gen_event();
 
-            pMemory->SetParent(NULL);
-            pMemForRcv->SetParent(pCurEntry);
+        if(nEventNumber<=nLastEventNumberHandled){
+            // report on repetition (this is just warning forgot it :) )
+            m_mutexForEntries.unlock();
+            continue;
+        }
 
-            pMemoryTmp = pMemForRcv;
-            pMemForRcv = (Memory19*)pMemory;
 
-            if(!AddJobForRootThread(pMemoryTmp)){
+        if(!pCurEntry->stack.GetFromStack(&pMemory)){
+            pCurEntry->SetError(-3);
+            if(!bErrorNoEntrySet){fprintf(stderr,"!!!!!!!!!!!!!!! No any entry in the stack!!!!!!!!!!!!!!!!!!\n");bErrorNoEntrySet=true;}
+            m_mutexForEntries.unlock();
+            continue;
+        }
+
+        GH = nEventNumber% s_H_count;
+        pMemForRcv->time()=::g_shareptr[GH].seconds;
+
+        pMemory->SetParent(NULL);
+        pMemForRcv->SetParent(pCurEntry);
+
+        pMemoryTmp = pMemForRcv;
+        pMemForRcv = (data::memory::M19*)pMemory;
+
+        // let's remove a pending data (if exists) corresponding to this event
+        if(pCurEntry->IsPending(nEventNumber)){
+            // bed luck we have lost data
+            fprintf(stderr, "!!! data loss, event number before % is not found!\n",nEventNumber);
+            if( !AddJobForRootThread(pCurEntry->GetPendingBuffer(nEventNumber)) ){
                 pCurEntry->SetError(-2);
                 if(!bErrorNoEntrySet){fprintf(stderr, "No place in root fifo!\n");bErrorNoEntrySet=true;}
             }
             else{ bErrorNoEntrySet = false; }
+            pCurEntry->ResetPending(nEventNumber);
+            pCurEntry->SetLastEventNumberHandled(nEventNumber-NUMBER_OF_PENDING_PACKS);
+        }
 
+        // let's remove all pending data (if any) after this event
+        for(
+            nEventNumberToTryPending=nEventNumber+1,nLastEventToTryPending=nEventNumber+NUMBER_OF_PENDING_PACKS;
+            (pCurEntry->IsPending(nEventNumberToTryPending))&&(nEventNumberToTryPending<nLastEventToTryPending);++nEventNumberToTryPending)
+        {
+            if( !AddJobForRootThread(pCurEntry->GetPendingBuffer(nEventNumberToTryPending)) ){
+                pCurEntry->SetError(-2);
+                if(!bErrorNoEntrySet){fprintf(stderr, "No place in root fifo!\n");bErrorNoEntrySet=true;}
+            }
+            else{ bErrorNoEntrySet = false; }
+            pCurEntry->ResetPending(nEventNumberToTryPending);
+            pCurEntry->SetLastEventNumberHandled(nEventNumberToTryPending);
         }
-        else{
-            pCurEntry->SetError(-3);
-            if(!bErrorNoEntrySet){fprintf(stderr,"!!!!!!!!!!!!!!! No any entry in the stack!!!!!!!!!!!!!!!!!!\n");bErrorNoEntrySet=true;}
+
+
+        // let's check whether this data should wait (become pending, untill previous package arrives) to make packages in correct order
+        if( ((nEventNumber-nLastEventNumberHandled)>1)&&nLastEventNumberHandled ){
+            pCurEntry->SetPendingBuffer(nEventNumber,pMemoryTmp);
+            m_mutexForEntries.unlock();
+            continue;
         }
+
+        // ererything is ok add data to root
+        if(!AddJobForRootThread(pMemoryTmp)){
+            pCurEntry->SetError(-2);
+            if(!bErrorNoEntrySet){fprintf(stderr, "No place in root fifo!\n");bErrorNoEntrySet=true;}
+        }
+        else{ bErrorNoEntrySet = false; }
+        pCurEntry->SetLastEventNumberHandled(nEventNumber);
 
         m_mutexForEntries.unlock();
-
-        m_genEvent.set_value(nEventNumber2);
+        m_genEvent.set_value(nEventNumber);  // this is obsolete and will be removed from future releases
 
     } // while( m_nWork )
 
@@ -223,6 +279,8 @@ pitz::daq::SingleEntryUdp::SingleEntryUdp(entryCreationType::Type a_creationType
         SingleEntry(a_creationType,a_entryLine),
         m_pFctParent(NULL)
 {
+    m_isPending = 0;
+    memset(m_vPendings,0,sizeof(m_vPendings));
 
     switch(a_creationType)
     {
@@ -283,9 +341,9 @@ const char* pitz::daq::SingleEntryUdp::rootFormatString()const
 }
 
 
-pitz::daq::MemoryBase* pitz::daq::SingleEntryUdp::CreateMemoryInherit()
+data::memory::ForServerBase* pitz::daq::SingleEntryUdp::CreateMemoryInherit()
 {
-    return new Memory19(this,2048,3*sizeof(int));
+    return new data::memory::M19(this,2048,3*sizeof(int));
 }
 
 
@@ -300,6 +358,44 @@ void pitz::daq::SingleEntryUdp::ValueStringByKeyInherited(bool a_bReadAll, const
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
+}
+
+
+void pitz::daq::SingleEntryUdp::ResetPending(int a_indexOrEventNumber)
+{
+    int nIndex = a_indexOrEventNumber%NUMBER_OF_PENDING_PACKS;
+    unsigned int unMask = ~(1<<nIndex);
+
+    m_vPendings[nIndex] = NULL;
+    m_isPending &= unMask;
+}
+
+
+unsigned int pitz::daq::SingleEntryUdp::IsAnyPending()const
+{
+    return m_isPending;
+}
+
+
+unsigned int pitz::daq::SingleEntryUdp::IsPending(int a_indexOrEventNumber)const
+{
+    unsigned int unMask = 1<<(a_indexOrEventNumber%NUMBER_OF_PENDING_PACKS);
+    return m_isPending&unMask;
+}
+
+
+data::memory::ForServerBase* pitz::daq::SingleEntryUdp::GetPendingBuffer(int a_indexOrEventNumber)
+{
+    return m_vPendings[a_indexOrEventNumber%NUMBER_OF_PENDING_PACKS];
+}
+
+
+void pitz::daq::SingleEntryUdp::SetPendingBuffer(int a_indexOrEventNumber, data::memory::ForServerBase* a_pBuffer)
+{
+    int nIndex = a_indexOrEventNumber%NUMBER_OF_PENDING_PACKS;
+    unsigned int unMask = ~(1<<nIndex);
+    m_isPending |= unMask;
+    m_vPendings[nIndex] = a_pBuffer;
 }
 
 /*/////////////////////////////////////////////////////////////////////////////////////*/

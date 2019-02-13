@@ -13,9 +13,11 @@
 
 namespace pitz{ namespace daq{ namespace data{ namespace memory{
 
+namespace offset{enum Type{VALUE=8};}
+
 class Base{
 public:
-        Base();
+        Base(size_t unOffset=0);
         Base(const Base& cM);
         virtual ~Base();
 #ifdef __CPP11_DEFINED__
@@ -25,16 +27,22 @@ public:
         Base& operator=(const Base& aM);
         const int&  time()const;
         const int&  gen_event()const;
+              int&  time();
+              int&  gen_event();
         void* rawBuffer(){return m_rawBuffer;}
         const void* rawBuffer()const{return m_rawBuffer;}
         uint32_t   memorySize()const {return m_memorySize;}
         void       setBranchInfo(const EntryInfo& info);
-        template <typename Type>const Type* data()const {return (const Type*)(m_rawBuffer + DAQ_HEADER_SIZE);}
+        template <typename Type>const Type* data()const {return (const Type*)(m_rawBuffer + m_unOffset+DAQ_HEADER_SIZE);}
 
-private:
+protected:
+        int Resize(size_t size);
+
+protected:
         char*       m_rawBuffer;
         uint32_t    m_memorySize;
         uint32_t    m_maxMemorySize;
+        size_t        m_unOffset;
 };
 
 

@@ -68,7 +68,7 @@ public:
     //const char* specialStringForDoocsProperty()const;
     void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const;
     const char* rootFormatString()const;
-    pitz::daq::MemoryBase* CreateMemoryInherit();
+    data::memory::ForServerBase* CreateMemoryInherit();
     void PermanentDataIntoFile(FILE* fpFile)const;
     //bool ValueStringByKeyInherited(const std::string& a_key, char* a_buffer, int a_bufferLength);
 
@@ -76,7 +76,7 @@ public:
     int dataType()const{return m_dataType;}
     void setDataType(int a_dataType){m_dataType = a_dataType;}
 
-    void FromDoocsToMemory(MemoryBase* pMemory, const EqData* dcsData);
+    void FromDoocsToMemory(data::memory::ForServerBase* pMemory, const EqData* dcsData);
 
 private:
     char* m_doocsUrl;
@@ -163,7 +163,7 @@ extern int g_nInTheStack;
 
 void pitz::daq::EqFctRR::DataGetterThread(SNetworkStruct* a_pNet)
 {
-    pitz::daq::MemoryBase* pMemory;
+    data::memory::ForServerBase* pMemory;
     SingleEntryRR *pCurEntry, *pNextOfLast;
     EqAdr  dcsAddr;
     EqData dataIn, dataOut;
@@ -192,7 +192,7 @@ void pitz::daq::EqFctRR::DataGetterThread(SNetworkStruct* a_pNet)
                 if(pCurEntry->stack.GetFromStack(&pMemory)){
 
                     pMemory->time() =nTime;
-                    pMemory->eventNumber() = nEventNumber;
+                    pMemory->gen_event() = nEventNumber;
                     pCurEntry->FromDoocsToMemory(pMemory,&dataOut);
                     //printf("----------- %d Getting from the stack \n",--s_nStack);
                     //m_fifoToFill.AddElement(pMemory);
@@ -327,44 +327,44 @@ pitz::daq::SingleEntryRR::~SingleEntryRR()
 }
 
 
-void pitz::daq::SingleEntryRR::FromDoocsToMemory(MemoryBase* a_pMemory,const EqData* a_dcsData)
+void pitz::daq::SingleEntryRR::FromDoocsToMemory(data::memory::ForServerBase* a_pMemory,const EqData* a_dcsData)
 {
     switch ( m_dataType % 100 )
     {
     case  1 :
     {
-        Memory01* pMem = (Memory01*)a_pMemory;
+        data::memory::M01* pMem = (data::memory::M01*)a_pMemory;
         pMem->value() = a_dcsData->get_int();
     }
     break;
     case  2 :
     {
-        Memory02* pMem = (Memory02*)a_pMemory;
+        data::memory::M02* pMem = (data::memory::M02*)a_pMemory;
         pMem->value() = a_dcsData->get_float();
     }
     break;
     case  3 :
     {
-        Memory03* pMem = (Memory03*)a_pMemory;
+        data::memory::M03* pMem = (data::memory::M03*)a_pMemory;
         sprintf(pMem->value(),"%s",a_dcsData->get_char_array());
     }
     break;
     case  4 :
     {
-        Memory01* pMem = (Memory01*)a_pMemory;
+        data::memory::M01* pMem = (data::memory::M01*)a_pMemory;
         pMem->value() = a_dcsData->get_int();
     }
     break;
     case  6 :
     {
-        Memory02* pMem = (Memory02*)a_pMemory;
+        data::memory::M02* pMem = (data::memory::M02*)a_pMemory;
         pMem->value() = (float)a_dcsData->get_double();
     }
     break;
     case DATA_IIII /*14*/:
     {
         IIII*	  POLYPARA;
-        Memory15* pMem = (Memory15*)a_pMemory;
+        data::memory::M15* pMem = (data::memory::M15*)a_pMemory;
         POLYPARA = a_dcsData->get_iiii();
         if(POLYPARA){
             sprintf(pMem->value(),"%d  %d  %d  %d",
@@ -375,7 +375,7 @@ void pitz::daq::SingleEntryRR::FromDoocsToMemory(MemoryBase* a_pMemory,const EqD
     case 15 :
     {
         IFFF*	  POLYPARA;
-        Memory15* pMem = (Memory15*)a_pMemory;
+        data::memory::M15* pMem = (data::memory::M15*)a_pMemory;
         POLYPARA = a_dcsData->get_ifff();
         if(POLYPARA){
             sprintf(pMem->value(),"%d  %e  %e  %e",POLYPARA->i1_data,POLYPARA->f1_data,POLYPARA->f2_data,POLYPARA->f3_data);
@@ -385,7 +385,7 @@ void pitz::daq::SingleEntryRR::FromDoocsToMemory(MemoryBase* a_pMemory,const EqD
     break;
     case DATA_SPECTRUM /*19*/ :
     {
-        Memory19* pMem = (Memory19*)a_pMemory;
+        data::memory::M19* pMem = (data::memory::M19*)a_pMemory;
         float* fpValue = a_dcsData->get_float_array();
         int nArrayLen = a_dcsData->array_length();
         if(nArrayLen>0){pMem->SetElements(fpValue,nArrayLen);}
@@ -451,7 +451,7 @@ void pitz::daq::SingleEntryRR::PermanentDataIntoFile(FILE* a_fpFile)const
 }
 
 
-pitz::daq::MemoryBase* pitz::daq::SingleEntryRR::CreateMemoryInherit()
+pitz::daq::data::memory::ForServerBase* pitz::daq::SingleEntryRR::CreateMemoryInherit()
 {
     //m_dataType %= 100;
 
@@ -459,43 +459,43 @@ pitz::daq::MemoryBase* pitz::daq::SingleEntryRR::CreateMemoryInherit()
     {
     case  1 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:int_value/I");
-        return new Memory01(this);
+        return new data::memory::M01(this);
     break;
     case  2 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:float_value/F");
-        return new Memory02(this);
+        return new data::memory::M02(this);
     break;
     case  3 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:char_array[60]/C");
-        return new Memory03(this,60);
+        return new data::memory::M03(this,60);
     break;
     case  4 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:int_value/I");
-        return new Memory01(this);
+        return new data::memory::M01(this);
     break;
     case  6 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:float_value/F");
-        return new Memory02(this);
+        return new data::memory::M02(this);
     break;
     case 14 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:IIII_array[60]/C");
-        return new Memory15(this);
+        return new data::memory::M15(this);
     case 15 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:IFFF_array[60]/C");
-        return new Memory15(this);
+        return new data::memory::M15(this);
     break;
     case 19 :
         m_rootFormatStr = (char*)malloc(1024);
         snprintf(m_rootFormatStr,1023,"time/I:buffer/I:array_value[%d]/F",m_nSamples);
-        return new Memory19(this,m_nSamples,3*sizeof(int));
+        return new data::memory::M19(this,m_nSamples,3*sizeof(int));
     break;
     case 119:
         m_rootFormatStr = (char*)malloc(1024);
         snprintf(m_rootFormatStr,1023,"seconds/I:gen_event/I:array_value[%d]/F",m_nSamples);
-        return new Memory19(this,m_nSamples,3*sizeof(int));
+        return new data::memory::M19(this,m_nSamples,3*sizeof(int));
     case 219:
         copyString(&m_rootFormatStr,"seconds/I:gen_event/I:array_value[2048]/F");
-        return new Memory19(this,m_nSamples,3*sizeof(int));
+        return new data::memory::M19(this,m_nSamples,3*sizeof(int));
     default :
     break;
     }

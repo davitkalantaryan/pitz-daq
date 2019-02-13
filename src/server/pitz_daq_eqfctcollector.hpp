@@ -36,7 +36,7 @@ protected:
     virtual bool IsAllowedToAdd2(SingleEntry* newEntry);
 
     // API should be used by childs
-    bool AddJobForRootThread(pitz::daq::MemoryBase* data);
+    bool AddJobForRootThread(data::memory::ForServerBase* data);
 
     // API for internal usage
 private:
@@ -92,7 +92,7 @@ private:
     STDN::mutex             m_mutexForEntriesInError;
 private:
     //common::FifoFastDyn<pitz::daq::MemoryBase*>     m_fifoToFill;
-    common::listN::Fifo<pitz::daq::MemoryBase*>        m_fifoToFill;
+    common::listN::Fifo<data::memory::ForServerBase*>        m_fifoToFill;
     common::FifoFast<std::string,1024>                m_fifoForLocalFileDeleter;
     common::UnnamedSemaphoreLite                    m_semaForRootThread;
     common::UnnamedSemaphoreLite                    m_semaForLocalFileDeleter;

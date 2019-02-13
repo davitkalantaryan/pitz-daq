@@ -35,10 +35,12 @@ SOURCES += \
     ../../../contrib/cpp-raft/common/cpp11+/thread_cpp11.cpp \
     ../../../contrib/cpp-raft/common/cpp11+/mutex_cpp11.cpp \
     ../../../contrib/cpp-raft/common/cpp11+/shared_mutex_cpp14.cpp \
-    ../../../src/utils/pitz_daq_memory.cpp \
+    ../../../src/tools/pitz_daq_data_memory_base.cpp \
+    ../../../src/tools/pitz_daq_data_memory_forserver.cpp \
     ../../../src/server/pitz_daq_singleentry.cpp \
     ../../../src/server/pitz_daq_eqfctcollector.cpp \
-    ../../../src/server/pitz_daq_collector_global.cpp
+    ../../../src/server/pitz_daq_collector_global.cpp \
+    ../../../src/tools/pitz_daq_data_entryinfo.cpp
 HEADERS += \
     ../../../src/server/pitz_daq_collectorproperties.hpp \
     ../../../src/tools/mailsender.h \
@@ -54,4 +56,6 @@ HEADERS += \
     ../../../contrib/cpp-raft/include/cpp11+/shared_mutex_cpp14.hpp \
     ../../../include/pitz_daq_memory.hpp \
     ../../../src/server/pitz_daq_singleentry.hpp \
-    ../../../src/server/pitz_daq_eqfctcollector.hpp
+    ../../../src/server/pitz_daq_eqfctcollector.hpp \
+    ../../../include/pitz/daq/data/memory/base.hpp \
+    ../../../include/pitz/daq/data/memory/forserver.hpp
