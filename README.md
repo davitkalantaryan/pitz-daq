@@ -1,6 +1,6 @@
 # pitz-daq
 
-![PITZ logo](https://davitkalantaryan.github.io/pitz-daq/images/pitz_logo.png)
+![PITZ logo](https://davitkalantaryan.github.io/pitz-daq/docs/images/pitz_logo.png)
 
 
 DAQ is abbreviation for Data AcQuisition
