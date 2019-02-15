@@ -35,7 +35,7 @@ echo "outputDir=%outputDir%"
 
 if not exist %outputDir% ( mkdir %outputDir% )
 
-set DOXYGEN_NAME="PITZ-DAQ-API"
+set DOXYGEN_NAME='PITZ DAQ API'
 set DOXYGEN_ROOT_DIR=%scriptDirectory%..
 set DOXYGEN_OUT_DIR=%outputDir%
 
