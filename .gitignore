@@ -3,6 +3,10 @@
 *.obj
 *.pro.user*
 .tmp/*
+
+docs/doxy/*
+!docs/doxy/html
+
 */sys/*/*/*
 sys/*/*/*
 !sys/*/*/*.udoc
