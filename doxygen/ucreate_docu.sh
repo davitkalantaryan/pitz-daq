@@ -29,7 +29,7 @@ echo "outputDir=${outputDir}"
 
 mkdir -p ${outputDir}
 
-export DOXYGEN_NAME="laserbeamline-API"
+export DOXYGEN_NAME="PITZ-DAQ-API"
 export DOXYGEN_ROOT_DIR=${scriptDirectory}/..
 export DOXYGEN_OUT_DIR=${outputDir}
 

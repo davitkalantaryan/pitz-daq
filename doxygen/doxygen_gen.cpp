@@ -3,7 +3,7 @@
  *  
  *  @section intro Introduction
  * 
- *  Here the API for PITZ laserbeamline control is described.\n
+ *  Here the API for PITZ DAQ control is described.\n
  *  As a control system DOOCS is used (http://tesla.desy.de/doocs/doocs.html). \n
  * 
  * 
