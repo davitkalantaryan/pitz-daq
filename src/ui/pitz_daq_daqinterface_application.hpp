@@ -73,6 +73,16 @@ enum class collectorChangeCode{
 };
 
 
+
+struct cmpByStringLength {
+bool operator()(const std::string& a_left, const std::string& a_right) const
+{
+    return a_left < a_right;
+}
+};
+
+
+
 class SCollemtorItem : public QObject
 {
     Q_OBJECT
@@ -104,7 +114,7 @@ public:
 public:
     SCollemtorItem *prev,*next;
     size_t keyLength;
-    ::common::MapAndHash<SCollemtorItem*, ::std::string>::SMapAndHashItem* pHashItem;
+    ::common::MapAndHash<SCollemtorItem*, ::std::string, cmpByStringLength>::SMapAndHashItem* pHashItem;
 
 public:
 signals:
@@ -157,7 +167,7 @@ public:
     ::STDN::shared_mutex                m_mutexForEntries;
 
 protected:
-    ::common::MapAndHash<SCollemtorItem*, ::std::string >    m_listAndHash;
+    ::common::MapAndHash<SCollemtorItem*, ::std::string, cmpByStringLength >    m_listAndHash;
 };
 
 

@@ -11,24 +11,24 @@
 #include "mapandhash.hpp"
 #endif
 
-template <typename Type, typename TypeMapKey>
-common::MapAndHash<Type,TypeMapKey>::MapAndHash()
+template <typename Type, typename TypeMapKey, typename Compare>
+common::MapAndHash<Type,TypeMapKey, Compare>::MapAndHash()
 {
     //
 }
 
 
 
-template <typename Type, typename TypeMapKey>
-common::MapAndHash<Type,TypeMapKey>::~MapAndHash()
+template <typename Type, typename TypeMapKey, typename Compare>
+common::MapAndHash<Type,TypeMapKey, Compare>::~MapAndHash()
 {
     //
 }
 
 
-template <typename Type, typename TypeMapKey>
-typename common::MapAndHash<Type,TypeMapKey>::SMapAndHashItem*
-common::MapAndHash<Type,TypeMapKey>::AddData(const Type& a_newData, const TypeMapKey& a_mapKey, const void* a_key, size_t a_keyLen)
+template <typename Type, typename TypeMapKey, typename Compare>
+typename common::MapAndHash<Type,TypeMapKey, Compare>::SMapAndHashItem*
+common::MapAndHash<Type,TypeMapKey, Compare>::AddData(const Type& a_newData, const TypeMapKey& a_mapKey, const void* a_key, size_t a_keyLen)
 {
     SMapAndHashItem* pItem;
     if( !m_hash.FindEntry(a_key,a_keyLen,&pItem) ){
@@ -43,8 +43,8 @@ common::MapAndHash<Type,TypeMapKey>::AddData(const Type& a_newData, const TypeMa
 
 
 
-template <typename Type, typename TypeMapKey>
-bool common::MapAndHash<Type,TypeMapKey>::Erase(const void* a_key, size_t a_keyLen)
+template <typename Type, typename TypeMapKey, typename Compare>
+bool common::MapAndHash<Type,TypeMapKey, Compare>::Erase(const void* a_key, size_t a_keyLen)
 {
     SMapAndHashItem* pItem;
     if( m_hash.RemoveAndGet(a_key,a_keyLen,&pItem) ){
@@ -56,8 +56,8 @@ bool common::MapAndHash<Type,TypeMapKey>::Erase(const void* a_key, size_t a_keyL
 }
 
 
-template <typename Type, typename TypeMapKey>
-bool common::MapAndHash<Type,TypeMapKey>::FindEntry(const void* a_key, size_t a_keyLen, Type* a_ppData)const
+template <typename Type, typename TypeMapKey, typename Compare>
+bool common::MapAndHash<Type,TypeMapKey, Compare>::FindEntry(const void* a_key, size_t a_keyLen, Type* a_ppData)const
 {
     SMapAndHashItem* pItem;
     if( m_hash.FindEntry(a_key,a_keyLen,&pItem) ){
@@ -68,9 +68,9 @@ bool common::MapAndHash<Type,TypeMapKey>::FindEntry(const void* a_key, size_t a_
 }
 
 
-template <typename Type, typename TypeMapKey>
+template <typename Type, typename TypeMapKey, typename Compare>
 template <typename ClsType>
-void common::MapAndHash<Type,TypeMapKey>::IterateOverEntries( ClsType* a_pOwner, void(ClsType::*a_fpClb)(Type& ) )const
+void common::MapAndHash<Type,TypeMapKey, Compare>::IterateOverEntries( ClsType* a_pOwner, void(ClsType::*a_fpClb)(Type& ) )const
 {
     typename ::std::multimap<TypeMapKey, SMapAndHashItem* >::const_iterator itEnd = m_map.end();
     for( typename ::std::multimap<TypeMapKey, SMapAndHashItem* >::const_iterator it=m_map.begin();it!=itEnd;++it ){
@@ -80,9 +80,9 @@ void common::MapAndHash<Type,TypeMapKey>::IterateOverEntries( ClsType* a_pOwner,
 }
 
 
-template <typename Type, typename TypeMapKey>
+template <typename Type, typename TypeMapKey, typename Compare>
 template <typename ClsType>
-void common::MapAndHash<Type,TypeMapKey>::IterateOverEntriesWithPossibleRemove( ClsType* a_pOwner, void(ClsType::*a_fpClb)(Type& ) )
+void common::MapAndHash<Type,TypeMapKey, Compare>::IterateOverEntriesWithPossibleRemove( ClsType* a_pOwner, void(ClsType::*a_fpClb)(Type& ) )
 {
     typename ::std::multimap<TypeMapKey, SMapAndHashItem* >::iterator itNext,itEnd = m_map.end();
     for( typename ::std::multimap<TypeMapKey, SMapAndHashItem* >::iterator it=m_map.begin();it!=itEnd; ){
@@ -95,8 +95,8 @@ void common::MapAndHash<Type,TypeMapKey>::IterateOverEntriesWithPossibleRemove( 
 
 
 
-template <typename Type, typename TypeMapKey>
-ptrdiff_t common::MapAndHash<Type,TypeMapKey>::index(SMapAndHashItem* a_pItem)const
+template <typename Type, typename TypeMapKey, typename Compare>
+ptrdiff_t common::MapAndHash<Type,TypeMapKey, Compare>::index(SMapAndHashItem* a_pItem)const
 {
     //::std::vector<int> vect;
     //return ::std::distance(vect.begin(), vect.end());

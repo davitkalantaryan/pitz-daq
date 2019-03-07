@@ -11,7 +11,28 @@ MYDOOCS = /afs/ifh.de/group/pitz/doocs
 message("!!! doocs_client_common.pri:")
 
 include(../../common/common_qt/sys_common.pri)
+
 SYSTEM_LIB = $$MYDOOCS/system_arch/$$CODENAME/lib
+
+# message ("!!!!! No cpp 11 used") # todo: calculate in the sys_common.pri
+QMAKE_CXXFLAGS += -std=c++0x
+
+equals(CODENAME,"Boron") {
+    INCLUDEPATH += $$SYSTEM_LIB/include
+
+}
+else {
+
+    equals(CODENAME,"Boron") {
+        INCLUDEPATH += $$SYSTEM_LIB/include
+    }
+    else{
+        INCLUDEPATH += $$MYDOOCS/include/doocs
+        #INCLUDEPATH += /doocs/system_arch/trusty/lib/include
+    }
+}
+
+
 message("!!! SYSTEM_LIB: $$SYSTEM_LIB")
 
 DEFINES += LINUX
@@ -26,6 +47,8 @@ LIBS += -lrt
 
 include(../../common/common_qt/sys_common.pri)
 
-INCLUDEPATH += /doocs/include/doocs
-INCLUDEPATH += $$SYSTEM_LIB/include/doocs
+#INCLUDEPATH += /doocs/include/doocs
+#INCLUDEPATH += $$SYSTEM_LIB/include/doocs
 #INCLUDEPATH += /doocs/develop/bagrat/doocs.git/include
+
+INCLUDEPATH += /doocs/lib/include
