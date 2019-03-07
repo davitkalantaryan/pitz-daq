@@ -8,7 +8,7 @@ optionsCpp11 = $$find(CONFIG, "cpp11")
 count(optionsCpp11, 1):QMAKE_CXXFLAGS += -std=c++0x
 
 # message("!!! root_no_gui_common.pri: ROOT_FLAGS=$$MYROOTCFLAGS")
-LIBS += $$system($$MYROOTSYS/bin/root-config --libs)
+#LIBS += $$system($$MYROOTSYS/bin/root-config --libs)
 CONFIG += debug
 QT -= core
 QT -= gui
