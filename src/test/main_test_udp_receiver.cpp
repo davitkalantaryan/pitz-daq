@@ -43,7 +43,7 @@ int main(int argc, char* argv[])
     int m_sock = -1;
     int nError;
     int reuse = 1;
-    int nNumberOfIterations, i, j;
+    int nNumberOfIterations=1, i, j;
     int nSpectrumToTest = TEST_SPECTRUM_NUMBER;
     int nPreviousEventNumber, nPrinted;
     time_t currentTime;

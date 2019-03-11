@@ -54,7 +54,6 @@ HEADERS += \
     ../../../contrib/cpp-raft/include/common/lists.hpp \
     ../../../contrib/cpp-raft/include/common/impl.lists.hpp \
     ../../../contrib/cpp-raft/include/cpp11+/shared_mutex_cpp14.hpp \
-    ../../../include/pitz_daq_memory.hpp \
     ../../../src/server/pitz_daq_singleentry.hpp \
     ../../../src/server/pitz_daq_eqfctcollector.hpp \
     ../../../include/pitz/daq/data/memory/base.hpp \

@@ -13,7 +13,7 @@
 
 namespace common {
 
-template <typename Type, typename TypeMapKey>
+template <typename Type, typename TypeMapKey, typename Compare  >
 class MapAndHash
 {
 public:
@@ -48,7 +48,7 @@ public:
     };
 
 protected:
-    ::std::multimap< TypeMapKey, SMapAndHashItem* >  m_map;
+    ::std::multimap< TypeMapKey, SMapAndHashItem*, Compare >  m_map;
     HashTbl< SMapAndHashItem* >                      m_hash;
 };
 

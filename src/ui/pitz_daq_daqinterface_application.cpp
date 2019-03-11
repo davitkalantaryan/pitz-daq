@@ -268,8 +268,14 @@ pitz::daq::daqinterface::SCollemtorItem::SCollemtorItem(int a_iteration,const st
     //this->hostName.push_back(0);
 
     dataOut.init();
-    eqCall.get_option(&eqAdr,&dataIn,&dataOut,EQ_LIBNO);
-    this->rpcNumber = dataOut.get_int();
+    int nReturn=eqCall.get_option(&eqAdr,&dataIn,&dataOut,EQ_LIBNO);
+    if(nReturn){
+        fprintf(stdout,"unable to get host name for ..\n");
+    }
+    else{
+        this->rpcNumber = dataOut.get_int();
+    }
+
 
     this->locationBase = COLLECTORS_DEVICE "/" + a_serverNm + "/";
     this->watchdogAddressBase = WATCHDOG_FACILITY "/" + aHostName + "/SVR." + watchdogAddition + "/";

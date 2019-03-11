@@ -34,15 +34,15 @@ equals(TARGET_EXT,"mex*"){
 win32{
     CODENAME = win64
     SYSTEM_PATH = sys/win64
+}else {
+    macx{
+        CODENAME = mac
+        SYSTEM_PATH = sys/mac
     }else {
-        macx{
-            CODENAME = mac
-            SYSTEM_PATH = sys/mac
-        }else {
-            DEFINES += LINUX
-            CODENAME = $$system(lsb_release -c | cut -f 2)
-            SYSTEM_PATH = sys/$$CODENAME
-        }
+        DEFINES += LINUX
+        CODENAME = $$system(lsb_release -c | cut -f 2)
+        SYSTEM_PATH = sys/$$CODENAME
+    }
 }
 
 message("!!! sys_common.pri: SYSTEM_PATH=$$SYSTEM_PATH")
