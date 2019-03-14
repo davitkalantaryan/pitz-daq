@@ -33,7 +33,7 @@ pitz::daq::SingleEntry::SingleEntry(entryCreationType::Type a_creationType,const
     if(!pLine){throw errorsFromConstructor::syntax;}
 
     m_isMemoriesInited = 0;
-    m_nLastEventNumber = 0;
+    m_nLastEventNumberHandled = 0;
 
     daqNameLen = (size_t)(pLine-a_entryLine);
     m_daqName = (char*)malloc(daqNameLen+1);
@@ -290,13 +290,13 @@ void pitz::daq::SingleEntry::UnmaskErrors()
 
 int pitz::daq::SingleEntry::LastEventNumberHandled(void)const
 {
-    return m_nLastEventNumber;
+    return m_nLastEventNumberHandled;
 }
 
 
 void pitz::daq::SingleEntry::SetLastEventNumberHandled(int a_nLastEventNumber)
 {
-    if(a_nLastEventNumber>m_nLastEventNumber){m_nLastEventNumber=a_nLastEventNumber;}
+    if(a_nLastEventNumber>m_nLastEventNumberHandled){m_nLastEventNumberHandled=a_nLastEventNumber;}
 }
 
 

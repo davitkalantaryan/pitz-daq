@@ -146,7 +146,7 @@ private:
     int                     m_nError2;
     int                     m_nFillUnsavedCount;
     int                     m_nMaxFillUnsavedCount;
-    int                     m_nLastEventNumber;
+    int                     m_nLastEventNumberHandled;
 
     uint32_t                m_isMemoriesInited;
 

@@ -23,7 +23,7 @@ equals(CODENAME,"Boron") {
 }
 else {
 
-    equals(CODENAME,"Boron") {
+    equals(CODENAME,"trusty") {
         INCLUDEPATH += $$SYSTEM_LIB/include
     }
     else{
