@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <thread>
+#include <zmq/zmq.h>
 
 //#define STRING_TO_TIME (_a_string)
 
@@ -18,6 +19,7 @@
 
 int main()
 {
+#if 0
     struct tm aTm;
 	std::thread aThr;
 
@@ -34,12 +36,14 @@ int main()
     try{
         //time_t aTime2 = STRING_TO_EPOCH(STRING_TO_PARSE);
 		time_t aTime2 = 0;
-        printf("thr=%d, epoch=%ld, time_str=\"%s\"\n",aThr.native_handle(),(long)aTime, ctime(&aTime));
+        printf("thr=%d, epoch=%ld, time_str=\"%s\"\n",(int)aThr.native_handle(),(long)aTime, ctime(&aTime));
         printf("str=\"" STRING_TO_PARSE "\", finStr=\"%s\"\n", ctime(&aTime2));
     }
     catch(...)
     {
     }
+
+#endif
 
     return 0;
 }

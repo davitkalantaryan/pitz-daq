@@ -1,5 +1,7 @@
 
-INCLUDEPATH += /doocs/lib/include/doocs
+QMAKE_CXXFLAGS += -std=c++0x
+
+INCLUDEPATH += /doocs/include
 LIBS += -L/doocs/lib -lDOOCSapi -lldap -lrt
 
 SOURCES += \
