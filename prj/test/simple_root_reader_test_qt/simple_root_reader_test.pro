@@ -3,9 +3,14 @@
 # Created by : Davit Kalantaryan (davit.kalantaryan@desy.de)
 # This file can be used to produce Makefile for daqadcreceiver application
 # for PITZ
-MYROOTSYS = /afs/ifh.de/@sys/products/root64/5.20.00
-MYROOTCFLAGS = `$$MYROOTSYS/bin/root-config \
-    --cflags`
+
+#MYROOTSYS = /afs/ifh.de/@sys/products/root64/5.20.00
+MYROOTSYS = /opt/root/6.16.00
+
+# just for intelisence
+INCLUDEPATH += $$MYROOTSYS/include
+
+MYROOTCFLAGS = `$$MYROOTSYS/bin/root-config --cflags`
 QMAKE_CXXFLAGS += $$MYROOTCFLAGS
 QMAKE_CFLAGS += $$MYROOTCFLAGS
 optionsCpp11 = $$find(CONFIG, "cpp11")

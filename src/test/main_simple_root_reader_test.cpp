@@ -1,5 +1,6 @@
 //#include "main_simple_root_reader_test.h"
-
+//  Example of usage
+//   ./simple_root_reader_test /doocs/data/DAQdata/daqL/pitznoadc0/PITZ_DATA.pitznoadc0.2019-02-25-0803.root CATH__NAME
 
 #include <iostream>
 #include <stdio.h>

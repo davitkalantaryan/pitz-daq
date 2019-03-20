@@ -20,12 +20,14 @@ INCLUDEPATH += /opt/matlab/current/extern/include
 equals(CODENAME,"Santiago"){
     INCLUDEPATH += /products/matlab/R2010a/extern/include
 }else{
-    equals(CODENAME,"trusty"){
-        INCLUDEPATH += /usr/local/MATLAB/R2016a/extern/include
-    }else{
-        INCLUDEPATH += /opt/matlab/current/extern/include
-    }
+equals(CODENAME,"trusty"){
+    INCLUDEPATH += /usr/local/MATLAB/R2016a/extern/include
+}else{
+    INCLUDEPATH += /opt/matlab/current/extern/include
 }
+} # equals(CODENAME,"Santiago"){
+
+INCLUDEPATH += /afs/ifh.de/SL/6/x86_64/opt/matlab/R2016b/extern/include
 
 #QMAKE_EXTRA_TARGETS += copy_mex_file
 #copy_mex_file.commands = "cp "
