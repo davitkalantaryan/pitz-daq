@@ -8,6 +8,8 @@
 
 MYDOOCS = /afs/ifh.de/group/pitz/doocs
 
+INCLUDEPATH += $$MYDOOCS/include
+
 message("!!! doocs_client_common.pri:")
 
 include(../../common/common_qt/sys_common.pri)
