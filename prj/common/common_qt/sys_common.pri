@@ -16,14 +16,9 @@ DEEPNESS = ../../..
 optionsLib = $$find(TEMPLATE, "lib")
 
 count(optionsLib, 1){
-equals(TARGET_EXT,"mex*"){
-    TARGET_PATH=mbin
-    message("Matlab mex file creation")
-}else{
     TARGET_PATH=lib
     DEEPNESS = ../../../../
     message("Shared library creation")
-}
 }else{
     TARGET_PATH=bin
     DEEPNESS = ../../../../

@@ -4,6 +4,12 @@
 *.pro.user*
 .tmp/*
 
+src/*/*/*/matlab
+src/*/*/*/*.mat
+src/*/*/*/*.root
+src/*/*/*/*.root
+
+
 docs/doxy/*
 !docs/doxy/html
 

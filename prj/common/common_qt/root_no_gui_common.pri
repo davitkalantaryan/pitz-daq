@@ -8,7 +8,8 @@
 
 
 #MYROOTSYS = /afs/ifh.de/group/pitz/doocs/amd64_rhel50/root/6.02.00
-MYROOTSYS = /afs/ifh.de/amd64_rhel50/products/root64/5.20.00
+#MYROOTSYS = /afs/ifh.de/amd64_rhel50/products/root64/5.20.00
+MYROOTSYS = /opt/root/6.16.00
 MYROOTCFLAGS = `$$MYROOTSYS/bin/root-config \
     --cflags`
 QMAKE_CXXFLAGS += $$MYROOTCFLAGS
@@ -25,4 +26,4 @@ LIBS += $$system($$MYROOTSYS/bin/root-config --libs)
 INCLUDEPATH += $$MYROOTSYS/include
 
 # temporar
-INCLUDEPATH += /afs/ifh.de/amd64_rhel50/products/root64/5.20.00/include
+#INCLUDEPATH += /afs/ifh.de/amd64_rhel50/products/root64/5.20.00/include

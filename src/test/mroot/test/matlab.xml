@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<root setup="2xoo" ref="null" created="2008-07-07 10:27:18" modified="2008-07-07 10:42:54" uuid="0058bd4e-d366-1871-8001-4a40348dbeef" title="title" version="2">
+  <XmlKey name="a" cycle="1" created="2008-07-07 10:42:54">
+    <Object class="TMap">
+      <Version v="3"/>
+      <Version v="1"/>
+      <UInt_t v="0"/>
+      <UInt_t v="33554432"/>
+      <UChar_t v="0"/>
+      <Int_t v="4"/>
+      <Object class="TObjString">
+        <TObjString version="1">
+          <TObject fUniqueID="0" fBits="2000000"/>
+          <fString str="type"/>
+        </TObjString>
+      </Object>
+      <Object class="TVectorT_double_">
+        <TVectorT_double_ version="4">
+          <TObject fUniqueID="0" fBits="2000000"/>
+          <fNrows v="1"/>
+          <fRowLwb v="0"/>
+          <fElements>
+            <Char_t v="1"/>
+            <Array>
+              <Double_t v="-0.000000"/>
+            </Array>
+          </fElements>
+        </TVectorT_double_>
+      </Object>
+      <Object class="TObjString">
+        <TObjString version="1">
+          <TObject fUniqueID="0" fBits="2000000"/>
+          <fString str="complex"/>
+        </TObjString>
+      </Object>
+      <Object class="TVectorT_double_">
+        <TVectorT_double_ version="4">
+          <TObject fUniqueID="0" fBits="2000000"/>
+          <fNrows v="1"/>
+          <fRowLwb v="0"/>
+          <fElements>
+            <Char_t v="1"/>
+            <Array>
+              <Double_t v="-0.000000"/>
+            </Array>
+          </fElements>
+        </TVectorT_double_>
+      </Object>
+      <Object class="TObjString">
+        <TObjString version="1">
+          <TObject fUniqueID="0" fBits="2000000"/>
+          <fString str="size"/>
+        </TObjString>
+      </Object>
+      <Object class="TVectorT_double_">
+        <TVectorT_double_ version="4">
+          <TObject fUniqueID="0" fBits="2000000"/>
+          <fNrows v="1"/>
+          <fRowLwb v="0"/>
+          <fElements>
+            <Char_t v="1"/>
+            <Array>
+              <Double_t v="-0.000000"/>
+            </Array>
+          </fElements>
+        </TVectorT_double_>
+      </Object>
+      <Object class="TObjString">
+        <TObjString version="1">
+          <TObject fUniqueID="0" fBits="2000000"/>
+          <fString str="data"/>
+        </TObjString>
+      </Object>
+      <Object class="TVectorT_double_">
+        <TVectorT_double_ version="4">
+          <TObject fUniqueID="0" fBits="2000000"/>
+          <fNrows v="1"/>
+          <fRowLwb v="0"/>
+          <fElements>
+            <Char_t v="1"/>
+            <Array>
+              <Double_t v="-0.000000"/>
+            </Array>
+          </fElements>
+        </TVectorT_double_>
+      </Object>
+    </Object>
+  </XmlKey>
+  <StreamerInfos>
+    <TStreamerInfo name="TObjString" title="" v="7" classversion="1" canoptimize="true" checksum="1932889493">
+      <TStreamerBase name="TObject" title="Basic ROOT object" v="3" type="66" typename="BASE" size="12" baseversion="1"/>
+      <TStreamerString name="fString" title="wrapped TString" v="2" type="65" typename="TString" size="8"/>
+    </TStreamerInfo>
+    <TStreamerInfo name="TVectorT&lt;double&gt;" title="" v="7" classversion="1" canoptimize="true" checksum="-1529554044">
+      <TStreamerBase name="TObject" title="Basic ROOT object" v="3" type="66" typename="BASE" size="12" baseversion="1"/>
+      <TStreamerBasicType name="fNrows" title="number of rows" v="2" type="6" typename="Int_t" size="4"/>
+      <TStreamerBasicType name="fRowLwb" title="lower bound of the row index" v="2" type="3" typename="Int_t" size="4"/>
+      <TStreamerBasicPointer name="fElements" title="[fNrows] elements themselves" v="2" type="48" typename="double*" size="4" countversion="4" countname="fNrows" countclass="TVectorT&lt;double&gt;"/>
+    </TStreamerInfo>
+    <TStreamerInfo name="TVectorT&lt;double&gt;" title="" v="7" classversion="4" canoptimize="true" checksum="-1529554044">
+      <TStreamerBase name="TObject" title="Basic ROOT object" v="3" type="66" typename="BASE" size="12" baseversion="1"/>
+      <TStreamerBasicType name="fNrows" title="number of rows" v="2" type="6" typename="Int_t" size="4"/>
+      <TStreamerBasicType name="fRowLwb" title="lower bound of the row index" v="2" type="3" typename="Int_t" size="4"/>
+      <TStreamerBasicPointer name="fElements" title="[fNrows] elements themselves" v="2" type="48" typename="double*" size="4" countversion="4" countname="fNrows" countclass="TVectorT&lt;double&gt;"/>
+    </TStreamerInfo>
+  </StreamerInfos>
+</root>

@@ -2,8 +2,8 @@
 // file:        pitz/daq/data/engine/local.hpp
 //
 
-#ifndef __pitz_daq_data_engine_local_hpp__
-#define __pitz_daq_data_engine_local_hpp__
+#ifndef PITZ_DAQ_DATA_ENGINE_LOCAL_HPP
+#define PITZ_DAQ_DATA_ENGINE_LOCAL_HPP
 
 #include "pitz/daq/data/engine/base.hpp"
 
@@ -13,11 +13,11 @@ namespace pitz{ namespace daq { namespace data{ namespace engine{
 
 const char* GetDataTypeAndCount(const TBranch* a_pBranch, data::EntryInfo* a_pInfo);
 
-class Local : public Base  __FINAL__
+class Local __FINAL__ : public Base
 {
 public:
     Local();
-    ~Local();
+    ~Local() __OVERRIDE__ ;
 
     int  Initialize() __OVERRIDE__ __FINAL__;
     void Cleanup() __OVERRIDE__ __FINAL__;    
@@ -30,4 +30,4 @@ public:
 }}}}  // namespace pitz{ namespace daq { namespace data{ namespace engine{
 
 
-#endif  // #ifndef __pitz_daq_data_engine_local_hpp__
+#endif  // #ifndef PITZ_DAQ_DATA_ENGINE_LOCAL_HPP
