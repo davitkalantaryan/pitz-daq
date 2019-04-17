@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <common/lists.hpp>
 
+#define     CODE_EVENT_BASED_DAQ  301	// eq_fct_type number for the .conf file
+
 
 namespace pitz{namespace daq{
 
@@ -19,7 +21,7 @@ class EqFctCollector : public EqFct
     friend class D_genEvent;
 protected:
     EqFctCollector();
-    virtual ~EqFctCollector();
+    virtual ~EqFctCollector() __OVERRIDE__ ;
 
     // API to be inferited
 private:
@@ -70,7 +72,7 @@ private:
     D_string            m_rootDirPathBaseLocal;        // '/doocs/data/DAQdata/daqL'
     D_string            m_folderName;                  // 'pitznoadc0'
     D_string            m_rootFileNameBase;            // 'pitznoadc0'
-    D_string            m_expertsMailingList;            // 'pitznoadc0'
+    D_string            m_expertsMailingList;            // 'davit.kalantaryan@desy.de'
     D_int               m_numberOfFillThreadsDesigned;
     D_int               m_numberOfFillThreadsFinal;
     D_int               m_currentFileSize;
@@ -84,12 +86,12 @@ private:
     int                 m_nNumberOfEntries;
     STDN::thread        m_threadRoot; // +
     STDN::thread        m_threadLocalFileDeleter;
-    SNetworkStruct                                  *m_networkFirst, *m_networkLast;
-    SNetworkStruct                                  *m_pLastNetworkAdded;
-    int                                             m_nNumberOfFillThreadsDesigned;
-    int                                             m_nNumberOfFillThreadsFinal;
-    int                                             m_nIndexToNextNet;
-    STDN::mutex             m_mutexForEntriesInError;
+    SNetworkStruct      *m_networkFirst, *m_networkLast;
+    SNetworkStruct      *m_pLastNetworkAdded;
+    int                 m_nNumberOfFillThreadsDesigned;
+    int                 m_nNumberOfFillThreadsFinal;
+    int                 m_nIndexToNextNet;
+    STDN::mutex         m_mutexForEntriesInError;
 private:
     //common::FifoFastDyn<pitz::daq::MemoryBase*>     m_fifoToFill;
     common::listN::Fifo<data::memory::ForServerBase*>        m_fifoToFill;

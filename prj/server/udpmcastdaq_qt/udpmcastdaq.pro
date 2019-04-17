@@ -8,8 +8,10 @@ INCLUDEPATH += ../../../src/tmp
 include(../../common/common_qt/daqcollector_common.pri)
 
 # LIBS += -lMCclass
-SOURCES += ../../../src/server/pitz_daq_eqfctudpmcast.cpp \
-    ../../../src/tmp/mclistener.cpp
-HEADERS += ../../../src/server/pitz_daq_eqfctudpmcast.hpp \
-    ../../../src/tmp/MCclass.h \
-    ../../../include/udpmcastdaq_commonheader.h
+SOURCES += \
+    $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.cpp \
+    $${PWD}/../../../src/tmp/mclistener.cpp
+HEADERS += \
+    $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.hpp \
+    $${PWD}/../../../src/tmp/MCclass.h \
+    $${PWD}/../../../include/udpmcastdaq_commonheader.h

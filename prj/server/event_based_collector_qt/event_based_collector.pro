@@ -3,13 +3,22 @@
 # Created by : Davit Kalantaryan (davit.kalantaryan@desy.de)
 # This file can be used to produce Makefile for daqadcreceiver application
 # for PITZ
-INCLUDEPATH += ../../../src/tmp
+
+DEFINES += DMSG
 #DEFINES += DEBUG_APP
+
+
 include(../../common/common_qt/daqcollector_event_based_common.pri)
 
+INCLUDEPATH += $$MYDOOCS/include/zmq
+
 # LIBS += -lMCclass
-SOURCES += ../../../src/server/pitz_daq_eqfctudpmcast.cpp \
-    ../../../src/tmp/mclistener.cpp
-HEADERS += ../../../src/server/pitz_daq_eqfctudpmcast.hpp \
-    ../../../src/tmp/MCclass.h \
-    ../../../include/udpmcastdaq_commonheader.h
+SOURCES += \
+    $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp \
+    $${PWD}/../../../src/tmp/mclistener.cpp
+HEADERS += \
+    $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.hpp
+
+OTHER_FILES += \
+    $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.cpp \
+    $${PWD}/../../../src/examples/zmqget.cc

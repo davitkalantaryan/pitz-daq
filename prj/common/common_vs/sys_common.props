@@ -7,7 +7,8 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <PreBuildEvent>
-      <Command>::..\..\..\util\set_windows_target_platform.exe $(ProjectPath) $(WinTargetPlatformVersion)</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup />
