@@ -167,6 +167,7 @@ public:
     SingleEntry* last();
 
     EqFct*  parent();
+    size_t numberOfEntries()const;
 
     bool AddNewEntry(SingleEntry *newEntry);
     pitz::daq::SingleEntry* RemoveEntry(SingleEntry *entry,int* numberOfEntriesRemained=NULL);

@@ -4,47 +4,29 @@
  */
 
 #include "pitz_daq_eqfcteventbased.hpp"
-#include "printtostderr.h"
-#include <sys/stat.h>
-#include <sys/shm.h>
-#include <signal.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <dirent.h>
-#include <libgen.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <TROOT.h>
-#include <TString.h>
-#include <TFile.h>
-#include <TTree.h>
-#include <TBranch.h>
-//#include <TDCacheFile.h>
-#include <TBasket.h>
-#include <TObject.h>
-#include <TSystem.h>
-#include <TError.h>
-#include <TNetFile.h>
-#include "eq_errors.h"
-#include "eq_sts_codes.h"
-#include "eq_fct_errors.h"
-#include "mclistener.hpp"
-#include "udpmcastdaq_commonheader.h"
-#include "pitz_daq_globalfunctionsiniter.hpp"
-#include "common_daq_definations.h"
-//#include "alog.h"
-#include <TPluginManager.h> // https://root.cern.ch/phpBB3/viewtopic.php?t=9816
-#ifdef _TEST_GUI_
-#include <simple_plotter_c.h>
-#endif
 #include <zmq.h>
-
-
+#include "pitz_daq_singleentrydoocs.hpp"
 
 using namespace pitz::daq;
+
+namespace pitz{namespace daq{
+
+class SingleEntryZmqDoocs final: public SingleEntryDoocs
+{
+public:
+    //using SingleEntryDoocs::SingleEntryDoocs;
+    SingleEntryZmqDoocs(entryCreationType::Type creationType,const char* entryLine);
+
+    int zmqPort()const{return m_nPort;}
+    const ::std::string& host()const{return m_hostName;}
+
+private:
+    void*           m_pSocket;
+    int             m_nPort;
+    int             m_nReserved;
+    ::std::string   m_hostName;
+};
+}}
 
 
 EqFct* eq_create(int a_eq_code, void* /*a_arg*/)
@@ -85,11 +67,25 @@ int pitz::daq::EqFctEventBased::fct_code()
 
 pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
-    pitz::daq::SingleEntry* pEntry = NEWNULLPTR;
+    SingleEntryZmqDoocs* pEntry = new SingleEntryZmqDoocs(a_creationType,a_entryLine);
+
+    if(!pEntry){return pEntry;}
+
     return pEntry;
 }
 
 
-void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* /*pNet*/)
+void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
 {
+    zmq_pollitem_t* pItems = NEWNULLPTR;
+    //a_pNet->
+}
+
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_creationType,const char* a_entryLine)
+    :
+      SingleEntryDoocs(a_creationType,a_entryLine)
+{
+    //
 }

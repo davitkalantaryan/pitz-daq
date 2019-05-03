@@ -573,6 +573,12 @@ EqFct* pitz::daq::SNetworkStruct::parent()
 }
 
 
+size_t pitz::daq::SNetworkStruct::numberOfEntries()const
+{
+    return static_cast<size_t>(m_nNumberOfEntries);
+}
+
+
 void pitz::daq::SNetworkStruct::SetThread(STDN::thread* a_pThread)
 {
     StopAndDeleteThread();

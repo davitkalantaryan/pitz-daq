@@ -15,10 +15,14 @@ INCLUDEPATH += $$MYDOOCS/include/zmq
 # LIBS += -lMCclass
 SOURCES += \
     $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp \
+    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.cpp \
     $${PWD}/../../../src/tmp/mclistener.cpp
+
 HEADERS += \
+    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.hpp \
     $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.hpp
 
 OTHER_FILES += \
     $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.cpp \
+    $${PWD}/../../../src/server/pitz_daq_eqfctrr.cpp \
     $${PWD}/../../../src/examples/zmqget.cc
