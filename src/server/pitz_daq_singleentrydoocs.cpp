@@ -155,6 +155,7 @@ void pitz::daq::SingleEntryDoocs::FromDoocsToMemory(data::memory::ForServerBase*
         }
 
     }
+        break;
     case 15 :
     {
         IFFF*	  POLYPARA;

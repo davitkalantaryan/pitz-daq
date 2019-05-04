@@ -71,7 +71,7 @@ public:
     void* socket()const;
 
     void SetDoocsName(const char* doocsProperty);
-    bool LoadData();
+    bool LoadOrValidateData();
     void Disconnect();
     int ReadData();
     bool GetExpectedSizesAndCreateBuffers();
@@ -168,7 +168,7 @@ void SingleEntryZmqDoocs::SetDoocsName(const char* a_doocsProperty)
     m_doocsAddress = a_doocsProperty;
 }
 
-bool SingleEntryZmqDoocs::LoadData()
+bool SingleEntryZmqDoocs::LoadOrValidateData()
 {
     int nReturn;
     int nSamplesFromServer;
@@ -618,7 +618,7 @@ void DaqCollectorDZ::ThreadFunction(void)
             validList.clear();
             m_rw_lock.lock_shared();
             for(auto pEntry : m_listAll){
-                if(pEntry->LoadData()){
+                if(pEntry->LoadOrValidateData()){
                     validList.push_back(pEntry);
                 }
             }

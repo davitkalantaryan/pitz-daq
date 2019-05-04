@@ -189,16 +189,16 @@ void pitz::daq::EqFctUdpMcast::DataGetterThread(SNetworkStruct* /*pNet*/)
         }
         nBranchNum = pMemForRcv->SwapDataIfNecessary()%MAX_CHANNELS_NUM;
 
-        m_mutexForEntries.readLock();
+        m_mutexForEntries.lock_shared();
         pCurEntry = (SingleEntryUdp*)m_vMapper[nBranchNum];
-        if(!pCurEntry){m_mutexForEntries.unlock();continue;}
+        if(!pCurEntry){m_mutexForEntries.unlock_shared();continue;}
 
         nLastEventNumberHandled = pCurEntry->LastEventNumberHandled();
         nEventNumber = pMemForRcv->gen_event();
 
         if(nEventNumber<=nLastEventNumberHandled){
             // report on repetition (this is just warning forgot it :) )
-            m_mutexForEntries.unlock();
+            m_mutexForEntries.unlock_shared();
             continue;
         }
 
@@ -206,7 +206,7 @@ void pitz::daq::EqFctUdpMcast::DataGetterThread(SNetworkStruct* /*pNet*/)
         if(!pCurEntry->stack.GetFromStack(&pMemory)){
             pCurEntry->SetError(-3);
             if(!bErrorNoEntrySet){fprintf(stderr,"!!!!!!!!!!!!!!! No any entry in the stack!!!!!!!!!!!!!!!!!!\n");bErrorNoEntrySet=true;}
-            m_mutexForEntries.unlock();
+            m_mutexForEntries.unlock_shared();
             continue;
         }
 
@@ -254,7 +254,7 @@ void pitz::daq::EqFctUdpMcast::DataGetterThread(SNetworkStruct* /*pNet*/)
         // let's check whether this data should wait (become pending, untill previous package arrives) to make packages in correct order
         if( ((nEventNumber-nLastEventNumberHandled)>1)&&nLastEventNumberHandled ){
             pCurEntry->SetPendingBuffer(nEventNumber,pMemoryTmp);
-            m_mutexForEntries.unlock();
+            m_mutexForEntries.unlock_shared();
             continue;
         }
 
@@ -266,7 +266,7 @@ void pitz::daq::EqFctUdpMcast::DataGetterThread(SNetworkStruct* /*pNet*/)
         else{ bErrorNoEntrySet = false; }
         pCurEntry->SetLastEventNumberHandled(nEventNumber);
 
-        m_mutexForEntries.unlock();
+        m_mutexForEntries.unlock_shared();
         m_genEvent.set_value(nEventNumber);  // this is obsolete and will be removed from future releases
 
     } // while( m_nWork )

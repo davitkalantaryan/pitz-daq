@@ -11,12 +11,12 @@ DEFINES += DMSG
 include(../../common/common_qt/daqcollector_event_based_common.pri)
 
 INCLUDEPATH += $$MYDOOCS/include/zmq
+LIBS += -lzmq
 
 # LIBS += -lMCclass
 SOURCES += \
     $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp \
-    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.cpp \
-    $${PWD}/../../../src/tmp/mclistener.cpp
+    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.cpp
 
 HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.hpp \

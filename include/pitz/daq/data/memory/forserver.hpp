@@ -36,6 +36,8 @@ public:
         void SetParent(void* newParent);
         virtual void* buffer();
         virtual const void* buffer()const;
+        void* bufferForValue();
+        const void* bufferForValue()const;
         void* bufferForRoot();
         virtual void copyFrom(const ForServerBase* cM)=0;
         virtual size_t streamSize()const{return 12;}

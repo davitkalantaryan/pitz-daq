@@ -40,6 +40,17 @@ void data::memory::ForServerBase::SetParent(void* a_newParent)
 }
 
 
+void* data::memory::ForServerBase::bufferForValue()
+{
+    return m_rawBuffer+m_unOffset+pitz::daq::data::memory::offset::VALUE;
+}
+
+
+const void* data::memory::ForServerBase::bufferForValue()const
+{
+    return m_rawBuffer+m_unOffset+pitz::daq::data::memory::offset::VALUE;
+}
+
 
 void* data::memory::ForServerBase::bufferForRoot()
 {

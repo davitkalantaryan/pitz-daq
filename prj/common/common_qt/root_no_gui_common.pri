@@ -15,7 +15,8 @@ MYROOT_SYS_DIR = $$system(env | grep ROOT_SYS_DIR)
 #/opt/root/6.16.00
 
 equals(MYROOT_SYS_DIR,"") {
-    MYROOT_SYS_DIR = /afs/ifh.de/amd64_rhel50/products/root64/5.28.00
+    #MYROOT_SYS_DIR = /afs/ifh.de/amd64_rhel50/products/root64/5.28.00
+    MYROOT_SYS_DIR = /afs/ifh.de/amd64_rhel50/products/root64/5.20.00
     message("!!! MYROOT_SYS_DIR set in the project file: $$MYROOT_SYS_DIR")
 } else {
     MYROOT_SYS_DIR = $$(ROOT_SYS_DIR)

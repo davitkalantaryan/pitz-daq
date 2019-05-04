@@ -21,7 +21,7 @@ class SingleEntryDoocs : public SingleEntry
 {
 public:
     SingleEntryDoocs(entryCreationType::Type creationType,const char* entryLine);
-    ~SingleEntryDoocs();
+    virtual ~SingleEntryDoocs();
 
     //const char* specialStringForDoocsProperty()const;
     void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const;
@@ -36,7 +36,7 @@ public:
 
     void FromDoocsToMemory(data::memory::ForServerBase* pMemory, const EqData* dcsData);
 
-private:
+protected:
     char* m_doocsUrl;
     char* m_rootFormatStr;
     int m_dataType;

@@ -474,9 +474,9 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
             continue;
         }
 
-        m_mutexForEntries.readLock();
+        m_mutexForEntries.lock_shared();
         nEntries = m_nNumberOfEntries;
-        m_mutexForEntries.unlock();
+        m_mutexForEntries.unlock_shared();
 
         if(nEntries<1){
             SleepMs(2000);
@@ -504,7 +504,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
         file->cd(); gFile = file;
         DEBUG_APP_INFO(2," ");
 
-        m_mutexForEntries.readLock();
+        m_mutexForEntries.lock_shared();
         nEntries = 0;
         for(pCurEntry=m_pEntryFirst; pCurEntry; pCurEntry=pCurEntry->next){
             //DEBUG_("pCurEntry->type=%d, daq_name=%s, file=%p\n",pCurEntry->type,pCurEntry->daq_name,file);
@@ -519,7 +519,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
             //TBranch* pBranch;
             //pBranch->Set
         }
-        m_mutexForEntries.unlock();
+        m_mutexForEntries.unlock_shared();
 
         DEBUG_APP_INFO(1,"nEntries=%d",nEntries);
         nContinueFill = 1;
@@ -551,7 +551,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
                     nPreviousTime = currentTime.time;
                 }
             }
-            m_mutexForEntries.readLock();
+            m_mutexForEntries.lock_shared();
             while(m_fifoToFill.Extract(&pMemToProc)>0){
                 pCurEntry = (SingleEntry*)pMemToProc->Parent();
                 //pCurEntry->copyForRoot(pMemToProc);   // --> possible error place
@@ -586,16 +586,16 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
                     if( nFileSize >= m_rootLength.value() ) { nContinueFill = 0; }
                 }
             } // while(m_fifoToFill.Extract(&pMemToProc)){
-            m_mutexForEntries.unlock();
+            m_mutexForEntries.unlock_shared();
         }// while( (Close_File_R == 0) && (eq_fct_->ThreadStatus_.value() == 1) )
 
-        m_mutexForEntries.readLock();
+        m_mutexForEntries.lock_shared();
         for(pCurEntry=m_pEntryFirst; pCurEntry; pCurEntry=pCurEntry->next){
             pTree2 = pCurEntry->tree2();
             if(!pTree2){continue;}
             pTree2->AutoSave("SaveSelf");
         }
-        m_mutexForEntries.unlock();
+        m_mutexForEntries.unlock_shared();
 
 
         file->cd();
@@ -629,7 +629,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
         return;
     }
 
-    m_mutexForEntries.readLock();
+    m_mutexForEntries.lock_shared();
 
     for(pCurEntry= m_pEntryFirst;pCurEntry;pCurEntry=pCurEntry->next){
         if(pCurEntry->isPresent()){
@@ -647,7 +647,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
         } // if(pCurEntry->isPresent){
     } // for(pCurEntry= m_pEntryFrst;pCurEntry;pCurEntry=pCurEntry->next){
 
-    m_mutexForEntries.unlock();
+    m_mutexForEntries.unlock_shared();
 
     m_fifoForLocalFileDeleter.AddElement1(a_fileLocal);
     m_semaForLocalFileDeleter.post();

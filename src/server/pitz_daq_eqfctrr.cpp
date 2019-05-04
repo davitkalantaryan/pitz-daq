@@ -174,7 +174,7 @@ void pitz::daq::EqFctRR::DataGetterThread(SNetworkStruct* a_pNet)
     int nNoEntryErrorNumber=0;
 
     while(m_nWork){
-        m_mutexForEntries.readLock();
+        m_mutexForEntries.lock_shared();
         pNextOfLast = (SingleEntryRR*)a_pNet->last()->next;
         GetEventAndTime(&nEventNumber,&nTime);
         //printf("Ev=%d, tm=%d\n",nEventNumber,nTime);
@@ -216,7 +216,7 @@ void pitz::daq::EqFctRR::DataGetterThread(SNetworkStruct* a_pNet)
             }
 
         } // for(pCurEntry=pFirst;pCurEntry!=pLastPlus1;pCurEntry=pCurEntry->next){
-        m_mutexForEntries.unlock();
+        m_mutexForEntries.unlock_shared();
         m_genEvent.set_value(nEventNumber);
         nWaitMs = m_pollingPeriod.value();
         if(!nWaitMs){nWaitMs=1;}
