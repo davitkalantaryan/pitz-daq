@@ -37,10 +37,10 @@ private:
     void*           m_pSocket;
     size_t          m_expectedReadHeader2;
     size_t          m_expectedReadData;
-    int             m_nKnownDataType;
+    //int             m_nKnownDataType;
     int             m_nKnownSamples;
     int             m_nPort;
-    int             m_nReserved;
+    //int             m_nReserved;
     uint64_t        m_isValid : 1;
     uint64_t        m_isDataLoaded : 1;
     uint64_t        m_reserved : 62;
@@ -202,10 +202,10 @@ pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_cr
     m_pSocket = NEWNULLPTR;
     m_expectedReadHeader2 = 0;
     m_expectedReadData = 0;
-    m_nKnownDataType = PITZ_DAQ_UNSPECIFIED_DATA_TYPE;
+    //m_nKnownDataType = PITZ_DAQ_UNSPECIFIED_DATA_TYPE;
     m_nKnownSamples = PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES;
     m_nPort = PITZ_DAQ_UNKNOWN_ZMQ_PORT;
-    m_nReserved = 0;
+    //m_nReserved = 0;
     m_isValid = 0;
     m_isDataLoaded = 0;
     m_reserved = 0;
@@ -225,7 +225,7 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
     int nDataType;
     dmsg_hdr_t aDcsHeader;
     struct dmsg_header_v1* pHeaderV1;
-    data::memory::ForServerBase* pMemory;
+    data::memory::ForServerBase* pMemory=nullptr;
 
     size_t     more_size;
     int        more;
@@ -264,7 +264,7 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
         return NEWNULLPTR;
     }
 
-    if(nDataType != m_nKnownDataType){
+    if(nDataType != m_dataType){
         //return PITZ_DAQ_DATA_TYPE_MISMATCH;
         // todo: set proper error code
         return NEWNULLPTR;
@@ -332,11 +332,11 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 
     nDataTypeFromServer = dataOut.type();
 
-    if((nDataTypeFromServer!=m_nKnownDataType)&&(m_nKnownDataType!=PITZ_DAQ_UNSPECIFIED_DATA_TYPE)){
+    if((nDataTypeFromServer!=m_dataType)&&(m_dataType!=PITZ_DAQ_UNSPECIFIED_DATA_TYPE)){
         // todo: error reporting
         return false;
     }
-    m_nKnownDataType = nDataTypeFromServer;
+    m_dataType = nDataTypeFromServer;
 
     nSamplesFromServer = dataOut.length();
     if((nSamplesFromServer!=m_nKnownSamples)&&(m_nKnownSamples!=PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES)){
@@ -402,7 +402,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 
              if (strncmp (propToSubscribe.c_str(), up->str_data.str_data_val, len)) continue;
 
-             this->m_nKnownDataType = up->i1_data;
+             this->m_dataType = up->i1_data;
 
              nReturn = 0;
              break;
@@ -420,7 +420,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         time_t tm;
         char         *sp;
         dataOut.get_ustr (&this->m_nPort, &f1, &f2, &tm, &sp, 0);
-        this->m_nKnownDataType = static_cast<int>(f1);
+        this->m_dataType = static_cast<int>(f1);
     }
         break;
     }  // switch(nType){
@@ -452,6 +452,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         return false;
     }
 
+    this->CreateAllMemories();
     m_isValid = 1;
     m_isDataLoaded = 1;
 
@@ -467,7 +468,7 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
     //EqDataBlock* db;
     //char* dp;
 
-    switch (m_nKnownDataType) {
+    switch (m_dataType) {
 
     case DATA_INT:
         m_expectedReadData = static_cast<size_t>(m_nSamples) * sizeof(int);

@@ -1,3 +1,6 @@
+
+include(../../common/common_qt/sys_common.pri)
+
 MYZMQ = /afs/ifh.de/group/pitz/doocs/zmq
 
 # TEMPLATE = lib

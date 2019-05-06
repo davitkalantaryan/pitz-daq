@@ -625,10 +625,14 @@ bool pitz::daq::SNetworkStruct::AddNewEntry(SingleEntry *a_newEntry)
 {
     //mutex.lock();
 
-    if(!a_newEntry->CreateAllMemories()){return false;}
+    if(!a_newEntry->CreateAllMemories()){
+#ifndef NEW_GETTER_THREAD
+        return false;
+#endif
+    }
 
     // case of first
-    if(m_first && !m_last){m_first->next = a_newEntry;a_newEntry->prev = m_first;m_first=NULL;}
+    if(m_first && !m_last){m_first->next = a_newEntry;a_newEntry->prev = m_first;m_first=nullptr;}
     //a_newEntry->m_pNetworkParent = NULL;
     if(m_first){
         a_newEntry->prev = m_first->prev;

@@ -116,6 +116,12 @@ int pitz::daq::EqFctCollector::write(fstream &a_fprt)
 
 void pitz::daq::EqFctCollector::init(void)
 {
+#ifdef NEW_GETTER_THREAD
+    STDN::thread* pThread;
+    SNetworkStruct* pNetworkToAdd2;
+    int i;
+#endif  // #ifdef NEW_GETTER_THREAD
+
     // old complete
     {
         FILE* fpConfig;
@@ -141,7 +147,8 @@ void pitz::daq::EqFctCollector::init(void)
 
         DEBUG_APP_INFO(1,"!!!!!!!!!!!!!!!!!!!!!!!!!!!! flName=%s, filePtr=%p ", vcNewConfFileName, fpConfig );
 
-        if(!fpConfig){return;}
+        //if(!fpConfig){return;}
+        if(!fpConfig){goto finalizeStuffPoint;}
 
         while ( fgets(data, data_length, fpConfig) != NULL)
         {
@@ -153,7 +160,8 @@ void pitz::daq::EqFctCollector::init(void)
     }
 
     // old post_init
-    {
+    {        
+finalizeStuffPoint:
         DEBUG_APP_INFO(1," ");
 
         InitSocketLibrary();
@@ -164,6 +172,27 @@ void pitz::daq::EqFctCollector::init(void)
 
         m_threadRoot = STDN::thread(&EqFctCollector::RootThreadFunction,this);
         m_threadLocalFileDeleter = STDN::thread(&EqFctCollector::LocalFileDeleterThread,this);
+#ifdef NEW_GETTER_THREAD
+        m_nNumberOfFillThreadsFinal = m_nNumberOfFillThreadsDesigned;
+        for(i=0;i<m_nNumberOfFillThreadsDesigned;++i){
+
+            pNetworkToAdd2 = new SNetworkStruct(this,m_networkLast);
+            if(!pNetworkToAdd2){
+                continue;
+            }
+            pThread = new STDN::thread(&EqFctCollector::DataGetterThreadPrivate,this,pNetworkToAdd2);
+            pNetworkToAdd2->SetThread(pThread);
+
+            if(!m_networkFirst){
+                m_networkFirst=pNetworkToAdd2;
+            }
+            else{
+                //m_networkLast->prev()
+            }
+            m_networkLast = pNetworkToAdd2;
+        }
+        m_pLastNetworkAdded = m_networkFirst;
+#endif  // #ifdef NEW_GETTER_THREAD
     }
 }
 
@@ -315,32 +344,38 @@ int pitz::daq::EqFctCollector::parse_old_config2(const std::string& a_daqConfFil
 
 bool pitz::daq::EqFctCollector::AddNewEntry(entryCreationType::Type a_creationType,
                                             const char* a_entryLine)
-{
-    SNetworkStruct* pNetworkToAdd;
-    SingleEntry *pCurEntry(NULL);
-    bool bRet(false), bNewCreated(false);
+{    
+#ifndef NEW_GETTER_THREAD
+    bool bNewCreated(false), bNetworkShouldBeDeleted(false);
+#endif
+    SNetworkStruct* pNetworkToAdd2;
+    SingleEntry *pCurEntry(nullptr);
+    bool bRet(false);
 
     m_mutexForEntries.writeLock();
 
+#ifndef NEW_GETTER_THREAD
     if(m_nNumberOfFillThreadsFinal<m_nNumberOfFillThreadsDesigned )
     {
         STDN::thread* pThread;
-        pNetworkToAdd = new SNetworkStruct(this,m_networkLast);
-        if(!pNetworkToAdd){
+        pNetworkToAdd2 = new SNetworkStruct(this,m_networkLast);
+        if(!pNetworkToAdd2){
             bRet = false;
             goto returnPoint;
         }
-        pThread = new STDN::thread(&EqFctCollector::DataGetterThreadPrivate,this,pNetworkToAdd);
-        pNetworkToAdd->SetThread(pThread);
+        pThread = new STDN::thread(&EqFctCollector::DataGetterThreadPrivate,this,pNetworkToAdd2);
+        pNetworkToAdd2->SetThread(pThread);
         m_nNumberOfFillThreadsFinal++;
         bNewCreated = true;
     }
-    else{
-        pNetworkToAdd = m_pLastNetworkAdded->next();
-        if(!pNetworkToAdd){pNetworkToAdd=m_networkFirst;}
+    else
+#endif
+    {
+        pNetworkToAdd2 = m_pLastNetworkAdded->next();
+        if(!pNetworkToAdd2){pNetworkToAdd2=m_networkFirst;}
     }
 
-    if(!pNetworkToAdd){bRet = false;goto returnPoint;}
+    if(!pNetworkToAdd2){bRet = false;goto returnPoint;}
 
     try{
         //if(memcmp(a_entryLine,"TDS_X2TIMER_EVENT2_20150821",strlen("TDS_X2TIMER_EVENT2_20150821"))==0){
@@ -350,31 +385,60 @@ bool pitz::daq::EqFctCollector::AddNewEntry(entryCreationType::Type a_creationTy
     }
     catch(...){
         bRet = false;
-        pCurEntry = NULL;
+        pCurEntry = nullptr;
     }
 
     if(!pCurEntry){bRet = false;goto returnPoint;}
     if(!IsAllowedToAdd2(pCurEntry)){bRet = false;goto returnPoint;}
 
-    bRet = pNetworkToAdd->AddNewEntry(pCurEntry);
+    bRet = pNetworkToAdd2->AddNewEntry(pCurEntry);
+#ifndef NEW_GETTER_THREAD
     if(!bRet){
-        delete pCurEntry;pCurEntry=NULL;
-        if(bNewCreated){delete pNetworkToAdd;--m_nNumberOfFillThreadsFinal;pNetworkToAdd=NULL;}
+        //delete pCurEntry;pCurEntry=NULL;
+        //bEntryShouldBeDeleted = true;
+        if(bNewCreated){
+            //delete pNetworkToAdd;pNetworkToAdd=NULL;
+            bNetworkShouldBeDeleted = true;
+            --m_nNumberOfFillThreadsFinal;
+            //pNetworkToAdd=NULL;
+        }
         goto returnPoint;
     }
 
-    if(bNewCreated){if(!m_networkFirst){m_networkFirst=pNetworkToAdd;}m_networkLast = pNetworkToAdd;}
+    if(bNewCreated){
+        if(!m_networkFirst){
+            m_networkFirst=pNetworkToAdd2;
+        }
+        else{
+            //m_networkLast->prev()
+        }
+        m_networkLast = pNetworkToAdd2;
+    }
+#endif
 
     //if(pNetworkToAdd == m_networkFirst){m_pEntryFirst=m_networkFirst->first();}
     m_pEntryFirst=m_networkFirst->first();
     ++m_nNumberOfEntries;
     bRet = true;
-    m_pLastNetworkAdded = pNetworkToAdd;
+    m_pLastNetworkAdded = pNetworkToAdd2;
 
 returnPoint:
 
     m_mutexForEntries.unlock();
-    if(!bRet && pNetworkToAdd && pCurEntry){ pNetworkToAdd->RemoveEntry(pCurEntry);}
+    //if(!bRet && !bNe && pCurEntry){ pNetworkToAdd->RemoveEntry(pCurEntry);}
+    if(!bRet){
+#ifdef NEW_GETTER_THREAD
+        pNetworkToAdd2->RemoveEntry(pCurEntry);
+#else
+        if(!bNetworkShouldBeDeleted){
+            pNetworkToAdd2->RemoveEntry(pCurEntry);
+        }
+        else{
+            delete pNetworkToAdd2;
+        }
+#endif
+        delete pCurEntry;
+    }
     m_numberOfEntries.set_value(m_nNumberOfEntries);
     m_numberOfFillThreadsFinal.set_value(m_nNumberOfFillThreadsFinal);
     return bRet;
@@ -397,7 +461,7 @@ void pitz::daq::EqFctCollector::cancel(void)
     m_threadRoot.join();
     m_threadLocalFileDeleter.join();
 
-    for(SNetworkStruct* pNetStr=m_networkFirst;pNetStr != NULL;){
+    for(SNetworkStruct* pNetStr=m_networkFirst;pNetStr;){
         pNetStrNext = pNetStr->next();
         delete pNetStr;
         pNetStr = pNetStrNext;
@@ -428,7 +492,7 @@ void pitz::daq::EqFctCollector::WriteEntriesToConfig()const
         }
 
         fclose(fpConfig);
-        fpConfig=NULL;
+        fpConfig=nullptr;
     }
 }
 

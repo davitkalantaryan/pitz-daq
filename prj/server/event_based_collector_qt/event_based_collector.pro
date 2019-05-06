@@ -6,6 +6,7 @@
 
 DEFINES += DMSG
 #DEFINES += DEBUG_APP
+DEFINES += NEW_GETTER_THREAD
 
 
 include(../../common/common_qt/daqcollector_event_based_common.pri)

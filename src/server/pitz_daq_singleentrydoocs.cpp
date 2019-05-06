@@ -11,6 +11,10 @@
 #define SPECIAL_KEY_DATA_SAMPLES "samples"
 #define DATA_TYPE_TAKE_FR_DOOCS -1
 
+#ifndef PITZ_DAQ_UNSPECIFIED_DATA_TYPE
+#define PITZ_DAQ_UNSPECIFIED_DATA_TYPE  DATA_TYPE_TAKE_FR_DOOCS
+#endif  // #ifndef PITZ_DAQ_UNKNOWN_DATA_TYPE
+
 /*////////////////////////////////////////////////////*/
 
 pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creationType,const char* a_entryLine)
@@ -244,35 +248,28 @@ pitz::daq::data::memory::ForServerBase* pitz::daq::SingleEntryDoocs::CreateMemor
     case  1 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:int_value/I");
         return new data::memory::M01(this);
-    break;
     case  2 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:float_value/F");
         return new data::memory::M02(this);
-    break;
     case  3 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:char_array[60]/C");
         return new data::memory::M03(this,60);
-    break;
     case  4 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:int_value/I");
         return new data::memory::M01(this);
-    break;
     case  6 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:float_value/F");
         return new data::memory::M02(this);
-    break;
     case 14 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:IIII_array[60]/C");
         return new data::memory::M15(this);
     case 15 :
         copyString(&m_rootFormatStr,"time/I:buffer/I:IFFF_array[60]/C");
         return new data::memory::M15(this);
-    break;
     case 19 :
-        m_rootFormatStr = (char*)malloc(1024);
+        m_rootFormatStr = static_cast<char*>(malloc(1024));
         snprintf(m_rootFormatStr,1023,"time/I:buffer/I:array_value[%d]/F",m_nSamples);
         return new data::memory::M19(this,m_nSamples,3*sizeof(int));
-    break;
     case 119:
         m_rootFormatStr = (char*)malloc(1024);
         snprintf(m_rootFormatStr,1023,"seconds/I:gen_event/I:array_value[%d]/F",m_nSamples);
@@ -284,5 +281,5 @@ pitz::daq::data::memory::ForServerBase* pitz::daq::SingleEntryDoocs::CreateMemor
     break;
     }
 
-    return NULL;
+    return nullptr;
 }

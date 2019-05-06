@@ -122,7 +122,7 @@ public:
     void SetLastEventNumberHandled(int a_nLastEventNumber);
 
     // This API will be used only by
-private:
+protected:
     bool CreateAllMemories(); // called after constructor
     void SetNetworkParent(SNetworkStruct* a_pNetworkParent);
         

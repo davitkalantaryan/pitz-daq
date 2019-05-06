@@ -16,11 +16,12 @@ include(../../common/common_qt/doocs_server_common.pri)
 equals(CODENAME,"Boron") { 
     #message ("!!!!! No cpp 11 used")
     DEFINES += no_cpp11
-    QMAKE_CXXFLAGS += -std=c++0x
+    #QMAKE_CXXFLAGS += -std=c++0x
 }
-else { 
+else:equals(CODENAME,"bionic") {
     #message ("!!!!! cpp 11 is used")
-    QMAKE_CXXFLAGS += -std=c++0x
+    #QMAKE_CXXFLAGS += -std=c++0x
+    DEFINES += PLUGIN_MANAGER_LOADING_DISABLE
 }
 INCLUDEPATH += ../../../include
 INCLUDEPATH += ../../../contrib/cpp-raft/include

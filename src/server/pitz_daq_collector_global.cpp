@@ -25,14 +25,15 @@ void eq_init_prolog() 	// called once before init of all EqFct's
 {
 
     printf("version 4\n");
-    //printf("Press ay key, then press Enter to continue\n");fflush(stdout);
-    //getchar();
+    printf("Press ay key, then press Enter to continue\n");fflush(stdout);
+    getchar();
     if(s_SHMKEY){return;}
 
 #ifdef DEBUG_APP
     getchar();
 #endif
 
+#ifndef PLUGIN_MANAGER_LOADING_DISABLE
     /*
      * https://root.cern.ch/phpBB3/viewtopic.php?t=9816
      */
@@ -41,6 +42,8 @@ void eq_init_prolog() 	// called once before init of all EqFct's
        "TStreamerInfo",
        "RIO",
        "TStreamerInfo()");
+
+#endif  // #ifndef PLUGIN_MANAGER_LOADING_DISABLE
 
     s_SHMKEY = ftok("/export/doocs/server/daqtimeZMQ_server/adc_daqtimeZMQ",'a');
     s_shmid = shmget(s_SHMKEY, (sizeof(H_struct))*(s_H_count + 1), 0664);

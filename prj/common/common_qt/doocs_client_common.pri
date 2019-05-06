@@ -19,6 +19,7 @@ include(../../common/common_qt/sys_common.pri)
 SYSTEM_LIB = $$MYDOOCS/system_arch/$$CODENAME/lib
 
 # message ("!!!!! No cpp 11 used") # todo: calculate in the sys_common.pri
+# DOOCS always requires cpp 14
 QMAKE_CXXFLAGS += -std=c++0x
 
 equals(CODENAME,"Boron") {

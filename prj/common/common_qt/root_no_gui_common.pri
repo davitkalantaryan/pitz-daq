@@ -34,6 +34,7 @@ message("ROOTCFLAGS=$$ROOTCFLAGS")
 
 LIBS += -L/doocs/develop/kalantar/programs/cpp/works/pitz-daq/sys/$$CODENAME/lib
 LIBS += $$system($$MYROOT_SYS_DIR/bin/root-config --libs)
+LIBS += -ltbb
 
 # this line is not needed for compilation but some
 # IDE does not shows ROOT headers properly if this line is not there
