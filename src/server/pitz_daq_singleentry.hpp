@@ -184,7 +184,10 @@ private:
     SingleEntry *m_first, *m_last;
     STDN::thread* m_pThread;
     SNetworkStruct *m_prev, *m_next;
+    uint64_t    m_isRunning : 1;
+    uint64_t    m_bitwiseReserved : 63 ;
     int m_nNumberOfEntries;
+    int m_nReserved;
 
 };
 

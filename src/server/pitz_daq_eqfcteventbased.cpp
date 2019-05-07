@@ -85,6 +85,13 @@ int pitz::daq::EqFctEventBased::fct_code()
 }
 
 
+void pitz::daq::EqFctEventBased::cancel(void)
+{
+    printf("!!!!!!!!!!!!!!!!!!!!!!!!!! %s\n",__FUNCTION__);
+    m_nWork = 0;
+}
+
+
 pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
     SingleEntryZmqDoocs* pEntry = new SingleEntryZmqDoocs(a_creationType,a_entryLine);
@@ -223,6 +230,7 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
 {
     int nReturn;
     int nDataType;
+    int nEventNumber=0, nSeconds=0;
     dmsg_hdr_t aDcsHeader;
     struct dmsg_header_v1* pHeaderV1;
     data::memory::ForServerBase* pMemory=nullptr;
@@ -257,6 +265,8 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
     case 1:
         pHeaderV1 = reinterpret_cast<struct dmsg_header_v1*>(&aDcsHeader);
         nDataType = pHeaderV1->type;
+        nEventNumber = static_cast<int>(pHeaderV1->ident);
+        nSeconds = static_cast<int>(pHeaderV1->sec);
         break;
     default:
         //return PITZ_DAQ_EV_BASED_DCS_ZMQ_UNKNOWN_HEADER;
@@ -306,6 +316,9 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
             this->stack.SetToStack(pMemory);
             return NEWNULLPTR;
         }
+
+        pMemory->time() = nSeconds;
+        pMemory->gen_event() = nEventNumber;
     }
 
     m_isValid = 1;

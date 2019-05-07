@@ -147,6 +147,28 @@ void pitz::daq::EqFctCollector::init(void)
 
         DEBUG_APP_INFO(1,"!!!!!!!!!!!!!!!!!!!!!!!!!!!! flName=%s, filePtr=%p ", vcNewConfFileName, fpConfig );
 
+#ifdef NEW_GETTER_THREAD
+        m_nNumberOfFillThreadsFinal = m_nNumberOfFillThreadsDesigned;
+        for(i=0;i<m_nNumberOfFillThreadsDesigned;++i){
+
+            pNetworkToAdd2 = new SNetworkStruct(this,m_networkLast);
+            if(!pNetworkToAdd2){
+                continue;
+            }
+            pThread = new STDN::thread(&EqFctCollector::DataGetterThreadPrivate,this,pNetworkToAdd2);
+            pNetworkToAdd2->SetThread(pThread);
+
+            if(!m_networkFirst){
+                m_networkFirst=pNetworkToAdd2;
+            }
+            else{
+                //m_networkLast->prev()
+            }
+            m_networkLast = pNetworkToAdd2;
+        }
+        m_pLastNetworkAdded = m_networkFirst;
+#endif  // #ifdef NEW_GETTER_THREAD
+
         //if(!fpConfig){return;}
         if(!fpConfig){goto finalizeStuffPoint;}
 
@@ -172,27 +194,6 @@ finalizeStuffPoint:
 
         m_threadRoot = STDN::thread(&EqFctCollector::RootThreadFunction,this);
         m_threadLocalFileDeleter = STDN::thread(&EqFctCollector::LocalFileDeleterThread,this);
-#ifdef NEW_GETTER_THREAD
-        m_nNumberOfFillThreadsFinal = m_nNumberOfFillThreadsDesigned;
-        for(i=0;i<m_nNumberOfFillThreadsDesigned;++i){
-
-            pNetworkToAdd2 = new SNetworkStruct(this,m_networkLast);
-            if(!pNetworkToAdd2){
-                continue;
-            }
-            pThread = new STDN::thread(&EqFctCollector::DataGetterThreadPrivate,this,pNetworkToAdd2);
-            pNetworkToAdd2->SetThread(pThread);
-
-            if(!m_networkFirst){
-                m_networkFirst=pNetworkToAdd2;
-            }
-            else{
-                //m_networkLast->prev()
-            }
-            m_networkLast = pNetworkToAdd2;
-        }
-        m_pLastNetworkAdded = m_networkFirst;
-#endif  // #ifdef NEW_GETTER_THREAD
     }
 }
 
@@ -445,14 +446,32 @@ returnPoint:
 }
 
 
-
+#ifdef NEW_GETTER_THREAD
+int pitz::daq::EqFctCollector::clear(void)
+#else
 void pitz::daq::EqFctCollector::cancel(void)
+#endif
 {
     SNetworkStruct* pNetStrNext;
 
+    printf("!!!!!!!!!!!!!!!!!!!!!!!!!! %s, netStr = %p\n",__FUNCTION__,m_networkFirst);
+
+    for(SNetworkStruct* pNetStr=m_networkFirst;pNetStr;){
+        printf("!!!!!! stopping network\n");
+        pNetStrNext = pNetStr->next();
+        pNetStr->StopAndDeleteThread();
+        pNetStr = pNetStrNext;
+    }
+
     WriteEntriesToConfig();
 
-    if(m_nWork==0){return;}
+    if(m_nWork==0){
+#ifdef NEW_GETTER_THREAD
+        return 0;
+#else
+        return;
+#endif
+    }
     m_nWork = 0;
 
     m_semaForRootThread.post();
@@ -462,14 +481,19 @@ void pitz::daq::EqFctCollector::cancel(void)
     m_threadLocalFileDeleter.join();
 
     for(SNetworkStruct* pNetStr=m_networkFirst;pNetStr;){
+        printf("!!!!!! deleting network\n");
         pNetStrNext = pNetStr->next();
         delete pNetStr;
         pNetStr = pNetStrNext;
     }
 
+
     CleanSocketLibrary();
 
-    DEBUG_APP_INFO(1," ");
+    DEBUG_APP_INFO(1," ");    
+#ifdef NEW_GETTER_THREAD
+    return 0;
+#endif
 }
 
 
@@ -480,13 +504,15 @@ void pitz::daq::EqFctCollector::WriteEntriesToConfig()const
 
     snprintf(vcNewConfFileName,511,"%s.nconf",name().c_str());
     fpConfig = fopen(vcNewConfFileName,"w");
-    DEBUG_APP_INFO(2,"!!!!!!!!!!!!!!!!!!!!!!!!!!!! flName=%s, filePtr=%p ", vcNewConfFileName, fpConfig );
+    DEBUG_APP_INFO(2,"!!!!!!!!!!!!!!!!!!!!!!!!!!!! flName=%s, filePtr=%p, entryFirst=%p ", vcNewConfFileName, fpConfig, m_pEntryFirst );
 
     if(fpConfig){
         SingleEntry* pEntry = m_pEntryFirst;
 
         while(pEntry){
+            DEBUG_APP_INFO(2," ");
             pEntry->WriteContentToTheFile(fpConfig);
+            DEBUG_APP_INFO(2," ");
             fprintf(fpConfig,"\n");
             pEntry = pEntry->next;
         }
@@ -684,6 +710,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
     char vcBuffer[1024];
 
     snprintf(vcBuffer,1023,"dccp -d 0 %s %s", a_fileLocal.c_str(), a_fileRemote.c_str());
+    DEBUG_APP_INFO(2,"executing \"%s\"\n",vcBuffer);
     if(system(vcBuffer)!=0){
         if(m_unErrorUnableToWriteToDcacheNum++==0){
             // send an email

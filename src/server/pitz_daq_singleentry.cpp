@@ -543,6 +543,9 @@ pitz::daq::SNetworkStruct::SNetworkStruct(EqFct* a_parent, SNetworkStruct* a_pre
     if(a_prev){m_first = a_prev->m_last;} // keep last from prev
     else {m_first = NULL;}
     m_nNumberOfEntries = 0;
+    m_nReserved = 0;
+    m_isRunning = 0;
+    m_bitwiseReserved = 0;
 }
 
 
@@ -583,17 +586,20 @@ void pitz::daq::SNetworkStruct::SetThread(STDN::thread* a_pThread)
 {
     StopAndDeleteThread();
     m_pThread = a_pThread;
+    m_isRunning = 1;
 }
 
 void pitz::daq::SNetworkStruct::StopAndDeleteThread()
 {
     if(m_pThread){
-        pthread_t handleToThread = (pthread_t)m_pThread->native_handle();
+        ::STDN::thread* pThread = m_pThread;
+        m_isRunning = 0;
+        m_pThread = nullptr;
+        pthread_t handleToThread = (pthread_t)pThread->native_handle();
         pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
 
-        m_pThread->join();
-        delete m_pThread;
-        m_pThread = NULL;
+        pThread->join();
+        delete pThread;
     }
 }
 

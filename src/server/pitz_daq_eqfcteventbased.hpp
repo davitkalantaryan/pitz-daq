@@ -23,6 +23,7 @@ public:
 
 protected:
     virtual int  fct_code(void);
+    void cancel(void);
 
     void DataGetterThread(SNetworkStruct* pNet);
     pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type creationType,const char* entryLine);

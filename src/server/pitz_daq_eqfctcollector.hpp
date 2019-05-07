@@ -30,8 +30,12 @@ private:
 
     // API inherited from EqFct,
 protected:
-    void init(void) __OVERRIDE__ __FINAL__ ; // use complete (called before init) and post_init (called after init)
+    void init(void) __OVERRIDE__ __FINAL__ ; // use complete (called before init) and post_init (called after init) or online (before)
+#ifdef NEW_GETTER_THREAD
+    int clear(void) __OVERRIDE__ __FINAL__ ;  // use 'virtual voi cancel(void)' in the child (called before cancel)
+#else
     void cancel(void) __OVERRIDE__ __FINAL__ ; // better to use 'virtual int clear(void)' in the child
+#endif
     int  write          (fstream &fprt) __OVERRIDE__ __FINAL__;
 
     // API can be used, as well inherited by child
