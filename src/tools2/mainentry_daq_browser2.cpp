@@ -27,8 +27,6 @@
 #define HANDLE_MEM_DEF(...)
 #endif
 
-static mxArray*  MatlabGetMultipleBranchesForTimeInterval2(int a_argc, char* a_argv[]);
-
 int main(int a_argc, char* a_argv[])
 {
     printf("argc=%d, argv=%p\n",a_argc,static_cast<void*>(a_argv));
@@ -44,6 +42,7 @@ int main(int a_argc, char* a_argv[])
     return 0;
 }
 
+#if 0
 
 static mxArray* DataToMatlab( const ::std::list< pitz::daq::BranchOutputForUserInfo* >& a_data );
 
@@ -182,3 +181,5 @@ static size_t InfoToMatlabRaw(mxClassID* a_pClsIdOfData,mxArray* a_pMatlabArray,
 
     return unItemSize;
 }
+
+#endif

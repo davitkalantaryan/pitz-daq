@@ -66,12 +66,7 @@ INCLUDEPATH += $${PWD}/../../../src/tools2
 
 SOURCES += \
     $${PWD}/../../../src/tools2/mainentry_daq_browser2.cpp                  \
-    $${PWD}/../../../src/tools2/mexentry_daq_browser2.cpp                   \
-    $${PWD}/../../../src/tools2/daq_root_reader.cpp                         \
-    $${PWD}/../../../src/tools2/pitz_daq_data_memory_base.cpp               \
-    $${PWD}/../../../src/tools2/pitz_daq_data_indexing.cpp                  \
-    $${PWD}/../../../src/tools2/pitz_daq_data_memory_forclient.cpp          \
-    $${PWD}/../../../src/tools2/pitz_daq_data_entryinfo.cpp
+    $${PWD}/../../../src/tools2/mexentry_daq_browser2.cpp
 
 HEADERS += \
     $${PWD}/../../../src/tools2/pitz_daq_root_for_matlab_false.hpp          \

@@ -156,14 +156,12 @@ static callbackReturn::Type TimeComparePrivate(void* a_pData,const data::memory:
     return callbackReturn::Collect;
 }
 
-
 static int GetMultipleBranchesFromFileStatic(
         const char* a_rootFileName,
         ::std::list< BranchOutputForUserInfo* >* a_pOutputIn,
         ::std::list< BranchOutputForUserInfo* >* a_pOutputOut,
         TypeContinue a_fpContinue, void* a_pClbkData)
 {
-    BranchOutputForUserInfo* pUserOut;
     const char* cpcFileName(a_rootFileName);
     const char* cpcDaqEntryName;
     TBranch *pBranch;
@@ -182,7 +180,6 @@ static int GetMultipleBranchesFromFileStatic(
     data::memory::ForClient aMemory(data::EntryInfoBase(),nullptr);
     data::memory::ForClient* pMemToAdd;
     callbackReturn::Type aClbkReturn;
-    //bool bMemoryInitNeeded = true;
 
     //if(this->m_clbkType != callbackN::Type::MultiEntries)
     //{
@@ -225,8 +222,7 @@ static int GetMultipleBranchesFromFileStatic(
     for(pOutBranchItem=a_pOutputIn->begin();pOutBranchItem!=pOutBranchItemEnd;){
 
 nextBranchPreparedInAdvance:
-        pUserOut = (*pOutBranchItem);
-        cpcDaqEntryName = pUserOut->userClbk->branchName.c_str();
+        cpcDaqEntryName = (*pOutBranchItem)->userClbk->branchName.c_str();
 
         pTree = static_cast<TTree *>(tFile->Get(cpcDaqEntryName));
         if(!pTree){
@@ -250,10 +246,7 @@ nextBranchPreparedInAdvance:
                          cpcDataType,aBrInfo.itemsCount);
 
         for(nIndexEntry=0;nIndexEntry<numberOfEntriesInTheFile;++nIndexEntry){
-            //if(bMemoryInitNeeded) // this is not needed function takes care
-            {
-                aMemory.SetBranchInfo(pUserOut->info);
-            }
+            aMemory.SetBranchInfo((*pOutBranchItem)->info);
             pBranch->SetAddress(aMemory.rawBuffer());
             pBranch->GetEntry(nIndexEntry);
 
@@ -261,15 +254,22 @@ nextBranchPreparedInAdvance:
             aClbkReturn = a_fpContinue(a_pClbkData,aMemory);
             switch(aClbkReturn){
             case callbackReturn::Collect:
-                pMemToAdd = new data::memory::ForClient(aMemory,pUserOut);
-                pUserOut->data.push_back(pMemToAdd);
+                pMemToAdd = new data::memory::ForClient(aMemory,(*pOutBranchItem));
+                (*pOutBranchItem)->data.push_back(pMemToAdd);
                 break;
             case callbackReturn::SkipThisEntry:
                 continue;
             case callbackReturn::StopThisBranch:
                 pOutBranchItemTmp = pOutBranchItem++;
                 a_pOutputOut->splice(a_pOutputOut->end(),*a_pOutputIn,pOutBranchItemTmp);
-                goto nextBranchPreparedInAdvance;
+                if(pOutBranchItem!=pOutBranchItemEnd){
+                    goto nextBranchPreparedInAdvance;
+                }
+                else{
+                    goto loopFinished;
+                }
+
+                //continue;
             case callbackReturn::StopForAll:
                 nReturn = 0;
                 goto returnPoint;
@@ -282,7 +282,8 @@ nextBranchPreparedInAdvance:
 nextBranchItem:
         ++pOutBranchItem;
 
-    }
+    }  // for(pOutBranchItem=a_pOutputIn->begin();pOutBranchItem!=pOutBranchItemEnd;){
+loopFinished:
 
     nReturn = 0;
 returnPoint:
@@ -300,7 +301,6 @@ returnPoint:
 
     return nReturn;
 }
-
 
 static bool GetDataTypeAndCountStatic(const TBranch* a_pBranch, ::std::list< BranchOutputForUserInfo* >::iterator a_pOutBranchItem)
 {

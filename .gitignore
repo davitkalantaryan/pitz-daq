@@ -5,6 +5,7 @@
 .tmp/*
 
 /prj/*/build-*
+tmp.root.file.root
 
 src/*/*/*/matlab
 src/*/*/*/*.mat
