@@ -12,11 +12,11 @@
 
 TARGET = $$qtLibraryTarget($$TARGET)
 
-message("mex_common.pro")
-include(../../common/common_qt/sys_common.pri)
+#message("mex_common.pro")
+#include(../../common/common_qt/sys_common.pri)
 
 #TEMPLATE = plugin
-TEMPLATE = lib
+#TEMPLATE = lib
 
 INCLUDEPATH += /opt/matlab/current/extern/include
 
@@ -36,8 +36,10 @@ INCLUDEPATH += /afs/ifh.de/SL/6/x86_64/opt/matlab/R2016b/extern/include
 #QMAKE_EXTRA_TARGETS += copy_mex_file
 #copy_mex_file.commands = "cp "
 #POST_TARGETDEPS += copy_mex_file
-DESTDIR = $$DEEPNESS/$$SYSTEM_PATH/mbin
-QMAKE_EXTENSION_SHLIB = mexa64
+
+#DESTDIR = $$DEEPNESS/$$SYSTEM_PATH/mbin
+#QMAKE_EXTENSION_SHLIB = mexa64
+
 #TARGET_EXT = mexa64
 #TARGET = name_of_application
 #CONFIG += no_plugin_name_prefix

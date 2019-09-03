@@ -4,6 +4,8 @@
 *.pro.user*
 .tmp/*
 
+/prj/*/build-*
+
 src/*/*/*/matlab
 src/*/*/*/*.mat
 src/*/*/*/*.root
