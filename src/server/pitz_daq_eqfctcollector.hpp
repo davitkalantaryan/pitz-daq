@@ -8,6 +8,7 @@
 #include "pitz_daq_collectorproperties.hpp"
 #include <stdint.h>
 #include <common/lists.hpp>
+#include <pitz_daq_internal.h>
 
 #define     CODE_EVENT_BASED_DAQ  301	// eq_fct_type number for the .conf file
 
@@ -32,9 +33,9 @@ private:
 protected:
     void init(void) __OVERRIDE__ __FINAL__ ; // use complete (called before init) and post_init (called after init) or online (before)
 #ifdef NEW_GETTER_THREAD
-    int clear(void) __OVERRIDE__ __FINAL__ ;  // use 'virtual voi cancel(void)' in the child (called before cancel)
+    int clear(void) __OVERRIDE__ __FINAL__ ;  // use 'virtual void cancel(void)' in the child (called before cancel)
 #else
-    void cancel(void) __OVERRIDE__ __FINAL__ ; // better to use 'virtual int clear(void)' in the child
+    void cancel(void) __OVERRIDE__ ; // better to use 'virtual int clear(void)' in the child
 #endif
     int  write          (fstream &fprt) __OVERRIDE__ __FINAL__;
 
@@ -65,6 +66,11 @@ public:
     int  parse_old_config2(const std::string& daqConfFilePath);
     void IncrementErrors(const char* entryName);
     void DecrementErrors(const char* entryName);
+
+protected:
+    void TemporaryStopRootThreadSync();
+    void DecrementRootStopCount();
+    int  shouldWork()const;
 
 protected:
     D_int               m_genEvent; // +
@@ -98,17 +104,19 @@ private:
     STDN::mutex         m_mutexForEntriesInError;
 private:
     //common::FifoFastDyn<pitz::daq::MemoryBase*>     m_fifoToFill;
-    common::listN::Fifo<data::memory::ForServerBase*>        m_fifoToFill;
+    common::listN::Fifo<data::memory::ForServerBase*> m_fifoToFill;
     common::FifoFast<std::string,1024>                m_fifoForLocalFileDeleter;
     common::UnnamedSemaphoreLite                    m_semaForRootThread;
     common::UnnamedSemaphoreLite                    m_semaForLocalFileDeleter;
-    bool                                            m_bRootStopped;
+    int                                             m_nRootStopCount;
+private:
+    volatile int                    m_nWork2;  // +
 protected:
-    //int                             m_nEventNumber;
-    volatile int                    m_nWork;  // +
-    ::STDN::shared_mutex     m_mutexForEntries;
-
+    ::STDN::shared_mutex            m_mutexForEntries;
     uint64_t                        m_unErrorUnableToWriteToDcacheNum : 16;
+
+private:
+    uint64_t                        m_rootThreadRuns : 1;
 
 };
 

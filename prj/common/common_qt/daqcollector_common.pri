@@ -59,4 +59,5 @@ HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_singleentry.hpp \
     $${PWD}/../../../src/server/pitz_daq_eqfctcollector.hpp \
     $${PWD}/../../../include/pitz/daq/data/memory/base.hpp \
-    $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp
+    $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp \
+    $${PWD}/../../../include/pitz_daq_internal.h

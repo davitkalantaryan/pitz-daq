@@ -30,7 +30,7 @@ LIBS += -lzmq
 
 # LIBS += -lMCclass
 SOURCES += \
-    ../../../src/test/main_simplified_event_based_collector_test.cpp        \
+    ../../../src/test/main_event_based_collector_test.cpp \
     ../../../contrib/cpp-raft/common/cpp11+/shared_mutex_cpp14.cpp
 
 HEADERS += \

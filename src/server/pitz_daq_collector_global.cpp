@@ -11,13 +11,15 @@
 #include "pitz_daq_collectorproperties.hpp"
 #include "pitz_daq_eqfctcollector.hpp"
 
+extern const char* object_name;
+
 #define mkdir_p_debug(...)
 
-static key_t            s_SHMKEY = (key_t)0;
+static key_t            s_SHMKEY = 0;
 static int              s_shmid = 0;
 static int mkdir_p_raw(const char *a_path, mode_t a_mode);
 
-struct H_struct* g_shareptr = NULL;
+struct H_struct* g_shareptr = NEWNULLPTR2;
 
 const char* object_name = "daqcollector";
 
@@ -25,7 +27,7 @@ void eq_init_prolog() 	// called once before init of all EqFct's
 {
 
     printf("version 4\n");
-    printf("Press ay key, then press Enter to continue\n");fflush(stdout);
+    printf("Press any key, then press Enter to continue\n");fflush(stdout);
     getchar();
     if(s_SHMKEY){return;}
 
@@ -52,13 +54,13 @@ void eq_init_prolog() 	// called once before init of all EqFct's
         fprintf(stderr," shared memory is not created... Exit !!!\n");
         goto exitPoint;
     }
-    if ( (g_shareptr = (struct H_struct *) shmat(s_shmid, NULL, 0)) == (struct H_struct *) -1)
+    if ( (g_shareptr = (struct H_struct *) shmat(s_shmid, NEWNULLPTR2, 0)) == (struct H_struct *) -1)
     {
         fprintf(stderr," can't attach to shared memory... Exit !!!\n");
         goto exitPoint;
     }
 
-    printf("!!!!!! s_shareptr=%p\n",g_shareptr);
+    printf("!!!!!! s_shareptr=%p\n",static_cast<void*>(g_shareptr));
     return;
 
 exitPoint:

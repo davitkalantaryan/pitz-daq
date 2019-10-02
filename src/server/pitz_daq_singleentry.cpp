@@ -595,7 +595,7 @@ void pitz::daq::SNetworkStruct::StopAndDeleteThread()
         ::STDN::thread* pThread = m_pThread;
         m_isRunning = 0;
         m_pThread = nullptr;
-        pthread_t handleToThread = (pthread_t)pThread->native_handle();
+        pthread_t handleToThread = static_cast<pthread_t>(pThread->native_handle());
         pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
 
         pThread->join();
@@ -608,7 +608,7 @@ pitz::daq::SingleEntry* pitz::daq::SNetworkStruct::RemoveEntry(SingleEntry *a_ne
 {
 
     SingleEntry* pNext;
-    if(!a_newEntry){return NULL;}
+    if(!a_newEntry){return NEWNULLPTR2;}
     pNext = a_newEntry->next;
 
     //.lock();
@@ -661,7 +661,7 @@ bool pitz::daq::SNetworkStruct::AddNewEntry(SingleEntry *a_newEntry)
 /*////////////////////////////////////*/
 pitz::daq::D_stringForEntry::D_stringForEntry(const char* a_pn, SingleEntry* a_parent)
         :
-        D_BASE_FOR_STR(a_pn,NULL),
+        D_BASE_FOR_STR(a_pn,NEWNULLPTR2),
         m_pParent(a_parent)
 {
 }

@@ -55,6 +55,15 @@ static void AnyThreadFunction(void);
 static volatile int s_nWork2 = 1;
 static void* s_pContext = nullptr;
 
+static const char* s_vcpcDoocsAddress2[] = {
+    "PITZ.RF/SIS8300DMA/RF5_DMA.ADC0/CH00.ZMQ",
+    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/FNUM",
+    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/INUM",
+    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/SPECT"
+};
+
+static const int s_cnNumberOfDoocsEntries2 = sizeof(s_vcpcDoocsAddress2) / sizeof(const char*) ;
+
 class DaqCollectorDZ;
 
 class SingleEntryZmqDoocs
@@ -237,49 +246,17 @@ bool SingleEntryZmqDoocs::LoadOrValidateData()
 
     switch(nType){
     case DATA_INT:{
-        size_t i, len, numberOfUstrs;
         this->m_nPort = dataOut.get_int();
-        eqAddr.set_property ("*");
-        nReturn = eqCall.names (&eqAddr, &dataOut);
-        if(nReturn){
-            // const char  *emp = "can not get channel data type";
-            ::std::string errorString = dataOut.get_string();
-            ::std::cerr << errorString << ::std::endl;
-            return false;
-        }
-
-        nReturn  = -1;
-        len = static_cast<size_t>(propToSubscribe.length());
-        numberOfUstrs = static_cast<size_t>(dataOut.length ());
-
-        for (i = 0; i < numberOfUstrs; i++) {
-             USTR       *up;
-
-             up = dataOut.get_ustr (static_cast<int>(i));
-
-             if (strncmp (propToSubscribe.c_str(), up->str_data.str_data_val, len)) continue;
-
-             this->m_nKnownDataType = up->i1_data;
-
-             nReturn = 0;
-             break;
-        }
-        if (nReturn < 0) {
-            //const char  *emp = "invalid channel name";
-            //dmsg_err (emp);
-            //ed->error (ERR_ILL_SERV, emp);
-            return false;
-        }
     }break;
-    default:
-    {
+    case DATA_A_USTR:{
         float f1, f2;
         time_t tm;
         char         *sp;
         dataOut.get_ustr (&this->m_nPort, &f1, &f2, &tm, &sp, 0);
         this->m_nKnownDataType = static_cast<int>(f1);
-    }
-        break;
+    }break;
+    default:
+        return false;
     }  // switch(nType){
 
     //eqAddr.set_property(propToSubscribe);
@@ -557,15 +534,6 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
 }
 
 /*/////////////////////////////////////////////////////////////////////////////////////////////////////////*/
-
-static const char* s_vcpcDoocsAddress2[] = {
-    "PITZ.RF/SIS8300DMA/RF5_DMA.ADC0/CH00.ZMQ",
-    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/FNUM",
-    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/INUM",
-    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/SPECT"
-};
-
-static const int s_cnNumberOfDoocsEntries2 = sizeof(s_vcpcDoocsAddress2) / sizeof(const char*) ;
 
 
 void DaqCollectorDZ::AddNewEntryPrivate(const char* a_doocsAddress, int a_type, int a_numberOfSamples)

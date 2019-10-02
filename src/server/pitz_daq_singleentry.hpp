@@ -13,6 +13,7 @@
 #include <time.h>
 #include <signal.h>
 #include <stdint.h>
+#include <pitz_daq_internal.h>
 
 #define NON_EXPIRE_TIME ((time_t)0)
 #define NON_EXPIRE_STRING "never"
@@ -170,7 +171,7 @@ public:
     size_t numberOfEntries()const;
 
     bool AddNewEntry(SingleEntry *newEntry);
-    pitz::daq::SingleEntry* RemoveEntry(SingleEntry *entry,int* numberOfEntriesRemained=NULL);
+    pitz::daq::SingleEntry* RemoveEntry(SingleEntry *entry,int* numberOfEntriesRemained=NEWNULLPTR2);
     void SetThread(STDN::thread* thread);
     void StopAndDeleteThread();
     SNetworkStruct* prev(){return m_prev;}

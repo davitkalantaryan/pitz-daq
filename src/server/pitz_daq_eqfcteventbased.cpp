@@ -8,6 +8,7 @@
 #include "pitz_daq_singleentrydoocs.hpp"
 #include <event_based_common_header.h>
 #include <eq_client.h>
+#include <thread>
 
 #ifndef HANDLE_LOW_MEMORY
 #define HANDLE_LOW_MEMORY(_memory,...) do{if(!(_memory)){exit(1);}}while(0)
@@ -73,7 +74,6 @@ pitz::daq::EqFctEventBased::EqFctEventBased()
 }
 
 
-
 pitz::daq::EqFctEventBased::~EqFctEventBased()
 {
 }
@@ -88,7 +88,7 @@ int pitz::daq::EqFctEventBased::fct_code()
 void pitz::daq::EqFctEventBased::cancel(void)
 {
     printf("!!!!!!!!!!!!!!!!!!!!!!!!!! %s\n",__FUNCTION__);
-    m_nWork = 0;
+    //m_nWork = 0;
 }
 
 
@@ -122,7 +122,7 @@ void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
     nPrinted = printf("%d",0);
     fflush(stdout);
 
-    while(m_nWork){
+    while(shouldWork()){
 
         time(&currentTime);
 
@@ -196,7 +196,9 @@ void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
         }
     }
 
+    ::std::cout << "!!!line:"<<__LINE__<<::std::endl;
     zmq_ctx_destroy(pContext);
+    ::std::cout << "!!!line:"<<__LINE__<<::std::endl;
 }
 
 

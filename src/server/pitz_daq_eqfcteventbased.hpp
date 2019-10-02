@@ -9,6 +9,9 @@
 
 
 #ifndef NEWNULLPTR
+#ifdef nullptr
+#undef nullptr
+#endif
 #define NEWNULLPTR nullptr
 #endif
 
