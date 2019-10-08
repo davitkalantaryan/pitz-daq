@@ -2,8 +2,8 @@
 // file:        pitz/daq/data/memory/base.hpp
 // created on:  2018 Nov 08
 //
-#ifndef __PITZ_DAQ_DATA_MEMORY_FORSERVER_HPP__
-#define __PITZ_DAQ_DATA_MEMORY_FORSERVER_HPP__
+#ifndef PITZ_DAQ_DATA_MEMORY_FORSERVER_HPP
+#define PITZ_DAQ_DATA_MEMORY_FORSERVER_HPP
 
 #include <pitz/daq/data/memory/base.hpp>
 
@@ -27,7 +27,7 @@ public:
         ForServerBase(void* parent, size_t offset);
         //ForServerBase(const Base& cM);
         virtual ~ForServerBase();
-#ifdef __CPP11_DEFINED__
+#ifdef CPP11_DEFINED2
         //ForServerBase( ForServerBase&& cM);
         //ForServerBase& operator=( ForServerBase&& aM);
 #endif
@@ -130,4 +130,4 @@ protected:
 }}}}  // namespace pitz{ namespace daq{ namespace data{ namespace memory{
 
 
-#endif // __PITZ_DAQ_DATA_MEMORY_FORSERVER_HPP__
+#endif // PITZ_DAQ_DATA_MEMORY_FORSERVER_HPP

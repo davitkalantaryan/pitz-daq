@@ -15,61 +15,65 @@
 #define	CURRENT_SERIALIZER_VERSION2		5
 #define	CURRENT_SERIALIZER_TYPE2		1
 
-#ifndef __THISCALL__
+#ifndef THISCALL2
 #ifdef _MSC_VER
-#define __THISCALL__ __thiscall
+#define THISCALL2 __thiscall
 #else
-#define __THISCALL__
+#define THISCALL2
 #endif
 #endif
 
 // Is C++11
-#ifndef __NOT_USE_CPP11__
-#ifndef __CPP11_DEFINED__
+#ifndef NOT_USE_CPP11_2
+#ifndef CPP11_DEFINED2
 #if defined(_MSC_VER)
 #if __cplusplus >= 199711L
-#define __CPP11_DEFINED__
+#define CPP11_DEFINED2
 #endif // #if __cplusplus >= 199711L
 #elif defined(__GNUC__) // #if defined(_MSC_VER)
 #if __cplusplus > 199711L
-#define __CPP11_DEFINED__
+#define CPP11_DEFINED2
 #endif // #if __cplusplus > 199711L
 #else // #if defined(_MSC_VER)
 #error this compiler is not supported
 #endif // #if defined(_MSC_VER)
-#endif  // #ifndef __CPP11_DEFINED__
-#endif  // #ifndef __NOT_USE_CPP11__
+#endif  // #ifndef CPP11_DEFINED2
+#endif  // #ifndef NOT_USE_CPP11_2
 
 // Is C++14
-#ifndef __NOT_USE_CPP14__
-#ifndef __CPP14_DEFINED__
+#ifndef NOT_USE_CPP14_2
+#ifndef CPP14_DEFINED2
 #if defined(_MSC_VER)
 #if __cplusplus >= 199711L
-#define __CPP14_DEFINED__
+#define CPP14_DEFINED2
 #endif // #if __cplusplus >= 199711L
 #elif defined(__GNUC__) // #if defined(_MSC_VER)
 #if __cplusplus > 201103L
-#define __CPP14_DEFINED__
+#define CPP14_DEFINED2
 #endif // #if __cplusplus > 199711L
 #else // #if defined(_MSC_VER)
 #error this compiler is not supported
 #endif // #if defined(_MSC_VER)
-#endif  // #ifndef __CPP14_DEFINED__
-#endif  // #ifndef __NOT_USE_CPP14__
+#endif  // #ifndef CPP14_DEFINED2
+#endif  // #ifndef NOT_USE_CPP14_2
 
-// This should be done after check
-#ifdef __CPP11_DEFINED__
-#define OVERRIDE	override
-#define FINAL    	final
-#define STATIC_CAST(_Type,_Data)        static_cast<_Type>(_Data)
-#define REINTERPRET_CAST(_Type,_Data)   reinterpret_cast<_Type>(_Data)
-#define NEWNULLPTR                      nullptr
+#ifdef __cplusplus
+#define STATIC_CAST2(_Type,_Data)        static_cast<_Type>(_Data)
+#define REINTERPRET_CAST2(_Type,_Data)   reinterpret_cast<_Type>(_Data)
 #else
-#define OVERRIDE
-#define FINAL
 #define STATIC_CAST(_Type,_Data)        ( (_Type)(_Data) )
 #define REINTERPRET_CAST(_Type,_Data)   ( (_Type)(_Data) )
-#define NEWNULLPTR                      NULL
+#endif
+
+// This should be done after check
+#ifdef CPP11_DEFINED2
+#define OVERRIDE2                        override
+#define FINAL2                           final
+#define NEWNULLPTR2                      nullptr
+#else
+#define OVERRIDE2
+#define FINAL2
+#define NEWNULLPTR2                      NULL
 #endif
 
 #include <stdarg.h>

@@ -41,7 +41,7 @@ public:
         void* key; Type data; typename ::std::multimap< TypeMapKey, SMapAndHashItem* >::iterator mapIt;
         SMapAndHashItem(const Type& a_dt):data(a_dt){}
         SMapAndHashItem(const SMapAndHashItem& a_cm):data(a_cm.data),mapIt(a_cm.mapIt){}
-#ifdef __CPP11_DEFINED__
+#ifdef CPP11_DEFINED2
         SMapAndHashItem(Type&& a_dt):data( ::std::move(a_dt) ){}
         SMapAndHashItem(SMapAndHashItem&& a_cm):data( std::move(a_cm.data) ),mapIt( std::move(a_cm.mapIt) ){}
 #endif

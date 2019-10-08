@@ -8,6 +8,7 @@
 #include "pitz_daq_singleentrydoocs.hpp"
 #include <event_based_common_header.h>
 #include <eq_client.h>
+#include "pitz_daq_eqfcteventbased.cpp.hpp"
 #include <thread>
 
 #ifndef HANDLE_LOW_MEMORY
@@ -15,39 +16,6 @@
 #endif
 
 using namespace pitz::daq;
-
-namespace pitz{namespace daq{
-
-class SingleEntryZmqDoocs final: public SingleEntryDoocs
-{
-public:
-    //using SingleEntryDoocs::SingleEntryDoocs;
-    SingleEntryZmqDoocs(entryCreationType::Type creationType,const char* entryLine);
-
-    int zmqPort()const{return m_nPort;}
-    const ::std::string& host()const{return m_hostName;}    
-    void* socket()const;
-
-    bool LoadOrValidateData(void* a_pContext);
-    void Disconnect();
-    data::memory::ForServerBase* ReadData();
-    bool GetExpectedSizesAndCreateBuffers();
-
-private:
-    ::std::string   m_hostName;
-    void*           m_pSocket;
-    size_t          m_expectedReadHeader2;
-    size_t          m_expectedReadData;
-    //int             m_nKnownDataType;
-    int             m_nKnownSamples;
-    int             m_nPort;
-    //int             m_nReserved;
-    uint64_t        m_isValid : 1;
-    uint64_t        m_isDataLoaded : 1;
-    uint64_t        m_reserved : 62;
-    char            *m_pBufferForHeader2;
-};
-}}
 
 
 EqFct* eq_create(int a_eq_code, void* /*a_arg*/)
@@ -85,10 +53,9 @@ int pitz::daq::EqFctEventBased::fct_code()
 }
 
 
-void pitz::daq::EqFctEventBased::cancel(void)
+pitz::daq::SNetworkStruct* pitz::daq::EqFctEventBased::CreateNewNetworkStruct()
 {
-    printf("!!!!!!!!!!!!!!!!!!!!!!!!!! %s\n",__FUNCTION__);
-    //m_nWork = 0;
+    return new SNetworkStructZmqDoocs(this);
 }
 
 
@@ -104,64 +71,69 @@ pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreation
 
 void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
 {
-    void* pContext;
-    data::memory::ForServerBase* pMemory;
-    SingleEntryZmqDoocs* pEntryOld;
-    zmq_pollitem_t *pItemsTmp, *pItems = nullptr;
-    ::std::list< SingleEntryZmqDoocs* > validList;
+    SNetworkStructZmqDoocs* pNetZmq = static_cast< SNetworkStructZmqDoocs* >(a_pNet);
+    SingleEntryZmqDoocs* pEntryCheck;
+    zmq_pollitem_t *pItemsTmp;
+    //::std::list< SingleEntryZmqDoocs* > validList; // instead of this hash table should be used
     time_t  lastUpdateTime = 0, currentTime;
-    int nNumbeOfEntries=0, nAllocatedSize=0;
+    size_t unNumbeOfEntries(0);
     int i;
-    int nReturn, nPrinted, nPrintedIndex;
-    int nIteration = 0;
+    int nReturn;
+    const ::std::list< SingleEntry* >& entriesList = a_pNet->daqEntries();
+    ::std::list< SingleEntry* >::const_iterator pIter, pIterEnd;
 
-    pContext = zmq_ctx_new();
-    HANDLE_LOW_MEMORY(pContext, "Unable to create ZMQ context");
-
-    printf("Iteration: ");
-    nPrinted = printf("%d",0);
-    fflush(stdout);
-
-    while(shouldWork()){
+    while(shouldWork() && a_pNet->shouldRun() ){
 
         time(&currentTime);
 
         if(currentTime-lastUpdateTime>PITZ_DAQ_LIST_UPDATE_DEFAULT_TIME){
             validList.clear();
-            m_mutexForEntries.lock_shared();
-            pEntryOld = static_cast<SingleEntryZmqDoocs*>(a_pNet->first());
-            while(pEntryOld){
-                if(pEntryOld->LoadOrValidateData(pContext)){
-                    validList.push_back(pEntryOld);
+            //m_mutexForEntries.lock_shared();
+            if(entriesList.size()<1){/*m_mutexForEntries.unlock_shared();*/return;}
+
+            validList.clear();
+
+            this->ReadLockEntries2();
+
+            pIterEnd = entriesList.end();
+            for(pIter=entriesList.begin();pIter!=pIterEnd;++pIter){
+                pEntryCheck = static_cast< SingleEntryZmqDoocs* >( *pIter );
+                if(pEntryCheck->LoadOrValidateData(pNetZmq->m_pContext)){
+                    validList.push_back(pEntryCheck);
                 }
-                pEntryOld = static_cast<SingleEntryZmqDoocs*>(pEntryOld->next);
             }
-            m_mutexForEntries.unlock_shared();
-            nNumbeOfEntries = static_cast<int>(validList.size());
-            if(nNumbeOfEntries>nAllocatedSize){
-                pItemsTmp = static_cast<zmq_pollitem_t*>(realloc(pItems,sizeof(zmq_pollitem_t)*static_cast<size_t>(nNumbeOfEntries)));
+
+            this->ReadUnlockEntries2();
+
+            unNumbeOfEntries = validList.size();
+            if(unNumbeOfEntries<1){
+                return;
+            }
+
+            if(unNumbeOfEntries>pNetZmq->m_unCreatedItemsCount){
+                pItemsTmp = static_cast<zmq_pollitem_t*>(realloc(pNetZmq->m_pItems,sizeof(zmq_pollitem_t)*unNumbeOfEntries));
                 HANDLE_LOW_MEMORY(pItemsTmp);
-                pItems = pItemsTmp;
-                nAllocatedSize = nNumbeOfEntries;
+                pNetZmq->m_pItems = pItemsTmp;
+                pNetZmq->m_unCreatedItemsCount = unNumbeOfEntries;
             }
             lastUpdateTime = currentTime;
 
         }
 
-        if(!nNumbeOfEntries){
+        if(unNumbeOfEntries<1){
             ::std::this_thread::sleep_for( ::std::chrono::seconds(1) );
             continue;
         }
 
         i = 0;
         for(auto pEntry : validList){
-            pItems[i].revents = 0;
-            pItems[i].socket = pEntry->socket();
-            pItems[i].events = ZMQ_POLLIN;
+            pNetZmq->m_pItems[i].revents = 0;
+            pNetZmq->m_pItems[i].socket = pEntry->socket();
+            pNetZmq->m_pItems[i].events = ZMQ_POLLIN;
             ++i;
         }
 
-        nReturn=zmq_poll(pItems,nNumbeOfEntries,-1);
+        nReturn=zmq_poll(pNetZmq->m_pItems,static_cast<int>(unNumbeOfEntries),-1);
 
         if(nReturn<=0){
             continue;
@@ -169,38 +141,36 @@ void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
 
         i = 0;
         for(auto pEntry : validList){
-            if(pItems[i].revents & ZMQ_POLLIN){
-
-                ++nIteration;
-                for(nPrintedIndex=0;nPrintedIndex<nPrinted;++nPrintedIndex){
-                    printf("\b");
-                }
-                nPrinted = printf("%d",nIteration);
-                fflush(stdout);
-
-                // read: pItems[0].socket
-                pMemory = pEntry->ReadData();
-                if(!pMemory){
-                    pEntry->SetError(-1);
-                    fprintf(stderr,"Unable to read !!!!!\n");
-                    continue;
-                }
-
-                if(!AddJobForRootThread(pMemory)){
-                    pEntry->SetError(-2);
-                    fprintf(stderr, "No place in root fifo!\n");
-                    continue;
-                }
+            if(pNetZmq->m_pItems[i].revents & ZMQ_POLLIN){
+                //pEntry->RemoveDoocsProperty();
+                pEntry->ReadData();
             }
             ++i;
         }
-    }
+    }  // while(shouldWork() && a_pNet->shouldRun()){
 
-    ::std::cout << "!!!line:"<<__LINE__<<::std::endl;
-    zmq_ctx_destroy(pContext);
-    ::std::cout << "!!!line:"<<__LINE__<<::std::endl;
 }
 
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+pitz::daq::SNetworkStructZmqDoocs::SNetworkStructZmqDoocs( EqFctCollector* a_pParentCollector )
+    :
+      SNetworkStruct(a_pParentCollector)
+{
+    m_pContext = zmq_ctx_new();
+    HANDLE_LOW_MEMORY(m_pContext, "Unable to create ZMQ context");
+    m_pItems = NEWNULLPTR2;
+    m_unCreatedItemsCount = 0;
+}
+
+
+pitz::daq::SNetworkStructZmqDoocs::~SNetworkStructZmqDoocs()
+{
+    free(m_pItems);
+    if(m_pContext){
+        zmq_ctx_destroy(m_pContext);
+    }
+}
 
 /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_creationType,const char* a_entryLine)
@@ -210,9 +180,7 @@ pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_cr
     m_hostName = "";
     m_pSocket = NEWNULLPTR;
     m_expectedReadHeader2 = 0;
-    m_expectedReadData = 0;
     //m_nKnownDataType = PITZ_DAQ_UNSPECIFIED_DATA_TYPE;
-    m_nKnownSamples = PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES;
     m_nPort = PITZ_DAQ_UNKNOWN_ZMQ_PORT;
     //m_nReserved = 0;
     m_isValid = 0;
@@ -228,14 +196,13 @@ void* SingleEntryZmqDoocs::socket()const
 }
 
 
-data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
+DEC_OUT_PD(SingleData)* SingleEntryZmqDoocs::ReadData()
 {
     int nReturn;
     int nDataType;
-    int nEventNumber=0, nSeconds=0;
     dmsg_hdr_t aDcsHeader;
     struct dmsg_header_v1* pHeaderV1;
-    data::memory::ForServerBase* pMemory=nullptr;
+    DEC_OUT_PD(SingleData)* pMemory=nullptr;
 
     size_t     more_size;
     int        more;
@@ -267,8 +234,6 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
     case 1:
         pHeaderV1 = reinterpret_cast<struct dmsg_header_v1*>(&aDcsHeader);
         nDataType = pHeaderV1->type;
-        nEventNumber = static_cast<int>(pHeaderV1->ident);
-        nSeconds = static_cast<int>(pHeaderV1->sec);
         break;
     default:
         //return PITZ_DAQ_EV_BASED_DCS_ZMQ_UNKNOWN_HEADER;
@@ -276,7 +241,7 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
         return NEWNULLPTR;
     }
 
-    if(nDataType != m_dataType){
+    if(nDataType != m_branchInfo.dataType){
         //return PITZ_DAQ_DATA_TYPE_MISMATCH;
         // todo: set proper error code
         return NEWNULLPTR;
@@ -298,7 +263,7 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
         }
     }
 
-    if(m_expectedReadData){
+    if(m_bufferSize>0){
         more_size = sizeof(more);
         nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -307,20 +272,21 @@ data::memory::ForServerBase* SingleEntryZmqDoocs::ReadData()
             return NEWNULLPTR;
         }
 
-        if(!this->stack.GetFromStack(&pMemory)){
-            // todo: set proper error code
+        pMemory = this->GetNewMemoryForNetwork();
+        if(!pMemory){
+            ERROR_OUT_APP("Unable to get buffer for network");
             return NEWNULLPTR;
         }
 
-        nReturn=zmq_recv(this->m_pSocket,pMemory->bufferForValue(),m_expectedReadData,0);
-        if(nReturn!=static_cast<int>(m_expectedReadData)){
+        nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromEntry(pMemory),m_bufferSize,0);
+        if(nReturn!=static_cast<int>(m_bufferSize)){
             // todo: set proper error code
-            this->stack.SetToStack(pMemory);
+            this->SetMemoryBack(pMemory);
             return NEWNULLPTR;
         }
 
-        pMemory->time() = nSeconds;
-        pMemory->gen_event() = nEventNumber;
+        pMemory->eventNumber = static_cast<decltype (pMemory->eventNumber)>(aDcsHeader.ident);
+        pMemory->timestampSeconds = aDcsHeader.sec;
     }
 
     m_isValid = 1;
@@ -347,25 +313,25 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 
     nDataTypeFromServer = dataOut.type();
 
-    if((nDataTypeFromServer!=m_dataType)&&(m_dataType!=PITZ_DAQ_UNSPECIFIED_DATA_TYPE)){
+    if((nDataTypeFromServer!=m_branchInfo.dataType)&&(m_branchInfo.dataType!=PITZ_DAQ_UNSPECIFIED_DATA_TYPE)){
         // todo: error reporting
         return false;
     }
-    m_dataType = nDataTypeFromServer;
+    m_branchInfo.dataType = nDataTypeFromServer;
 
     nSamplesFromServer = dataOut.length();
-    if((nSamplesFromServer!=m_nKnownSamples)&&(m_nKnownSamples!=PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES)){
+    if((nSamplesFromServer!=m_branchInfo.itemsCountPerEntry)&&(m_branchInfo.itemsCountPerEntry!=PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES)){
         // todo: error reporting
         return false;
     }
-    m_nKnownSamples = nSamplesFromServer;
-    if((m_nSamples==PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES)||(m_nSamples==0)){
-        m_nSamples = nSamplesFromServer;
+    m_branchInfo.itemsCountPerEntry = nSamplesFromServer;
+    if((m_branchInfo.itemsCountPerEntry==PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES)||(m_branchInfo.itemsCountPerEntry==0)){
+        m_branchInfo.itemsCountPerEntry = nSamplesFromServer;
     }
-    else if(m_nSamples>m_nKnownSamples){
-        // todo: only warn user
-        m_nSamples = m_nKnownSamples;
-    }
+    //else if(m_nSamples>m_nKnownSamples){
+    //    // todo: only warn user
+    //    m_nSamples = m_nKnownSamples;
+    //}
 
     if(m_isDataLoaded){
         // todo: make check
@@ -395,49 +361,18 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 
     switch(nType){
     case DATA_INT:{
-        size_t i, len, numberOfUstrs;
         this->m_nPort = dataOut.get_int();
-        eqAddr.set_property ("*");
-        nReturn = eqCall.names (&eqAddr, &dataOut);
-        if(nReturn){
-            // const char  *emp = "can not get channel data type";
-            ::std::string errorString = dataOut.get_string();
-            ::std::cerr << errorString << ::std::endl;
-            return false;
-        }
-
-        nReturn  = -1;
-        len = static_cast<size_t>(propToSubscribe.length());
-        numberOfUstrs = static_cast<size_t>(dataOut.length ());
-
-        for (i = 0; i < numberOfUstrs; i++) {
-             USTR       *up;
-
-             up = dataOut.get_ustr (static_cast<int>(i));
-
-             if (strncmp (propToSubscribe.c_str(), up->str_data.str_data_val, len)) continue;
-
-             this->m_dataType = up->i1_data;
-
-             nReturn = 0;
-             break;
-        }
-        if (nReturn < 0) {
-            //const char  *emp = "invalid channel name";
-            //dmsg_err (emp);
-            //ed->error (ERR_ILL_SERV, emp);
-            return false;
-        }
     }break;
-    default:
-    {
+    case DATA_A_USTR:{
         float f1, f2;
         time_t tm;
         char         *sp;
         dataOut.get_ustr (&this->m_nPort, &f1, &f2, &tm, &sp, 0);
-        this->m_dataType = static_cast<int>(f1);
-    }
-        break;
+        //this->m_dataType = static_cast<int>(f1);
+        this->m_branchInfo.dataType = static_cast<int>(f1);
+    }break;
+    default:
+        return false;
     }  // switch(nType){
 
     //eqAddr.set_property(propToSubscribe);
@@ -467,7 +402,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         return false;
     }
 
-    this->CreateAllMemories();
+    this->SetEntryInfo(m_unOffset,m_branchInfo);
     m_isValid = 1;
     m_isDataLoaded = 1;
 
@@ -478,19 +413,20 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
 {
     m_expectedReadHeader2=0;
-    m_expectedReadData=0;
+    //m_expectedReadData=0;
+    m_bufferSize = 0;
 
     //EqDataBlock* db;
     //char* dp;
 
-    switch (m_dataType) {
+    switch (m_branchInfo.dataType) {
 
     case DATA_INT:
-        m_expectedReadData = static_cast<size_t>(m_nSamples) * sizeof(int);
+        m_bufferSize = static_cast<uint32_t>(m_branchInfo.itemsCountPerEntry) * sizeof(int);
         break;
 
     case DATA_FLOAT:
-        m_expectedReadData = static_cast<size_t>(m_nSamples) * sizeof(float);
+        m_bufferSize = static_cast<uint32_t>(m_branchInfo.itemsCountPerEntry) * sizeof(float);
         break;
 
     case DATA_DOUBLE:
@@ -521,7 +457,7 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
         //break;
 
         m_expectedReadHeader2 = sizeof(struct SPECTRUM) + STRING_LENGTH ;
-        m_expectedReadData = static_cast<size_t>(m_nKnownSamples) * sizeof(float);  // in order to keep socket clean
+        m_bufferSize = static_cast<uint32_t>(m_branchInfo.itemsCountPerEntry) * sizeof(float);  // in order to keep socket clean
         break;
 
     case DATA_GSPECTRUM:

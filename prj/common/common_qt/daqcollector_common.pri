@@ -26,10 +26,12 @@ else:equals(CODENAME,"bionic") {
 INCLUDEPATH += ../../../include
 INCLUDEPATH += ../../../contrib/cpp-raft/include
 INCLUDEPATH += ../../../src/tools
+INCLUDEPATH += ../../../contrib/data_handling/include
 
 # these two lines are just for inteligence
 #INCLUDEPATH += /afs/ifh.de/@sys/products/root64/5.20.00/include
 INCLUDEPATH += /doocs/lib/include
+
 SOURCES += \
     $${PWD}/../../../src/server/pitz_daq_collectorproperties.cpp \
     $${PWD}/../../../src/tools/mailsender.cpp \
@@ -42,6 +44,11 @@ SOURCES += \
     $${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp \
     $${PWD}/../../../src/server/pitz_daq_collector_global.cpp \
     $${PWD}/../../../src/tools/pitz_daq_data_entryinfo.cpp
+
+INCLUDEPATH += ../../../contrib/data_handling/src/include_p
+SOURCES += \
+    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling.cpp              \
+    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_indexing.cpp
 
 HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_collectorproperties.hpp \
@@ -60,4 +67,19 @@ HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_eqfctcollector.hpp \
     $${PWD}/../../../include/pitz/daq/data/memory/base.hpp \
     $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp \
-    $${PWD}/../../../include/pitz_daq_internal.h
+    $${PWD}/../../../include/pitz_daq_internal.h                                            \
+    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp.hpp
+
+OTHER_FILES += \
+    $${PWD}/../../../src/tools/pitz_daq_data_memory_base.cpp                                \
+    $${PWD}/../../../src/tools2/pitz/daq/data/memory/base.hpp                               \
+    $${PWD}/../../../src/tools2/pitz/daq/data/memory/forclient.hpp                          \
+    $${PWD}/../../../src/tools2/pitz/daq/data/memory/forserver.hpp                          \
+    $${PWD}/../../../src/tools2/cpp11+/common_defination.h                                  \
+    $${PWD}/../../../src/tools2/cpp11+/mutex_cpp11.hpp                                      \
+    $${PWD}/../../../src/tools2/cpp11+/thread_cpp11.hpp                                     \
+    $${PWD}/../../../src/tools2/cpp11+/thread_cpp11.impl.hpp                                \
+    $${PWD}/../../../src/tools2/pitz_daq_data_memory_base.cpp                               \
+    $${PWD}/../../../include/common/mapandhash.hpp                                          \
+    $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
+    $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp

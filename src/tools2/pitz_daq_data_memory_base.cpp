@@ -10,7 +10,7 @@ using namespace pitz::daq;
 data::memory::Base::Base(void* a_pParent,size_t a_unOffset)
     :
       m_pParent(a_pParent),
-      m_rawBuffer(STATIC_CAST(char*,malloc(DAQ_HEADER_SIZE))),
+      m_rawBuffer(static_cast<char*>(malloc(DAQ_HEADER_SIZE))),
       m_memorySize(DAQ_HEADER_SIZE),
       m_maxMemorySize(DAQ_HEADER_SIZE),
       m_unOffset(a_unOffset)
@@ -21,7 +21,7 @@ data::memory::Base::Base(void* a_pParent,size_t a_unOffset)
 data::memory::Base::Base(const Base& a_cM)
     :
       m_pParent(a_cM.m_pParent),
-      m_rawBuffer(STATIC_CAST(char*,malloc(a_cM.m_memorySize))),
+      m_rawBuffer(static_cast<char*>(malloc(a_cM.m_memorySize))),
       m_memorySize(a_cM.m_memorySize),
       m_maxMemorySize(a_cM.m_memorySize),
       m_unOffset(a_cM.m_unOffset)
@@ -38,11 +38,11 @@ data::memory::Base::~Base()
 }
 
 
-#ifdef __CPP11_DEFINED__
+#ifdef CPP11_DEFINED2
 data::memory::Base::Base( Base&& a_cM)
     :
       m_pParent(a_cM.m_pParent),
-      m_rawBuffer(STATIC_CAST(char*,malloc(a_cM.m_maxMemorySize))),
+      m_rawBuffer(static_cast<char*>(malloc(a_cM.m_maxMemorySize))),
       m_memorySize(a_cM.m_memorySize),
       m_maxMemorySize(a_cM.m_maxMemorySize),
       m_unOffset(a_cM.m_unOffset)
@@ -61,7 +61,7 @@ data::memory::Base& data::memory::Base::operator=( Base&& a_cM)
 
     if(newMemLength>this->m_maxMemorySize){
         char* pcTmpBuffer;
-        pcTmpBuffer = STATIC_CAST(char*,realloc(m_rawBuffer,newMemLength));
+        pcTmpBuffer = static_cast<char*>(realloc(m_rawBuffer,newMemLength));
         if(!pcTmpBuffer){return *this;}
         m_rawBuffer = pcTmpBuffer;
         this->m_maxMemorySize = newMemLength;
@@ -70,7 +70,7 @@ data::memory::Base& data::memory::Base::operator=( Base&& a_cM)
     memcpy(m_rawBuffer,a_cM.m_rawBuffer,m_memorySize);
     return *this;
 }
-#endif  // #ifdef __CPP11_DEFINED__
+#endif  // #ifdef CPP11_DEFINED2
 
 #if 0
 void*       m_pParent;
@@ -106,7 +106,7 @@ data::memory::Base& data::memory::Base::operator=(const Base& a_cM)
 
     if(newMemLength>this->m_maxMemorySize){
         char* pcTmpBuffer;
-        pcTmpBuffer = STATIC_CAST(char*,realloc(m_rawBuffer,newMemLength));
+        pcTmpBuffer = static_cast<char*>(realloc(m_rawBuffer,newMemLength));
         if(!pcTmpBuffer){return *this;}
         m_rawBuffer = pcTmpBuffer;
         this->m_maxMemorySize = newMemLength;
@@ -130,24 +130,24 @@ void data::memory::Base::SetParent(void* a_newParent)
 
 const int& data::memory::Base::time()const
 {
-    return *(  REINTERPRET_CAST(int*,(  m_rawBuffer+m_unOffset ) )  );
+    return *(  reinterpret_cast<int*>(  m_rawBuffer+m_unOffset )  );
 }
 
 
 int& data::memory::Base::time()
 {
-    return *(  REINTERPRET_CAST(int*,(  m_rawBuffer+m_unOffset ) )  );
+    return *(  reinterpret_cast<int*>(  m_rawBuffer+m_unOffset )  );
 }
 
 
 const int& data::memory::Base::gen_event()const
 {
-    return *(  REINTERPRET_CAST(int*,(  (m_rawBuffer+m_unOffset+4) ) )  );
+    return *(  reinterpret_cast<int*>(m_rawBuffer+m_unOffset+4)   );
 }
 
 int& data::memory::Base::gen_event()
 {
-    return *(  REINTERPRET_CAST(int*,(  (m_rawBuffer+m_unOffset+4) ) )  );
+    return *(  reinterpret_cast<int*>(m_rawBuffer+m_unOffset+4)  );
 }
 
 
@@ -156,12 +156,12 @@ int data::memory::Base::Resize(size_t a_size)
 
     if(a_size>this->m_maxMemorySize){
         char* pcTmpBuffer;
-        pcTmpBuffer = STATIC_CAST(char*,realloc(m_rawBuffer,a_size));
+        pcTmpBuffer = static_cast<char*>(realloc(m_rawBuffer,a_size));
         if(!pcTmpBuffer){return -1;}
         m_rawBuffer = pcTmpBuffer;
-        this->m_maxMemorySize = STATIC_CAST(uint32_t,a_size);
+        this->m_maxMemorySize = static_cast<uint32_t>(a_size);
     }
-    m_memorySize = STATIC_CAST(uint32_t,a_size);
+    m_memorySize = static_cast<uint32_t>(a_size);
     return 0;
 }
 

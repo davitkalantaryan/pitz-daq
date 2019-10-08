@@ -54,7 +54,7 @@ struct SCallArgsAll{
 
 }}}
 
-typedef void (__THISCALL__ *TypeCallback1)(void* owner,pitz::daq::daqinterface::SCallArgsAll args, int64_t err);
+typedef void (THISCALL2 *TypeCallback1)(void* owner,pitz::daq::daqinterface::SCallArgsAll args, int64_t err);
 
 namespace pitz{ namespace daq{ namespace daqinterface{
 

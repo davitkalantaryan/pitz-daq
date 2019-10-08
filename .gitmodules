@@ -4,3 +4,6 @@
 [submodule "contrib/matlab"]
 	path = contrib/matlab
 	url = https://github.com/davitkalantaryan/matlabdev.git
+[submodule "contrib/data_handling"]
+	path = contrib/data_handling
+	url = https://kalantar@stash.desy.de/scm/ers/pitz_daq_data_handling.git

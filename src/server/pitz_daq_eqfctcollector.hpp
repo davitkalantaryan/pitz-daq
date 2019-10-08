@@ -7,59 +7,105 @@
 
 #include "pitz_daq_collectorproperties.hpp"
 #include <stdint.h>
-#include <common/lists.hpp>
 #include <pitz_daq_internal.h>
+#include <queue>
+#include <string>
 
 #define     CODE_EVENT_BASED_DAQ  301	// eq_fct_type number for the .conf file
+
+#define     NULL_THREAD_HANDLE      0
+
+//#define USE_SHARED_LOCK
+
+#ifdef USE_SHARED_LOCK
+#define OVERRIDE3   OVERRIDE2
+#else
+#define OVERRIDE3
+#endif
 
 
 namespace pitz{namespace daq{
 
+class EntryLock
+#ifdef USE_SHARED_LOCK
+        : public ::STDN::shared_mutex
+#endif
+{
+public:
+    EntryLock();
+    void WriteLockWillBeCalled();
+    void lock( ) OVERRIDE3;
+    void unlock() OVERRIDE3;
+#ifndef USE_SHARED_LOCK
+    void lock_shared();
+    void unlock_shared();
+#endif
+private:
+    pthread_t   m_writerThread;
+    uint32_t    m_nLocksCount;
+    uint32_t    m_isGoingToWriteLock : 1;
+    uint32_t    m_bitwiseReserved : 31;
+};
+
+struct SStructForFill{
+    SingleEntry*            entry;
+    DEC_OUT_PD(SingleData)* data;
+};
+
 class EqFctCollector : public EqFct
 {
-    friend class D_addNewEntry;
-    friend class D_removeEntry;
+    //friend class D_addNewEntry;
+    //friend class D_removeEntry;
     friend class D_genEvent;
+    friend class SNetworkStruct;
+
 protected:
     EqFctCollector();
-    virtual ~EqFctCollector() __OVERRIDE__ ;
+    virtual ~EqFctCollector() OVERRIDE2 ;
 
-    // API to be inferited
+    // API to be inherited
 private:
     virtual pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type type,const char* entryLine)=0;
     virtual void DataGetterThread(SNetworkStruct* pNet)=0;
 
-    // API inherited from EqFct,
-protected:
-    void init(void) __OVERRIDE__ __FINAL__ ; // use complete (called before init) and post_init (called after init) or online (before)
-#ifdef NEW_GETTER_THREAD
-    int clear(void) __OVERRIDE__ __FINAL__ ;  // use 'virtual void cancel(void)' in the child (called before cancel)
-#else
-    void cancel(void) __OVERRIDE__ ; // better to use 'virtual int clear(void)' in the child
-#endif
-    int  write          (fstream &fprt) __OVERRIDE__ __FINAL__;
-
     // API can be used, as well inherited by child
-    virtual bool IsAllowedToAdd2(SingleEntry* newEntry);
+protected:
+    virtual bool IsAllowedToAdd2(const char* newEntryName);
+    virtual SNetworkStruct* CreateNewNetworkStruct();
 
     // API should be used by childs
-    bool AddJobForRootThread(data::memory::ForServerBase* data);
+protected:
+    bool AddJobForRootThread(DEC_OUT_PD(SingleData)* data, SingleEntry* pEntry);
+    uint64_t  shouldWork()const;
+
+    // API inherited from EqFct,
+private:
+    void init(void) OVERRIDE2 FINAL2 ; // use complete (called before init) and post_init (called after init) or online (before)
+#ifdef NEW_GETTER_THREAD
+    int clear(void) OVERRIDE2 FINAL2 ;  // use 'virtual void cancel(void)' in the child (called before cancel)
+#else
+    void cancel(void) OVERRIDE2 ; // better to use 'virtual int clear(void)' in the child
+#endif
+    int  write          (fstream &fprt) OVERRIDE2 FINAL2;   
 
     // API for internal usage
 private:
-    bool AddNewEntry(entryCreationType::Type type, const char* entryLine);
-    pitz::daq::SingleEntry* RemoveOneEntry(SingleEntry* pEntry);
+    SStructForFill  GetAndDeleteFirstData();
+    void AddNewEntryPrivate(entryCreationType::Type type, const char* entryLine);
+    void RemoveOneEntryPrivate(SingleEntry* pEntry);
     pitz::daq::SingleEntry* FindEntry(const char* entryName);
+    bool FindEntryInAdding(const char* entryName);
+    bool FindEntryInDeleting(const char* entryName);
     void CalculateRemoteDirPathAndFileName(std::string* fileName,std::string* remoteDirPath)STUPID_NON_CONST;
     void CalcLocalDir2(std::string* localDirPath)STUPID_NON_CONST;
 
     void CopyFileToRemoteAndMakeIndexing(const std::string& localFilePath, const std::string& remoteFilePath);
-
     void WriteEntriesToConfig()const;
+    void CheckGenEventError(int* a_nPreviousTime, int* a_nPreviousGenEvent);
 
-    void DataGetterThreadPrivate(SNetworkStruct* pNet);
     void RootThreadFunction() ;
     void LocalFileDeleterThread();
+    void EntryAdderDeleter();
 
 public:
     // API public, for DOOCS properties usage
@@ -67,56 +113,52 @@ public:
     void IncrementErrors(const char* entryName);
     void DecrementErrors(const char* entryName);
 
-protected:
-    void TemporaryStopRootThreadSync();
-    void DecrementRootStopCount();
-    int  shouldWork()const;
+    void WriteLockEntries2();
+    void WriteUnlockEntries2();
+    void ReadLockEntries2();
+    void ReadUnlockEntries2();
 
-protected:
-    D_int               m_genEvent; // +
-private:
-    D_int               m_rootLength; //+
-    D_int               m_numberOfEntries; // +
-    D_logLevel          m_logLevel;
-    D_string            m_rootDirPathBaseRemote;       // '/acs/pitz/daq'
-    D_string            m_rootDirPathBaseLocal;        // '/doocs/data/DAQdata/daqL'
-    D_string            m_folderName;                  // 'pitznoadc0'
-    D_string            m_rootFileNameBase;            // 'pitznoadc0'
-    D_string            m_expertsMailingList;            // 'davit.kalantaryan@desy.de'
-    D_int               m_numberOfFillThreadsDesigned;
-    D_int               m_numberOfFillThreadsFinal;
-    D_int               m_currentFileSize;
-    D_addNewEntry       m_addNewEntry;
-    D_removeEntry       m_removeEntry;
-    D_loadOldConfig     m_loadOldConfig;
-    D_int               m_numberOfEntriesInError;
-    D_text              m_entriesInError;
+    bool AddNewEntryByUser(const char* entryLine);
+    bool RemoveEntryByUser(const char* entryName);
 
-    SingleEntry         *m_pEntryFirst;
-    int                 m_nNumberOfEntries;
-    STDN::thread        m_threadRoot; // +
-    STDN::thread        m_threadLocalFileDeleter;
-    SNetworkStruct      *m_networkFirst, *m_networkLast;
-    SNetworkStruct      *m_pLastNetworkAdded;
-    int                 m_nNumberOfFillThreadsDesigned;
-    int                 m_nNumberOfFillThreadsFinal;
-    int                 m_nIndexToNextNet;
-    STDN::mutex         m_mutexForEntriesInError;
-private:
-    //common::FifoFastDyn<pitz::daq::MemoryBase*>     m_fifoToFill;
-    common::listN::Fifo<data::memory::ForServerBase*> m_fifoToFill;
-    common::FifoFast<std::string,1024>                m_fifoForLocalFileDeleter;
-    common::UnnamedSemaphoreLite                    m_semaForRootThread;
-    common::UnnamedSemaphoreLite                    m_semaForLocalFileDeleter;
-    int                                             m_nRootStopCount;
-private:
-    volatile int                    m_nWork2;  // +
-protected:
-    ::STDN::shared_mutex            m_mutexForEntries;
-    uint64_t                        m_unErrorUnableToWriteToDcacheNum : 16;
 
 private:
-    uint64_t                        m_rootThreadRuns : 1;
+    D_int                               m_genEvent; // +
+    D_int                               m_rootLength; //+
+    D_int                               m_numberOfEntries; // +
+    D_logLevel                          m_logLevel;
+    D_string                            m_rootDirPathBaseRemote;       // '/acs/pitz/daq'
+    D_string                            m_rootDirPathBaseLocal;        // '/doocs/data/DAQdata/daqL'
+    D_string                            m_folderName;                  // 'pitznoadc0'
+    D_string                            m_rootFileNameBase;            // 'pitznoadc0'
+    D_string                            m_expertsMailingList;            // 'davit.kalantaryan@desy.de'
+    D_int                               m_numberOfFillThreadsDesigned;
+    D_int                               m_numberOfFillThreadsFinal;
+    D_int                               m_currentFileSize;
+    D_addNewEntry                       m_addNewEntry;
+    D_removeEntry                       m_removeEntry;
+    D_loadOldConfig                     m_loadOldConfig;
+    D_int                               m_numberOfEntriesInError;
+    D_text                              m_entriesInError;
+    ::STDN::thread                      m_threadForEntryAddDelete;
+    ::STDN::thread                      m_threadRoot; // +
+    ::STDN::thread                      m_threadLocalFileDeleter;
+    ::std::list< SNetworkStruct* >      m_networsList;
+    ::std::mutex                        m_mutexForEntriesInError;
+    ::std::queue< SStructForFill >      m_fifoToFill;
+    ::std::queue< ::std::string >       m_entriesToAdd;
+    ::std::queue< SingleEntry* >        m_entriesToDelete;
+    ::std::queue< ::std::string >       m_fifoForLocalFileDeleter;
+    common::UnnamedSemaphoreLite        m_semaForRootThread;
+    common::UnnamedSemaphoreLite        m_semaForEntryAdderDeleter;
+    common::UnnamedSemaphoreLite        m_semaForLocalFileDeleter;
+    EntryLock                           m_lockForEntries2;
+    SNetworkStruct*                     m_pNextNetworkToAdd;
+    uint64_t                            m_unErrorUnableToWriteToDcacheNum : 16;
+    uint64_t                            m_shouldWork : 1;
+    uint64_t                            m_bitwise64Reserved : 47;
+    int                                 m_nNumberOfEntries;
+    int                                 m_nNumberOfFillThreadsFinal;
 
 };
 

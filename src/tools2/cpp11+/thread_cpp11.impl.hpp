@@ -13,11 +13,11 @@
 #define THREAD_CPP11_IMPL_HPP
 
 #ifndef THREAD_CPP11_HPP
-#error this file should be included from thread_cpp11.hpp
+//#error this file should be included from thread_cpp11.hpp
 #include "thread_cpp11.hpp"
 #endif  // #ifndef THREAD_CPP11_HPP
 
-#ifndef __CPP11_DEFINED__
+#if !defined(CPP11_DEFINED2) || defined(THREAD11_DEFINE_HERE)
 
 template<typename TClass>
 static inline STDN::SYSTHRRETTYPE THREDAPI ThreadStartupRoutine3_II(STDN::THRINPUT a_thrArgs);
@@ -82,6 +82,6 @@ static inline STDN::SYSTHRRETTYPE THREDAPI ThreadStartupRoutine3_II(STDN::THRINP
 }
 
 
-#endif //#ifndef __CPP11_DEFINED__
+#endif //#ifndef #if !defined(CPP11_DEFINED2) || defined(THREAD11_DEFINE_HERE)
 
-#endif // THREAD_CPP11_IMPL_HPP
+#endif // #ifndef THREAD_CPP11_IMPL_HPP

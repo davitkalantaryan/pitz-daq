@@ -14,7 +14,7 @@
 
 #include "common_defination.h"
 
-#ifdef __CPP11_DEFINED__
+#if defined(CPP11_DEFINED2) && !defined(THREAD11_DEFINE_HERE)
 #include <thread>
 //#define  thread_native_handle_type native_handle_type
 
@@ -22,7 +22,7 @@ namespace STDN {
 typedef std::thread  thread;
 }
 
-#else  // #ifdef __CPP11_DEFINED__
+#else  // #ifdef CPP11_DEFINED2
 
 #define  thread_native_handle_type STDN::thread_native_handle
 
@@ -90,6 +90,6 @@ protected:
 
 #include "thread_cpp11.impl.hpp"
 
-#endif // #ifdef __CPP11_DEFINED__
+#endif // #if defined(CPP11_DEFINED2) && !defined(THREAD11_DEFINE_HERE)
 
-#endif // THREAD_CPP11_HPP
+#endif // #ifndef THREAD_CPP11_HPP

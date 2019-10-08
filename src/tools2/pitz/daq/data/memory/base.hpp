@@ -20,7 +20,7 @@ public:
         Base(void* a_pParent,size_t unOffset=0);
         Base(const Base& cM);
         virtual ~Base();
-#ifdef __CPP11_DEFINED__
+#ifdef CPP11_DEFINED2
         Base( Base&& cM);
         Base& operator=( Base&& aM);
 #endif
@@ -35,7 +35,7 @@ public:
         void        SetBranchInfo(const EntryInfoBase& info);
         void*       parent();
         void        SetParent(void* newParent);
-        template <typename Type>const Type* dataPtr()const {return REINTERPRET_CAST(const Type*,(m_rawBuffer + m_unOffset+DAQ_HEADER_SIZE));}
+        template <typename Type>const Type* dataPtr()const {return reinterpret_cast<const Type*>(m_rawBuffer + m_unOffset+DAQ_HEADER_SIZE);}
         template <typename Type>const Type& data(size_t a_unIndex)const {return *(dataPtr<Type>()+a_unIndex);}
 
 protected:

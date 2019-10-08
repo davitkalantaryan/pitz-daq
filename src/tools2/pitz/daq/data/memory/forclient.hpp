@@ -28,7 +28,7 @@ public:
     ForClient( const EntryInfoBase& aInfo, void* pParent );
     ForClient(ForClient&cM,void* pParent);
     virtual ~ForClient();
-#ifdef __CPP11_DEFINED__
+#ifdef CPP11_DEFINED2
 #endif
 
 };

@@ -26,21 +26,16 @@ public:
     //const char* specialStringForDoocsProperty()const;
     void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const;
     const char* rootFormatString()const;
-    data::memory::ForServerBase* CreateMemoryInherit();
     void PermanentDataIntoFile(FILE* fpFile)const;
     //bool ValueStringByKeyInherited(const std::string& a_key, char* a_buffer, int a_bufferLength);
 
     const char* doocsUrl()const {return m_doocsUrl;}
-    int dataType()const{return m_dataType;}
-    void setDataType(int a_dataType){m_dataType = a_dataType;}
 
-    void FromDoocsToMemory(data::memory::ForServerBase* pMemory, const EqData* dcsData);
+    void FromDoocsToMemory(DEC_OUT_PD(SingleData)* pMemory, const EqData* dcsData);
 
 protected:
     char* m_doocsUrl;
     char* m_rootFormatStr;
-    int m_dataType;
-    int m_nSamples;
 };
 }}
 

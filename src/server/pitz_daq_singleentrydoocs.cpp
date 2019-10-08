@@ -20,11 +20,13 @@
 pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creationType,const char* a_entryLine)
         :
         SingleEntry(a_creationType, a_entryLine),
-        m_doocsUrl(NULL),
-        m_rootFormatStr(NULL)
+        m_doocsUrl(NEWNULLPTR2),
+        m_rootFormatStr(NEWNULLPTR2)
 {
 
     size_t unStrLen ;
+    int nSamples;
+    int nDataType;
 
     switch(a_creationType)
     {
@@ -33,10 +35,12 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             int from, step;
             char doocs_url[DOOCS_URI_MAX_LEN],daqName[256];
 
-            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&m_nSamples,&step,&m_dataType);
+            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&nSamples,&step,&nDataType);
+
+            this->SetEntryInfo(m_unOffset,{nDataType,nSamples});
 
             unStrLen = strlen(doocs_url);
-            m_doocsUrl = (char*)malloc(unStrLen + 1);
+            m_doocsUrl = static_cast<char*>(malloc(unStrLen + 1));
             if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}
             memcpy(m_doocsUrl,doocs_url,unStrLen);
             m_doocsUrl[unStrLen] = 0;
@@ -51,8 +55,8 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             //strspn();// later ignore empty
             tmpStr = strpbrk(pcNext,POSIIBLE_TERM_SYMBOLS);
             if(!tmpStr){throw errorsFromConstructor::syntax;}
-            unStrLen = tmpStr - pcNext;
-            m_doocsUrl = (char*)malloc(unStrLen+1);
+            unStrLen = static_cast<size_t>(tmpStr - pcNext);
+            m_doocsUrl = static_cast<char*>(malloc(unStrLen+1));
             if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}
             memcpy(m_doocsUrl,pcNext,unStrLen);
             m_doocsUrl[unStrLen] = 0;
@@ -61,12 +65,14 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_TYPE "=");
             if(!pcNext){throw errorsFromConstructor::syntax;}
             pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" );
-            m_dataType = atoi(pcNext);
+            nDataType = atoi(pcNext);
 
             // Find number of samples
-            m_nSamples = 1;
+            nSamples = 1;
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_SAMPLES "=");
-            if(!pcNext){pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );m_nSamples = atoi(pcNext);}
+            if(!pcNext){pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );nSamples = atoi(pcNext);}
+
+            this->SetEntryInfo(m_unOffset,{nDataType,nSamples});
 
         }
         break;
@@ -79,27 +85,28 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             tmpStr = strpbrk(pcNext,POSIIBLE_TERM_SYMBOLS);
             //strspn();// later ignore empty
             if(!tmpStr){unStrLen = strlen(pcNext);}
-            else{unStrLen = tmpStr - pcNext;}
-            m_doocsUrl = (char*)malloc(unStrLen+1);
+            else{unStrLen = static_cast<size_t>(tmpStr - pcNext);}
+            m_doocsUrl = static_cast<char*>(malloc(unStrLen+1));
             if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}
             memcpy(m_doocsUrl,pcNext,unStrLen);
             m_doocsUrl[unStrLen]=0;
 
             // Find data type
-            m_dataType = DATA_TYPE_TAKE_FR_DOOCS;
+            nDataType = DATA_TYPE_TAKE_FR_DOOCS;
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_TYPE "=");
-            if(pcNext){pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" ); m_dataType = atoi(pcNext);}
+            if(pcNext){pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" ); nDataType = atoi(pcNext);}
 
             // Find number of samples
-            m_nSamples = 1;
+            nSamples = 1;
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_SAMPLES "=");
-            if(pcNext){pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );m_nSamples = atoi(pcNext);}
+            if(pcNext){pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );nSamples = atoi(pcNext);}
+
+            this->SetEntryInfo(m_unOffset,{nDataType,nSamples});
         }
         break;
 
     default:
         throw errorsFromConstructor::type;
-        break;
     }
 
     if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}
@@ -114,48 +121,53 @@ pitz::daq::SingleEntryDoocs::~SingleEntryDoocs()
 }
 
 
-void pitz::daq::SingleEntryDoocs::FromDoocsToMemory(data::memory::ForServerBase* a_pMemory,const EqData* a_dcsData)
+void pitz::daq::SingleEntryDoocs::FromDoocsToMemory(DEC_OUT_PD(SingleData)* a_pMemory,const EqData* a_dcsData)
 {
-    switch ( m_dataType % 100 )
+    switch ( m_branchInfo.dataType % 100 )
     {
     case  1 :
     {
-        data::memory::M01* pMem = (data::memory::M01*)a_pMemory;
-        pMem->value() = a_dcsData->get_int();
+        //data::memory::M01* pMem = (data::memory::M01*)a_pMemory;
+        //pMem->value() = a_dcsData->get_int();
+        *wrPitzDaqDataFromEntryT(int*,a_pMemory) = a_dcsData->get_int();
     }
     break;
     case  2 :
     {
-        data::memory::M02* pMem = (data::memory::M02*)a_pMemory;
-        pMem->value() = a_dcsData->get_float();
+        //data::memory::M02* pMem = (data::memory::M02*)a_pMemory;
+        //pMem->value() = a_dcsData->get_float();
+        *wrPitzDaqDataFromEntryT(float*,a_pMemory) = a_dcsData->get_float();
     }
     break;
     case  3 :
     {
-        data::memory::M03* pMem = (data::memory::M03*)a_pMemory;
-        sprintf(pMem->value(),"%s",a_dcsData->get_char_array());
+        //data::memory::M03* pMem = (data::memory::M03*)a_pMemory;
+        //sprintf(pMem->value(),"%s",a_dcsData->get_char_array());
+        sprintf(wrPitzDaqDataFromEntryT(char*,a_pMemory),"%s",a_dcsData->get_char_array());
     }
     break;
     case  4 :
     {
-        data::memory::M01* pMem = (data::memory::M01*)a_pMemory;
-        pMem->value() = a_dcsData->get_int();
+        //data::memory::M01* pMem = (data::memory::M01*)a_pMemory;
+        //pMem->value() = a_dcsData->get_int();
+        *wrPitzDaqDataFromEntryT(int*,a_pMemory) = a_dcsData->get_int();
     }
     break;
     case  6 :
     {
-        data::memory::M02* pMem = (data::memory::M02*)a_pMemory;
-        pMem->value() = (float)a_dcsData->get_double();
+        //data::memory::M02* pMem = (data::memory::M02*)a_pMemory;
+        //pMem->value() = (float)a_dcsData->get_double();
+        *wrPitzDaqDataFromEntryT(float*,a_pMemory) = static_cast<float>(a_dcsData->get_double());
     }
     break;
     case DATA_IIII /*14*/:
     {
         IIII*	  POLYPARA;
-        data::memory::M15* pMem = (data::memory::M15*)a_pMemory;
+        //data::memory::M15* pMem = (data::memory::M15*)a_pMemory;
         POLYPARA = a_dcsData->get_iiii();
         if(POLYPARA){
-            sprintf(pMem->value(),"%d  %d  %d  %d",
-                POLYPARA->i1_data,POLYPARA->i2_data,POLYPARA->i3_data,POLYPARA->i4_data);
+            //sprintf(pMem->value(),"%d  %d  %d  %d",POLYPARA->i1_data,POLYPARA->i2_data,POLYPARA->i3_data,POLYPARA->i4_data);
+            sprintf(wrPitzDaqDataFromEntryT(char*,a_pMemory),"%d  %d  %d  %d",POLYPARA->i1_data,POLYPARA->i2_data,POLYPARA->i3_data,POLYPARA->i4_data);
         }
 
     }
@@ -163,20 +175,26 @@ void pitz::daq::SingleEntryDoocs::FromDoocsToMemory(data::memory::ForServerBase*
     case 15 :
     {
         IFFF*	  POLYPARA;
-        data::memory::M15* pMem = (data::memory::M15*)a_pMemory;
+        //data::memory::M15* pMem = (data::memory::M15*)a_pMemory;
         POLYPARA = a_dcsData->get_ifff();
         if(POLYPARA){
-            sprintf(pMem->value(),"%d  %e  %e  %e",POLYPARA->i1_data,POLYPARA->f1_data,POLYPARA->f2_data,POLYPARA->f3_data);
+            //sprintf(pMem->value(),"%d  %e  %e  %e",POLYPARA->i1_data,POLYPARA->f1_data,POLYPARA->f2_data,POLYPARA->f3_data);
+            sprintf(wrPitzDaqDataFromEntryT(char*,a_pMemory),"%d  %e  %e  %e",
+                    POLYPARA->i1_data,static_cast<double>(POLYPARA->f1_data),static_cast<double>(POLYPARA->f2_data),static_cast<double>(POLYPARA->f3_data));
         }
 
     }
     break;
     case DATA_SPECTRUM /*19*/ :
     {
-        data::memory::M19* pMem = (data::memory::M19*)a_pMemory;
-        float* fpValue = a_dcsData->get_float_array();
+        //data::memory::M19* pMem = (data::memory::M19*)a_pMemory;
         int nArrayLen = a_dcsData->array_length();
-        if(nArrayLen>0){pMem->SetElements(fpValue,nArrayLen);}
+        if((nArrayLen>0)&&this->m_branchInfo.itemsCountPerEntry){
+            const float* fpValue = a_dcsData->get_float_array();
+            //pMem->SetElements(fpValue,nArrayLen);
+            nArrayLen = (nArrayLen>this->m_branchInfo.itemsCountPerEntry) ? this->m_branchInfo.itemsCountPerEntry : nArrayLen;
+            memcpy(wrPitzDaqDataFromEntry(a_pMemory),fpValue,static_cast<size_t>(nArrayLen)*sizeof(float));
+        }
     }
     break;
     default :
@@ -203,21 +221,21 @@ void pitz::daq::SingleEntryDoocs::ValueStringByKeyInherited(bool a_bReadAll, con
     int nWritten,nBufLen(a_bufferLength);
 
     if(a_bReadAll ||strstr(SPECIAL_KEY_DOOCS,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,SPECIAL_KEY_DOOCS "=%s; ",m_doocsUrl);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),SPECIAL_KEY_DOOCS "=%s; ",m_doocsUrl);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
 
     if(a_bReadAll ||strstr(SPECIAL_KEY_DATA_TYPE,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,SPECIAL_KEY_DATA_TYPE "=%d; ",m_dataType);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),SPECIAL_KEY_DATA_TYPE "=%d; ",m_branchInfo.dataType);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
 
     if(a_bReadAll ||strstr(SPECIAL_KEY_DATA_SAMPLES,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,SPECIAL_KEY_DATA_SAMPLES "=%d; ",m_nSamples);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),SPECIAL_KEY_DATA_SAMPLES "=%d; ",m_branchInfo.itemsCountPerEntry);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
@@ -234,11 +252,12 @@ void pitz::daq::SingleEntryDoocs::PermanentDataIntoFile(FILE* a_fpFile)const
             SPECIAL_KEY_DATA_SAMPLES "=%d; ",
 
             m_doocsUrl,
-            m_dataType,
-            m_nSamples);
+            m_branchInfo.dataType,
+            m_branchInfo.itemsCountPerEntry);
 }
 
 
+#if 0
 pitz::daq::data::memory::ForServerBase* pitz::daq::SingleEntryDoocs::CreateMemoryInherit()
 {
     //m_dataType %= 100;
@@ -283,3 +302,4 @@ pitz::daq::data::memory::ForServerBase* pitz::daq::SingleEntryDoocs::CreateMemor
 
     return nullptr;
 }
+#endif

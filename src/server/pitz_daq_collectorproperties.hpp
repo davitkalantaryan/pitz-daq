@@ -21,6 +21,11 @@ extern int g_nLogLevel;
         if((_logLevel)<=g_nLogLevel){printf("fn:%s,ln:%d -> ",__FUNCTION__,__LINE__);printf(__VA_ARGS__);printf("\n");} \
     }while(0)
 
+#define ERROR_OUT_APP(...)  \
+    do{ \
+        fprintf(stderr,"fn:%s,ln:%d -> ",__FUNCTION__,__LINE__);fprintf(stderr,__VA_ARGS__);fprintf(stderr,"\n"); \
+    }while(0)
+
 #ifdef _WIN32
 #define SleepMs    Sleep
 #else
@@ -28,7 +33,7 @@ extern int g_nLogLevel;
 #define SleepMs(_x_) usleep(1000*(_x_))
 #endif
 
-#define DUMMY_ARGS__(...)
+#define DUMMY_ARGS2(...)
 
 
 namespace pitz{ namespace daq{

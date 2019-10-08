@@ -27,7 +27,7 @@ public:
         ForServerBase(void* parent, size_t offset);
         //ForServerBase(const Base& cM);
         virtual ~ForServerBase();
-#ifdef __CPP11_DEFINED__
+#ifdef CPP11_DEFINED2
         //ForServerBase( ForServerBase&& cM);
         //ForServerBase& operator=( ForServerBase&& aM);
 #endif

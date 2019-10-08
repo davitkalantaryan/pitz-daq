@@ -55,11 +55,10 @@ pitz::daq::D_addNewEntry::~D_addNewEntry()
 {
 }
 
-void pitz::daq::D_addNewEntry::set (EqAdr * /*a_dcsAddr*/,
-                                     EqData * a_dataFromUser, EqData * a_dataToUser, EqFct * a_pFct)
+void pitz::daq::D_addNewEntry::set (EqAdr * /*a_dcsAddr*/,EqData * a_dataFromUser, EqData * a_dataToUser, EqFct * a_pFct)
 {
     const char* cpcRet ;
-    EqFctCollector* pFct = (EqFctCollector*)a_pFct;
+    EqFctCollector* pCollector = static_cast<EqFctCollector*>(a_pFct);
     bool bRet;
 
 #if 0
@@ -71,9 +70,11 @@ void pitz::daq::D_addNewEntry::set (EqAdr * /*a_dcsAddr*/,
 #endif
 
     std::string strFromUser = a_dataFromUser->get_string();
-    //std::cout<<strFromUser<<std::endl;
-    bRet = pFct->AddNewEntry(entryCreationType::fromUser, strFromUser.c_str());
-    //a_dataToUser->set_val(
+
+    //pCollector->LockEntries();
+    bRet = pCollector->AddNewEntryByUser(strFromUser.c_str());
+    //pCollector->UnlockEntries();
+
     cpcRet = bRet ? "   ok" : "   problem";
     std::cout<<strFromUser<<cpcRet<<std::endl;
     set_value(strFromUser);
@@ -99,20 +100,21 @@ pitz::daq::D_removeEntry::~D_removeEntry()
 }
 
 
-void pitz::daq::D_removeEntry::set (EqAdr * a_dcsAddr,
-                                     EqData * a_dataFromUser, EqData * a_dataToUser, EqFct * a_pFct)
+void pitz::daq::D_removeEntry::set (EqAdr * a_dcsAddr,EqData * a_dataFromUser, EqData * a_dataToUser, EqFct * a_pFct)
 {
     const char* cpcRet ;
-    EqFctCollector* pFct = (EqFctCollector*)a_pFct;
-    SingleEntry* pEntry ;
+    EqFctCollector* pCollector = static_cast<EqFctCollector*>(a_pFct);
+    bool bRet ;
 
     std::string strFromUser = a_dataFromUser->get_string();
-    //std::cout<<strFromUser<<std::endl;
-    pFct->m_mutexForEntries.lock();
-    pEntry = pFct->FindEntry(strFromUser.c_str());
-    if(pEntry){pEntry->RemoveDoocsProperty();pFct->RemoveOneEntry(pEntry);}
-    pFct->m_mutexForEntries.unlock();
-    cpcRet = pEntry ? "   ok" : "   problem";
+
+    //pCollector->LockEntries();
+
+    bRet = pCollector->RemoveEntryByUser(strFromUser.c_str());
+
+    //pCollector->UnlockEntries();
+
+    cpcRet = bRet ? "   ok" : "   problem";
     std::cout<<"remove: "<<strFromUser<<cpcRet<<std::endl;
     D_string::set(a_dcsAddr,a_dataFromUser,a_dataToUser,a_pFct);
 
@@ -128,9 +130,9 @@ pitz::daq::D_loadOldConfig::D_loadOldConfig(const char* a_pn, EqFct* a_loc)
 {
 }
 
-void pitz::daq::D_loadOldConfig::set (EqAdr * a_adr, EqData * a_dataFromUser, EqData * a_dataToUser, EqFct * a_loc)
+void pitz::daq::D_loadOldConfig::set (EqAdr * a_adr, EqData * a_dataFromUser, EqData * a_dataToUser, EqFct * a_pFct)
 {
-    EqFctCollector* pCollector = (EqFctCollector*)a_loc;
+    EqFctCollector* pCollector = static_cast<EqFctCollector*>(a_pFct);
     std::string aOldConfigPath = a_dataFromUser->get_string();
     std::string aOldConfig = aOldConfigPath;
 
@@ -140,7 +142,7 @@ void pitz::daq::D_loadOldConfig::set (EqAdr * a_adr, EqData * a_dataFromUser, Eq
     }
 
     if(!pCollector->parse_old_config2(aOldConfig)){
-        D_string::set(a_adr, a_dataFromUser, a_dataToUser, a_loc);
+        D_string::set(a_adr, a_dataFromUser, a_dataToUser, a_pFct);
     }
     else{
         //a_dataToUser->set

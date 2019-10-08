@@ -5,8 +5,8 @@
 #ifndef PITZ_DAQ_SINGLEENTRY_HPP
 #define PITZ_DAQ_SINGLEENTRY_HPP
 
-#include "common/common_fifofast.hpp"
-#include <pitz/daq/data/memory/forserver.hpp>
+//#include "common/common_fifofast.hpp"
+//#include <pitz/daq/data/memory/forserver.hpp>
 #include <cpp11+/thread_cpp11.hpp>
 #include "eq_fct.h"
 #include "TTree.h"
@@ -14,31 +14,44 @@
 #include <signal.h>
 #include <stdint.h>
 #include <pitz_daq_internal.h>
+#include <pitz_daq_data_handling.h>
+#include <pitz_daq_data_handling_daqdev.h>
+#include <list>
 
-#define NON_EXPIRE_TIME ((time_t)0)
-#define NON_EXPIRE_STRING "never"
-#define MASK_NO_EXPIRE_STRING "never"
+#ifndef PITZ_DAQ_UNSPECIFIED_DATA_TYPE
+#define PITZ_DAQ_UNSPECIFIED_DATA_TYPE  -1
+#endif  // #ifndef PITZ_DAQ_UNKNOWN_DATA_TYPE
 
-#define CREATION_STR    "creation"
-#define EXPIRATION_STR    "expiration"
-#define ERROR_KEY_STR   "error"
-#define NUM_IN_CUR_FL_KEY_STR "entries"
-#define NUM_OF_FILES_IN_KEY_STR "files"
-#define NUM_OF_ALL_ENTRIES_KEY_STR "allentries"
-#define NUM_OF_ERRORS_KEY_STR   "errorsnumber"
-#define MASK_KEY_STR    "mask"
-#define POSIIBLE_TERM_SYMBOLS   " \t\",;\n"
+#ifndef PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES
+#define PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES  -1
+#endif  // #ifndef PITZ_DAQ_UNKNOWN_DATA_TYPE
 
-#define STACK_SIZE          32
-#define SIGNAL_FOR_CANCELATION  SIGTSTP
-#define NUMBER_OF_PENDING_PACKS 4
+#define NON_EXPIRE_TIME             STATIC_CAST2(time_t,0)
+#define NON_EXPIRE_STRING           "never"
+#define MASK_NO_EXPIRE_STRING       "never"
+
+#define CREATION_STR                "creation"
+#define EXPIRATION_STR              "expiration"
+#define ERROR_KEY_STR               "error"
+#define NUM_IN_CUR_FL_KEY_STR       "entries"
+#define NUM_OF_FILES_IN_KEY_STR     "files"
+#define NUM_OF_ALL_ENTRIES_KEY_STR  "allentries"
+#define NUM_OF_ERRORS_KEY_STR       "errorsnumber"
+#define MASK_KEY_STR                "mask"
+#define POSIIBLE_TERM_SYMBOLS       " \t\",;\n"
+
+#define STACK_SIZE                  32
+#define SIGNAL_FOR_CANCELATION      SIGTSTP
+#define NUMBER_OF_PENDING_PACKS     4
+
 
 namespace pitz{ namespace daq{
 
 class SNetworkStruct;
 class SingleEntry;
+class EqFctCollector;
 
-namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser};}
+namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknownCreation};}
 namespace errorsFromConstructor{enum Error{noError=0,syntax=1,lowMemory, type};}
 
 time_t STRING_TO_EPOCH(const char* _a_string,const char* a_cpcInf);
@@ -83,25 +96,42 @@ class SingleEntry
 {
     //friend class D_stringForEntry;
     friend class SNetworkStruct;
-    friend class EqFctCollector;
+    //friend class EqFctCollector;
 protected:
+public:
     virtual ~SingleEntry();
 public:
     SingleEntry(entryCreationType::Type creationType,const char* entryLine);
 
     virtual const char* rootFormatString()const=0;
-    virtual pitz::daq::data::memory::ForServerBase* CreateMemoryInherit()=0;
+    //virtual pitz::daq::data::memory::ForServerBase* CreateMemoryInherit()=0;
+    //virtual DEC_OUT_PD(SingleData)* CreateMemoryInherit2()=0;
     virtual void PermanentDataIntoFile(FILE* fpFile)const=0;
 
 private:
     virtual void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const=0;
 
 public:
-    //m_pBranchOnTree
-    void SetBranchAddress(bool* pbTimeToSave, pitz::daq::data::memory::ForServerBase* pNewMemory);
-    pitz::daq::SNetworkStruct* networkParent();
-    void SetRootTree3(TTree* tree, const char* a_cpcBranchName);
-    TTree* tree2(){return m_pTreeOnRoot;}
+    virtual void SetMemoryBack( DEC_OUT_PD(SingleData)* pMemory );
+    virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork();
+
+public:
+    bool  markEntryForDeleteAndReturnPossible();
+    bool  tryToMarkEntryForAddingToRoot();
+    bool  tryToMarkEntryForUsingByNetwork();
+    bool  isMarkedForDeletionAndResetRootUsage()const;
+    bool  isUsedByRootOrNetworkThread()const;
+    void  resetUsageByRoot();
+
+    //int dataType()const{return m_branchInfo.dataType;}
+    //void setDataType(int a_dataType){m_branchInfo.dataType = a_dataType;}
+
+public:
+    void SetNextFillableData(bool* pbTimeToSave, DEC_OUT_PD(SingleData)* pNewMemory);
+    pitz::daq::SNetworkStruct* networkParent(){return m_pNetworkParent;}
+    //void SetRootTreeAndBranchAddress(TTree* tree, const char* a_cpcBranchName);
+    void SetRootTreeAndBranchAddress(TTree* tree);
+    TTree* rootTree(){return m_pTreeOnRoot;}
     void SetError(int a_error);
     const char* daqName()const{return m_daqName;}
     //void copyForRoot(const MemoryBase* a_cM){m_forRoot->copyFrom(a_cM);}
@@ -110,7 +140,7 @@ public:
     int firstEventNumber()const{return m_firstEventNumber;}
     int lastSecond()const{return m_lastSecond;}
     int lastEventNumber()const{return m_lastEventNumber;}
-    bool isPresent()const{return m_isPresent;}
+    uint64_t isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
     void RemoveDoocsProperty();
     void WriteContentToTheFile(FILE* fpFile)const;
     bool KeepEntry()const;
@@ -124,34 +154,38 @@ public:
 
     // This API will be used only by
 protected:
-    bool CreateAllMemories(); // called after constructor
+    int  SetEntryInfo(uint32_t a_unOffset, const DEC_OUT_PD(BranchDataRaw)& a_branchInfo);
     void SetNetworkParent(SNetworkStruct* a_pNetworkParent);
         
-public:
-    SingleEntry *next,*prev;
-    common::SimpleStack<pitz::daq::data::memory::ForServerBase*,STACK_SIZE>  stack;
 
 private:
-    char*                   m_daqName;
-    data::memory::ForServerBase*  m_forRoot;
-    bool                    m_isPresent;
-    int                     m_firstEventNumber,m_lastEventNumber;
-    int                     m_firstSecond,m_lastSecond;
-    D_stringForEntry*       m_pDoocsProperty;
-    SNetworkStruct*         m_pNetworkParent;
-    TTree*                  m_pTreeOnRoot;
-    TBranch*                m_pBranchOnTree;
+    char*                                   m_daqName;
+    int                                     m_firstEventNumber,m_lastEventNumber;
+    int                                     m_firstSecond,m_lastSecond;
+    D_stringForEntry*                       m_pDoocsProperty;
+    SNetworkStruct*                         m_pNetworkParent;
+    TTree*                                  m_pTreeOnRoot;
+    TBranch*                                m_pBranchOnTree;
     // new for property
-    int                     m_nNumberInCurrentFile;
-    int                     m_nNumOfErrors;
-    int                     m_nError2;
-    int                     m_nFillUnsavedCount;
-    int                     m_nMaxFillUnsavedCount;
-    int                     m_nLastEventNumberHandled;
+    int                                     m_nNumberInCurrentFile;
+    int                                     m_nNumOfErrors;
+    int                                     m_nError2;
+    int                                     m_nFillUnsavedCount;
+    int                                     m_nMaxFillUnsavedCount;
+    int                                     m_nLastEventNumberHandled;
 
-    uint32_t                m_isMemoriesInited;
+    SPermanentParams2                       m_pp;
+protected:
+    ::std::list< SingleEntry* >::iterator   m_thisIter;
+    DEC_OUT_PD(BranchDataRaw)               m_branchInfo;
+    DEC_OUT_PD(SingleData)*                 m_pForRoot;
+    uint32_t                                m_bufferSize;
+    uint32_t                                m_unOffset;
+    uint32_t                                m_unAllocatedBufferSize;
+    mutable uint32_t                        m_willBeDeletedOrAddedToRootAtomic ;
 
-    SPermanentParams2       m_pp;
+    uint64_t                                m_isPresentInCurrentFile : 1;
+
 
 protected:
     SingleEntry(const SingleEntry&){}
@@ -159,36 +193,32 @@ protected:
 
 
 class SNetworkStruct
-{    
+{
+    friend class EqFctCollector;
 public:
-    SNetworkStruct(EqFct* parent, SNetworkStruct* prev);
+    SNetworkStruct(EqFctCollector* parent);
     virtual ~SNetworkStruct();
 
-    SingleEntry* first();
-    SingleEntry* last();
-
-    EqFct*  parent();
-    size_t numberOfEntries()const;
+    EqFctCollector*  parent();
 
     bool AddNewEntry(SingleEntry *newEntry);
-    pitz::daq::SingleEntry* RemoveEntry(SingleEntry *entry,int* numberOfEntriesRemained=NEWNULLPTR2);
-    void SetThread(STDN::thread* thread);
-    void StopAndDeleteThread();
-    SNetworkStruct* prev(){return m_prev;}
-    SNetworkStruct* next(){return m_next;}
+    void RemoveEntryNoDelete(SingleEntry *entry,int* numberOfEntriesRemained=NEWNULLPTR2);
+    const ::std::list< SingleEntry* >& daqEntries()const;
+    uint64_t shouldRun()const;
+
+private:
+    void DataGetterThread();
 
 private:
     SNetworkStruct(const SNetworkStruct&){}
 
 private:
-    EqFct* m_pParent;
-    SingleEntry *m_first, *m_last;
-    STDN::thread* m_pThread;
-    SNetworkStruct *m_prev, *m_next;
-    uint64_t    m_isRunning : 1;
-    uint64_t    m_bitwiseReserved : 63 ;
-    int m_nNumberOfEntries;
-    int m_nReserved;
+    EqFctCollector*                             m_pParent;
+    STDN::thread*                               m_pThread;
+    uint64_t                                    m_shouldRun : 1;
+    uint64_t                                    m_bitwise64Reserved : 63 ;
+    ::std::list< SingleEntry* >                 m_daqEntries;
+    ::std::list< SNetworkStruct* >::iterator    m_thisIter;
 
 };
 

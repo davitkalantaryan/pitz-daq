@@ -10,15 +10,101 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <thread>
-#include <zmq/zmq.h>
+//#include <zmq/zmq.h>
+#include <iostream>
+#include <stdint.h>
 
 //#define STRING_TO_TIME (_a_string)
 
 
 #define  STRING_TO_PARSE "2017.10.26-10:41"
 
+#define READ_ADD_VALUE  ((1<<16)|1)
+
+#define READ_LOCK_COUNT(_value)  ((_value)>>16)
+
+#define TOTAL_LOCK_COUNT(_value)     static_cast<uint16_t>(_value)
+
+struct TestStruct
+{
+    uint32_t        bitw1 : 1;
+};
+
+class Item
+{
+public:
+    Item(){
+        ::std::cout << __FUNCTION__ << ::std::endl;
+    }
+
+    ~Item(){
+        ::std::cout << __FUNCTION__ << ::std::endl;
+    }
+};
+
+class ItemCont
+{
+public:
+    ItemCont(){
+        ::std::cout << __FUNCTION__ << ::std::endl;
+    }
+
+    ~ItemCont(){
+        ::std::cout << __FUNCTION__ << ::std::endl;
+    }
+
+private:
+    Item    m_item;
+};
+
 int main()
 {
+    //TestStruct testStruct;
+    ItemCont aContainer;
+
+    uint32_t nRootStopCount=0;
+    uint32_t nReturn2;
+
+    uint32_t nReturn = __atomic_fetch_add(&nRootStopCount,READ_ADD_VALUE,__ATOMIC_RELAXED);
+    uint16_t nReadCount = READ_LOCK_COUNT(nReturn);
+    uint16_t nWriteCount = TOTAL_LOCK_COUNT(nReturn);
+    ::std::cout << "nReturn="<<nReturn <<",readCount="<<nReadCount<<",writeCount="<<nWriteCount << ::std::endl;
+
+    nReturn = __atomic_fetch_add(&nRootStopCount,READ_ADD_VALUE,__ATOMIC_RELAXED);
+    nReadCount = READ_LOCK_COUNT(nReturn);
+    nWriteCount = TOTAL_LOCK_COUNT(nReturn);
+    ::std::cout << "nReturn="<<nReturn <<",readCount="<<nReadCount<<",writeCount="<<nWriteCount << ::std::endl;
+
+    nReturn = __atomic_fetch_add(&nRootStopCount,READ_ADD_VALUE,__ATOMIC_RELAXED);
+    nReadCount = READ_LOCK_COUNT(nReturn);
+    nWriteCount = TOTAL_LOCK_COUNT(nReturn);
+    ::std::cout << "nReturn="<<nReturn <<",readCount="<<nReadCount<<",writeCount="<<nWriteCount << ::std::endl;
+
+    nReturn = __atomic_fetch_add(&nRootStopCount,READ_ADD_VALUE,__ATOMIC_RELAXED);
+    nReadCount = READ_LOCK_COUNT(nReturn);
+    nWriteCount = TOTAL_LOCK_COUNT(nReturn);
+    ::std::cout << "nReturn="<<nReturn <<",readCount="<<nReadCount<<",writeCount="<<nWriteCount << ::std::endl;
+
+    nReturn = __atomic_fetch_sub(&nRootStopCount,READ_ADD_VALUE,__ATOMIC_RELAXED);
+    nReadCount = READ_LOCK_COUNT(nReturn);
+    nWriteCount = TOTAL_LOCK_COUNT(nReturn);
+    ::std::cout << "nReturn="<<nReturn <<",readCount="<<nReadCount<<",writeCount="<<nWriteCount << ::std::endl;
+
+    nReturn = __atomic_fetch_sub(&nRootStopCount,READ_ADD_VALUE,__ATOMIC_RELAXED);
+    nReadCount = READ_LOCK_COUNT(nReturn);
+    nWriteCount = TOTAL_LOCK_COUNT(nReturn);
+    ::std::cout << "nReturn="<<nReturn <<",readCount="<<nReadCount<<",writeCount="<<nWriteCount << ::std::endl;
+
+    nReturn = __atomic_fetch_add(&nRootStopCount,READ_ADD_VALUE,__ATOMIC_RELAXED);
+    nReadCount = READ_LOCK_COUNT(nReturn);
+    nWriteCount = TOTAL_LOCK_COUNT(nReturn);
+    ::std::cout << "nReturn="<<nReturn <<",readCount="<<nReadCount<<",writeCount="<<nWriteCount << ::std::endl;
+
+    nReturn2 = __atomic_exchange_n (&nReturn,1,__ATOMIC_RELAXED);
+    ::std::cout << "nReturn2="<<nReturn2 << ::std::endl;
+
+
+
 #if 0
     struct tm aTm;
 	std::thread aThr;

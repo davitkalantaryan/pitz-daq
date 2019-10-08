@@ -7,6 +7,7 @@
 DEFINES += DMSG
 #DEFINES += DEBUG_APP
 DEFINES += NEW_GETTER_THREAD
+#DEFINES += CPP11_THREADS_IMPLEMENT_HERE
 
 win32{
     SOURCES += \
@@ -18,7 +19,6 @@ win32{
     SOURCES += \
 
 }
-
 
 include(../../common/common_qt/daqcollector_event_based_common.pri)
 
@@ -34,6 +34,7 @@ SOURCES += \
 
 HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.hpp \
+    $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp.hpp \
     $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.hpp
 
 OTHER_FILES += \

@@ -22,14 +22,14 @@ class EqFctEventBased : public EqFctCollector
 {
 public:
     EqFctEventBased( );
-    virtual ~EqFctEventBased();
+    virtual ~EqFctEventBased() OVERRIDE2;
 
 protected:
-    virtual int  fct_code(void);
-    void cancel(void);
+    virtual int  fct_code(void) OVERRIDE2;
 
-    void DataGetterThread(SNetworkStruct* pNet);
-    pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type creationType,const char* entryLine);
+    void DataGetterThread(SNetworkStruct* pNet) OVERRIDE2;
+    pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type creationType,const char* entryLine) OVERRIDE2;
+    SNetworkStruct* CreateNewNetworkStruct() OVERRIDE2;
 
 };
 

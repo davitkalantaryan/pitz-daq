@@ -8,21 +8,21 @@
 #include <stdlib.h>
 #include "pitz_daq_collectorproperties.hpp"
 #include "pitz_daq_eqfctcollector.hpp"
+#include <signal.h>
 
 #define DATA_SIZE_TO_SAVE   50000  // 40 kB
 #define MIN_NUMBER_OF_FILLS 20
 
+static void SignalHandler(int){}
+
 
 pitz::daq::SingleEntry::SingleEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
         :
-        next(NULL),
-        prev(NULL),
-        m_daqName(NULL),
-        //m_forRoot(NULL),
-        m_pDoocsProperty(NULL),
-        m_pNetworkParent(NULL),
-        m_pTreeOnRoot(NULL),
-        m_pBranchOnTree(NULL)
+        m_daqName(NEWNULLPTR2),
+        m_pDoocsProperty(NEWNULLPTR2),
+        m_pNetworkParent(NEWNULLPTR2),
+        m_pTreeOnRoot(NEWNULLPTR2),
+        m_pBranchOnTree(NEWNULLPTR2)
 {
     const char* pLine = strpbrk(a_entryLine,POSIIBLE_TERM_SYMBOLS);
     const char* pcNext ;
@@ -32,11 +32,25 @@ pitz::daq::SingleEntry::SingleEntry(entryCreationType::Type a_creationType,const
 
     if(!pLine){throw errorsFromConstructor::syntax;}
 
-    m_isMemoriesInited = 0;
+    m_isPresentInCurrentFile = 0;
+
+    m_willBeDeletedOrAddedToRootAtomic = 0;
+
+    // 0,{PITZ_DAQ_UNSPECIFIED_DATA_TYPE,PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES}
+    m_unOffset = 0;
+    m_branchInfo = {PITZ_DAQ_UNSPECIFIED_DATA_TYPE,PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES};
+
+    m_isPresentInCurrentFile = 0;
+    m_pForRoot = NEWNULLPTR2;
+    m_bufferSize = 0;
+    m_unOffset = 0;
+    m_unAllocatedBufferSize = 0;
+    //this->SetEntryInfo(a_unOffset,a_branchInfo);
+
     m_nLastEventNumberHandled = 0;
 
-    daqNameLen = (size_t)(pLine-a_entryLine);
-    m_daqName = (char*)malloc(daqNameLen+1);
+    daqNameLen = static_cast<size_t>(pLine-a_entryLine);
+    m_daqName = static_cast<char*>(malloc(daqNameLen+1));
     if(!m_daqName){throw errorsFromConstructor::lowMemory;}
     memcpy(m_daqName,a_entryLine,daqNameLen);
     m_daqName[daqNameLen] = 0;
@@ -69,13 +83,13 @@ pitz::daq::SingleEntry::SingleEntry(entryCreationType::Type a_creationType,const
         if(!pcNext){nError = errorsFromConstructor::syntax;goto reurnPoint; }
         pcNext += strlen(CREATION_STR "=");
         m_pp.creationTime = STRING_TO_EPOCH(pcNext,"");
-        if((m_pp.creationTime<0)&&(m_pp.creationTime!=NON_EXPIRE_TIME)){nError = -((int)m_pp.creationTime);goto reurnPoint;}
+        if((m_pp.creationTime<0)&&(m_pp.creationTime!=NON_EXPIRE_TIME)){nError = -1;goto reurnPoint;}
 
         pcNext = strstr(pLine,EXPIRATION_STR "=");
         if(!pcNext){nError = errorsFromConstructor::syntax;goto reurnPoint; }
         pcNext += strlen(EXPIRATION_STR "=");
         m_pp.expirationTime = STRING_TO_EPOCH(pcNext,NON_EXPIRE_STRING);
-        if((m_pp.expirationTime<0)&&(m_pp.expirationTime!=NON_EXPIRE_TIME)){nError = -((int)m_pp.expirationTime);goto reurnPoint;}
+        if((m_pp.expirationTime<0)&&(m_pp.expirationTime!=NON_EXPIRE_TIME)){nError = -2;goto reurnPoint;}
 
         pcNext = strstr(pLine,NUM_OF_FILES_IN_KEY_STR "=");
         if(!pcNext){nError = errorsFromConstructor::syntax;goto reurnPoint; }
@@ -162,69 +176,119 @@ reurnPoint:
 pitz::daq::SingleEntry::~SingleEntry()
 {
     SetError(0);
-
     delete m_pDoocsProperty;
     free(this->m_daqName);
+}
 
-    if(!m_isMemoriesInited){return;}
+#define VALUE_FOR_DELETE            1
+#define VALUE_FOR_ADD_TO_ROOT       (1<<1)
+#define VALUE_FOR_ADD_TO_NETW       (1<<2)
+#define VALUE_FOR_UNKNOWN_STATE     (1<<8)
 
-    for(int i=0; i<STACK_SIZE;++i){
-        delete stack[i];
-        stack[i] = NULL;
+bool pitz::daq::SingleEntry::markEntryForDeleteAndReturnPossible()
+{
+    uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
+
+    if(!nReturn){
+        return true;
     }
-    delete m_forRoot;
 
+    if(nReturn&VALUE_FOR_DELETE){
+        __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
+    }
+
+    //__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
+    return false;
+}
+
+
+bool pitz::daq::SingleEntry::tryToMarkEntryForAddingToRoot()
+{
+    uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+
+    if(!(nReturn&VALUE_FOR_DELETE)){
+        return true;
+    }
+
+    __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    return false;
+}
+
+
+bool pitz::daq::SingleEntry::tryToMarkEntryForUsingByNetwork()
+{
+    uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+
+    if(!(nReturn&VALUE_FOR_DELETE)){
+        return true;
+    }
+
+    __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    return false;
+}
+
+
+bool pitz::daq::SingleEntry::isMarkedForDeletionAndResetRootUsage()const
+{
+    //uint32_t nReturn = __atomic_exchange_n (&m_willBeDeletedOrAddedToRootAtomic,0,__ATOMIC_RELAXED);
+    uint32_t nReturn = __atomic_load_n (&m_willBeDeletedOrAddedToRootAtomic,__ATOMIC_RELAXED);
+
+    if(nReturn == VALUE_FOR_DELETE){ return true; }
+
+    __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+
+    //__atomic_store_n(&m_willBeDeletedOrAddedToRootAtomic,nReturn,__ATOMIC_RELAXED);
+    return false;
+}
+
+
+bool pitz::daq::SingleEntry::isUsedByRootOrNetworkThread()const
+{
+    uint32_t nReturn = __atomic_load_n (&m_willBeDeletedOrAddedToRootAtomic,__ATOMIC_RELAXED);
+
+    if((nReturn&VALUE_FOR_ADD_TO_ROOT)||(nReturn&VALUE_FOR_ADD_TO_NETW)){ return true; }
+
+    //__atomic_store_n(&m_willBeDeletedOrAddedToRootAtomic,nReturn,__ATOMIC_RELAXED);
+    return false;
+}
+
+
+
+int pitz::daq::SingleEntry::SetEntryInfo(uint32_t a_unOffset, const DEC_OUT_PD(BranchDataRaw)& a_branchInfo)
+{
+    if((a_branchInfo.dataType != PITZ_DAQ_UNSPECIFIED_DATA_TYPE)&&(a_branchInfo.itemsCountPerEntry!=PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES)){
+        uint32_t bufferNewSize (DaqEntryMemorySize(&a_branchInfo));
+        uint32_t allocatedBufferNewSize = bufferNewSize+a_unOffset;
+
+        if(allocatedBufferNewSize>m_unAllocatedBufferSize){
+            DEC_OUT_PD(SingleData)* pNewData = ResizeDataWithNewOffset(m_pForRoot,a_unOffset,m_bufferSize);
+            if(!pNewData){
+                return -1;
+            }
+            m_pForRoot = pNewData;
+            m_unAllocatedBufferSize = allocatedBufferNewSize;
+        }
+
+        m_unOffset = a_unOffset;
+        m_bufferSize = bufferNewSize;
+
+        return 0;
+    }
+
+    m_branchInfo = a_branchInfo;
+
+    return 0;
 }
 
 
 void pitz::daq::SingleEntry::RemoveDoocsProperty()
 {
     if(m_pDoocsProperty && m_pNetworkParent && m_pNetworkParent->parent()){
-        EqFct* pFct = (EqFct*)m_pNetworkParent->parent();
-        pFct->rem_property(m_pDoocsProperty);
+        m_pNetworkParent->parent()->rem_property(m_pDoocsProperty);
     }
 
     delete m_pDoocsProperty;
-    m_pDoocsProperty = NULL;
-}
-
-
-bool pitz::daq::SingleEntry::CreateAllMemories() // called after constructor
-{
-    int i, nToDelete;
-
-    if(m_isMemoriesInited){return true;}
-
-    m_forRoot=CreateMemoryInherit();
-
-    for(i=0; i<STACK_SIZE;++i){
-        stack[i] = CreateMemoryInherit();
-        if(!stack[i]){
-            //destroyEntry();
-            nToDelete = i;
-            goto falseReturnPoint; //"Low memory 2";
-        }
-        stack[i]->SetParent(this);
-    }
-
-    m_nMaxFillUnsavedCount = DATA_SIZE_TO_SAVE/stack[0]->streamSize();
-    if(m_nMaxFillUnsavedCount<MIN_NUMBER_OF_FILLS){m_nMaxFillUnsavedCount=MIN_NUMBER_OF_FILLS;}
-
-
-    m_isMemoriesInited = 1;
-    return true;
-
-falseReturnPoint:
-
-    for(i=0; i<nToDelete;++i){
-
-        delete stack[i];
-    }
-
-    //delete m_forRoot;m_forRoot = NULL;
-    m_isMemoriesInited = 0;
-
-    return false;
+    m_pDoocsProperty = NEWNULLPTR2;
 }
 
 
@@ -236,7 +300,11 @@ void pitz::daq::SingleEntry::SetNetworkParent(SNetworkStruct* a_pNetworkParent)
     if(this->m_pDoocsProperty){
         m_pNetworkParent->parent()->rem_property(this->m_pDoocsProperty);
         delete this->m_pDoocsProperty;
-        this->m_pDoocsProperty = NULL;
+        this->m_pDoocsProperty = NEWNULLPTR2;
+    }
+
+    if(m_pNetworkParent){
+        m_pNetworkParent->RemoveEntryNoDelete(this);
     }
 
     m_pNetworkParent = a_pNetworkParent;
@@ -251,10 +319,10 @@ void pitz::daq::SingleEntry::SetNetworkParent(SNetworkStruct* a_pNetworkParent)
 
 
 
-pitz::daq::SNetworkStruct* pitz::daq::SingleEntry::networkParent()
-{
-    return m_pNetworkParent;
-}
+//pitz::daq::SNetworkStruct* pitz::daq::SingleEntry::networkParent()
+//{
+//    return m_pNetworkParent;
+//}
 
 
 bool pitz::daq::SingleEntry::KeepEntry()const
@@ -332,32 +400,14 @@ void pitz::daq::SingleEntry::SetProperty(const char* a_propertyAndAttributes)
     }
 }
 
-#if 0
-class MyTBranch : public TBranch
-{
-    public:
-    MyTBranch(TTree* a_tree, const char* a_name, void* a_address, const char* a_leaflist)
-            :
-            TBranch(a_tree, a_name, a_address, a_leaflist)
-    {
-    }
 
-    void SetAddress(void* a_add){
-        //printf("!!!!!!! Setting address %p\n", a_add);
-        TBranch::ResetAddress();
-        TBranch::SetAddress(a_add);
-        this->fAddress = (char*)a_add;
-    }
-};
-#endif
-
-
-void pitz::daq::SingleEntry::SetRootTree3(TTree* a_tree, const char* a_cpcBranchName)
+void pitz::daq::SingleEntry::SetRootTreeAndBranchAddress(TTree* a_tree)
 {
     m_pTreeOnRoot = a_tree;
+    if(!a_tree){return;}
     ++m_pp.numOfFilesIn;
     m_nNumberInCurrentFile = 0;
-    m_isPresent = false;
+    m_isPresentInCurrentFile = 0;
     if(m_pDoocsProperty){
         //m_pDoocsProperty->CalculateAndSetString();
     }
@@ -368,11 +418,26 @@ void pitz::daq::SingleEntry::SetRootTree3(TTree* a_tree, const char* a_cpcBranch
     //m_pBranchOnTree->SetTree(m_pTreeOnRoot);
     //return m_pBranchOnTree;
 
-    m_pTreeOnRoot->Branch(a_cpcBranchName,m_forRoot->bufferForRoot(),this->rootFormatString());
+    if(m_pForRoot){
+        m_pTreeOnRoot->Branch(this->daqName(),m_pForRoot,this->rootFormatString());
+    }
+
 }
 
 
-void pitz::daq::SingleEntry::SetBranchAddress(bool* a_pbAutosave, data::memory::ForServerBase* a_pNewMemory)
+DEC_OUT_PD(SingleData)* pitz::daq::SingleEntry::GetNewMemoryForNetwork()
+{
+    return CreateDataWithOffset(m_unOffset,m_bufferSize);
+}
+
+
+void pitz::daq::SingleEntry::SetMemoryBack( DEC_OUT_PD(SingleData)* a_pMemory )
+{
+    FreeDataWithOffset(a_pMemory,m_unOffset);
+}
+
+
+void pitz::daq::SingleEntry::SetNextFillableData(bool* a_pbAutosave, DEC_OUT_PD(SingleData)* a_pNewMemory)
 {
     *a_pbAutosave = false;
     if(!m_pTreeOnRoot){return;}
@@ -382,17 +447,16 @@ void pitz::daq::SingleEntry::SetBranchAddress(bool* a_pbAutosave, data::memory::
         m_nFillUnsavedCount = 0;
     }
 
-    //return m_pBranchOnTree;
-    m_forRoot->copyFrom(a_pNewMemory);
+    memcpy(m_pForRoot,a_pNewMemory,m_bufferSize);
 }
 
 
 void pitz::daq::SingleEntry::AddExistanceInRootFile(int a_second, int a_eventNumber)
 {
-    if(!m_isPresent){
+    if(!m_isPresentInCurrentFile){
         m_firstSecond = a_second;
         m_firstEventNumber = a_eventNumber;
-        m_isPresent = true;
+        m_isPresentInCurrentFile = 1;
     }
 
     ++m_nNumberInCurrentFile;
@@ -443,38 +507,38 @@ void pitz::daq::SingleEntry::ValueStringByKey2(const char* a_request, char* a_bu
 
     bool bReadAll(false);
 
-    if((a_request==NULL)||(a_request[0]==0)){bReadAll=true;}
+    if((!a_request)||(a_request[0]==0)){bReadAll=true;}
 
     if(bReadAll ||strstr(ERROR_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,ERROR_KEY_STR "=%d; ",m_nError2);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),ERROR_KEY_STR "=%d; ",m_nError2);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
 
     if(bReadAll || strstr(NUM_IN_CUR_FL_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,NUM_IN_CUR_FL_KEY_STR "=%d; ",m_nNumberInCurrentFile);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),NUM_IN_CUR_FL_KEY_STR "=%d; ",m_nNumberInCurrentFile);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
 
     if(bReadAll || strstr(NUM_OF_FILES_IN_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,NUM_OF_FILES_IN_KEY_STR "=%d; ",m_pp.numOfFilesIn);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),NUM_OF_FILES_IN_KEY_STR "=%d; ",m_pp.numOfFilesIn);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
 
     if(bReadAll || strstr(NUM_OF_ALL_ENTRIES_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,NUM_OF_ALL_ENTRIES_KEY_STR "=%d; ",m_pp.numberInAllFiles);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),NUM_OF_ALL_ENTRIES_KEY_STR "=%d; ",m_pp.numberInAllFiles);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
 
     if(bReadAll || strstr(NUM_OF_ERRORS_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,NUM_OF_ERRORS_KEY_STR "=%d; ",m_nNumOfErrors);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),NUM_OF_ERRORS_KEY_STR "=%d; ",m_nNumOfErrors);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
@@ -482,7 +546,7 @@ void pitz::daq::SingleEntry::ValueStringByKey2(const char* a_request, char* a_bu
 
     if( bReadAll || strstr(CREATION_STR,a_request)){
         char vcBufForTime[32];
-        nWritten = snprintf(pcBufToWrite, nBufLen,CREATION_STR "=%s; ",EPOCH_TO_STRING2(m_pp.creationTime,"",vcBufForTime,31));
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),CREATION_STR "=%s; ",EPOCH_TO_STRING2(m_pp.creationTime,"",vcBufForTime,31));
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
@@ -490,7 +554,7 @@ void pitz::daq::SingleEntry::ValueStringByKey2(const char* a_request, char* a_bu
 
     if(bReadAll || strstr(EXPIRATION_STR,a_request)){
         char vcBufForTime[32];
-        nWritten = snprintf(pcBufToWrite, nBufLen,EXPIRATION_STR "=%s; ",EPOCH_TO_STRING2(m_pp.expirationTime,NON_EXPIRE_STRING,vcBufForTime,31));
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),EXPIRATION_STR "=%s; ",EPOCH_TO_STRING2(m_pp.expirationTime,NON_EXPIRE_STRING,vcBufForTime,31));
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
@@ -498,7 +562,7 @@ void pitz::daq::SingleEntry::ValueStringByKey2(const char* a_request, char* a_bu
 
     if(bReadAll || strstr(MASK_KEY_STR,a_request)){
         char vcBufForTime[32];
-        nWritten = snprintf(pcBufToWrite,nBufLen,MASK_KEY_STR "=%s(%s); ",m_pp.masked?"true":"false",EPOCH_TO_STRING2(m_pp.mp.unmaskTime,MASK_NO_EXPIRE_STRING, vcBufForTime, 31));
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),MASK_KEY_STR "=%s(%s); ",m_pp.masked?"true":"false",EPOCH_TO_STRING2(m_pp.mp.unmaskTime,MASK_NO_EXPIRE_STRING, vcBufForTime, 31));
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
@@ -512,16 +576,16 @@ void pitz::daq::SingleEntry::ValueStringByKey2(const char* a_request, char* a_bu
 
 void pitz::daq::SingleEntry::SetError(int a_error)
 {
-    if((a_error == 0)&&(m_nError2==0)){return;}
+    if((!a_error)&&(!m_nError2)){return;}
+    if(a_error && m_pp.masked){return;}
 
-    if(a_error&&(m_nError2==0)){
-        if(m_pp.masked){return;}
-        ++m_nNumOfErrors;
-        EqFctCollector* pClc = m_pNetworkParent?(EqFctCollector*)m_pNetworkParent->parent():NULL;
+    EqFctCollector* pClc = m_pNetworkParent?m_pNetworkParent->parent():NEWNULLPTR2;
+
+    if(a_error&&(!m_nError2)){
+        ++m_nNumOfErrors;        
         if(pClc){pClc->IncrementErrors(m_daqName);}
     }
     else if((a_error==0)&&m_nError2){
-        EqFctCollector* pClc = m_pNetworkParent?(EqFctCollector*)m_pNetworkParent->parent():NULL;
         if(pClc){pClc->DecrementErrors(m_daqName);}
     }
 
@@ -531,128 +595,96 @@ void pitz::daq::SingleEntry::SetError(int a_error)
 
 /*//////////////////////////////////////////////////*/
 
-pitz::daq::SNetworkStruct::SNetworkStruct(EqFct* a_parent, SNetworkStruct* a_prev)
+pitz::daq::SNetworkStruct::SNetworkStruct(EqFctCollector* a_parent)
         :
-        m_pParent(a_parent),
-        m_prev(a_prev),
-        m_next(NULL)
+        m_pParent(a_parent)
 {
-    if(a_prev){a_prev->m_next = this;}
-    m_pThread = NULL;
-    m_last = NULL;
-    if(a_prev){m_first = a_prev->m_last;} // keep last from prev
-    else {m_first = NULL;}
-    m_nNumberOfEntries = 0;
-    m_nReserved = 0;
-    m_isRunning = 0;
-    m_bitwiseReserved = 0;
+    m_shouldRun = 1;
+    m_bitwise64Reserved =0;
+
+    m_pThread = new STDN::thread(&SNetworkStruct::DataGetterThread,this);
 }
 
 
 pitz::daq::SNetworkStruct::~SNetworkStruct()
 {
-    if(m_prev){m_prev->m_next = m_next;}
-    if(m_next){m_next->m_prev = m_prev;}
-    StopAndDeleteThread();
+    pthread_t handleToThread = static_cast<pthread_t>(m_pThread->native_handle());
+
+    m_shouldRun = 0;
+    pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
+    m_pThread->join();
+    delete m_pThread;
 }
 
 
-pitz::daq::SingleEntry* pitz::daq::SNetworkStruct::first()
+void pitz::daq::SNetworkStruct::DataGetterThread()
 {
-    return m_first;
+    struct sigaction sigAction;
+
+    //sigAction.sa_handler = SignalHandler;
+#ifdef sa_handler
+#pragma push_macro("sa_handler")
+#undef sa_handler
+    sigAction.__sigaction_handler.sa_handler = SignalHandler;
+#pragma pop_macro("sa_handler")
+#else
+    sigAction.sa_handler = SignalHandler;
+#endif
+    sigfillset(&sigAction.sa_mask);
+    sigdelset(&sigAction.sa_mask,SIGNAL_FOR_CANCELATION);
+    sigAction.sa_flags = 0;
+    sigAction.sa_restorer = NEWNULLPTR2; // not used
+
+    // we have to init sig handle, because in some cases, we will stop by interrupt
+    sigaction(SIGNAL_FOR_CANCELATION,&sigAction,NEWNULLPTR2);
+
+
+    while(m_shouldRun && m_pParent->shouldWork()){
+        //if((m_daqEntries.size()>0)&&(!m_pParent2->m_nDataStopCount)){
+        if((m_daqEntries.size()>0)){
+            m_pParent->DataGetterThread(this);
+        }
+        else{
+            SleepMs(2);
+        }
+    }
+
 }
 
 
-//SingleEntry* last()
-pitz::daq::SingleEntry* pitz::daq::SNetworkStruct::last()
-{
-    return m_last;
-}
-
-
-EqFct* pitz::daq::SNetworkStruct::parent()
+pitz::daq::EqFctCollector* pitz::daq::SNetworkStruct::parent()
 {
     return m_pParent;
 }
 
 
-size_t pitz::daq::SNetworkStruct::numberOfEntries()const
+const ::std::list< pitz::daq::SingleEntry* >& pitz::daq::SNetworkStruct::daqEntries()const
 {
-    return static_cast<size_t>(m_nNumberOfEntries);
+    return m_daqEntries;
 }
 
 
-void pitz::daq::SNetworkStruct::SetThread(STDN::thread* a_pThread)
+uint64_t pitz::daq::SNetworkStruct::shouldRun()const
 {
-    StopAndDeleteThread();
-    m_pThread = a_pThread;
-    m_isRunning = 1;
-}
-
-void pitz::daq::SNetworkStruct::StopAndDeleteThread()
-{
-    if(m_pThread){
-        ::STDN::thread* pThread = m_pThread;
-        m_isRunning = 0;
-        m_pThread = nullptr;
-        pthread_t handleToThread = static_cast<pthread_t>(pThread->native_handle());
-        pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
-
-        pThread->join();
-        delete pThread;
-    }
+    return m_shouldRun;
 }
 
 
-pitz::daq::SingleEntry* pitz::daq::SNetworkStruct::RemoveEntry(SingleEntry *a_newEntry,int* a_pnNumberOfEntries)
+void pitz::daq::SNetworkStruct::RemoveEntryNoDelete(SingleEntry *a_newEntry,int* a_pnNumberOfEntries)
 {
+    if(!a_newEntry){return ;}
+    m_daqEntries.erase(a_newEntry->m_thisIter);
 
-    SingleEntry* pNext;
-    if(!a_newEntry){return NEWNULLPTR2;}
-    pNext = a_newEntry->next;
-
-    //.lock();
-    if(a_newEntry->next){a_newEntry->next->prev=a_newEntry->prev;}
-    if(a_newEntry->prev){a_newEntry->prev->next=a_newEntry->next;}
-    if(a_newEntry == m_first){m_first=a_newEntry->next;}
-    if(a_newEntry == m_last){m_last=a_newEntry->prev;}
-
-    delete a_newEntry;
-
-    if(a_pnNumberOfEntries){*a_pnNumberOfEntries = --m_nNumberOfEntries;}
-    //mutex.unlock();
-
-    return pNext;
-
+    if(a_pnNumberOfEntries){*a_pnNumberOfEntries = static_cast<int>(m_daqEntries.size());}
 }
 
 
 bool pitz::daq::SNetworkStruct::AddNewEntry(SingleEntry *a_newEntry)
 {
-    //mutex.lock();
-
-    if(!a_newEntry->CreateAllMemories()){
-#ifndef NEW_GETTER_THREAD
-        return false;
-#endif
-    }
-
-    // case of first
-    if(m_first && !m_last){m_first->next = a_newEntry;a_newEntry->prev = m_first;m_first=nullptr;}
-    //a_newEntry->m_pNetworkParent = NULL;
-    if(m_first){
-        a_newEntry->prev = m_first->prev;
-        if(m_first->prev){m_first->prev->next = a_newEntry;}
-        m_first->prev = a_newEntry;
-    }
-    a_newEntry->next = m_first;
-    if(!m_last){m_last=a_newEntry;}
-    m_first = a_newEntry;
-
-    ++m_nNumberOfEntries;
+    if(!a_newEntry){return false;}
+    m_daqEntries.push_front(a_newEntry);
+    a_newEntry->m_thisIter = m_daqEntries.begin();
     a_newEntry->SetNetworkParent(this);
-
-    //mutex.unlock();
 
     return true;
 }
@@ -670,7 +702,6 @@ pitz::daq::D_stringForEntry::D_stringForEntry(const char* a_pn, SingleEntry* a_p
 pitz::daq::D_stringForEntry::~D_stringForEntry()
 {
 }
-
 
 
 void pitz::daq::D_stringForEntry::get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/)
@@ -727,24 +758,24 @@ time_t STRING_TO_EPOCH(const char* _a_string,const char* a_cpcInf)
 
     if(a_cpcInf && (a_cpcInf[0]!=0)&&(strncmp((_a_string),a_cpcInf,strlen(a_cpcInf))==0)){return NON_EXPIRE_TIME;}
 
-    aTm.tm_year = strtol((_a_string),&pcNext,10) - 1900;
-    if(((const char*)pcNext++)==(_a_string)){return -errorsFromConstructor::syntax;}
+    aTm.tm_year = static_cast<decltype (aTm.tm_year)>(strtol((_a_string),&pcNext,10) - 1900);
+    if((pcNext++)==(_a_string)){return -errorsFromConstructor::syntax;}
 
     pcTmp = pcNext;
-    aTm.tm_mon = strtol(pcTmp,&pcNext,10) - 1;
-    if(((const char*)pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
+    aTm.tm_mon = static_cast<decltype (aTm.tm_mon)>(strtol(pcTmp,&pcNext,10) - 1);
+    if((pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
 
     pcTmp = pcNext;
-    aTm.tm_mday = strtol(pcTmp,&pcNext,10);
-    if(((const char*)pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
+    aTm.tm_mday = static_cast<decltype (aTm.tm_mday)>(strtol(pcTmp,&pcNext,10));
+    if((pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
 
     pcTmp = pcNext;
-    aTm.tm_hour = strtol(pcTmp,&pcNext,10) ;
-    if(((const char*)pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
+    aTm.tm_hour = static_cast<decltype (aTm.tm_hour)>(strtol(pcTmp,&pcNext,10) );
+    if((pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
 
     pcTmp = pcNext;
-    aTm.tm_min = strtol(pcTmp,&pcNext,10);
-    if(((const char*)pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
+    aTm.tm_min = static_cast<decltype (aTm.tm_min)>(strtol(pcTmp,&pcNext,10));
+    if((pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
 
     aTm.tm_sec = 0;
     aTm.tm_isdst = -1;
@@ -760,10 +791,10 @@ const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* 
     if((a_epoch>0) && (a_epoch!=NON_EXPIRE_TIME)){
         struct tm aTm;
         localtime_r(&a_epoch,&aTm);
-        snprintf(a_buffer, a_bufferLength,"%d.%.2d.%.2d-%.2d:%.2d",aTm.tm_year+1900,aTm.tm_mon+1,aTm.tm_mday,aTm.tm_hour,aTm.tm_min);
+        snprintf(a_buffer,static_cast<size_t>(a_bufferLength),"%d.%.2d.%.2d-%.2d:%.2d",aTm.tm_year+1900,aTm.tm_mon+1,aTm.tm_mday,aTm.tm_hour,aTm.tm_min);
     }
     else{
-        snprintf(a_buffer, a_bufferLength,"%s", a_cpcInf);
+        snprintf(a_buffer,static_cast<size_t>(a_bufferLength),"%s", a_cpcInf);
     }
 
     return a_buffer;
