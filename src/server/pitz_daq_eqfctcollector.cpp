@@ -24,12 +24,6 @@
         } \
     }while(0)
 
-#ifdef NEW_GETTER_THREAD
-#define CAST_CLEAR_RET(_retValue)      (_retValue)
-#else
-#define CAST_CLEAR_RET(_retValue)
-#endif
-
 static const char*      s_LN = "#_QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890";
 
 pitz::daq::EqFctCollector::EqFctCollector()
@@ -53,7 +47,6 @@ pitz::daq::EqFctCollector::EqFctCollector()
           m_numberOfEntriesInError("NUMBER.OF.ENTRIES.IN.ERROR",this),
           m_entriesInError("ENTRIES.IN.ERROR",this)
 {
-
     m_pNextNetworkToAdd = NEWNULLPTR2;
 
     m_unErrorUnableToWriteToDcacheNum = 0;
@@ -79,7 +72,7 @@ pitz::daq::EqFctCollector::EqFctCollector()
 
 pitz::daq::EqFctCollector::~EqFctCollector()
 {
-    //EqFctCollector::cancel();
+    EqFctCollector::CLEAR_FUNC_NAME();
 }
 
 
@@ -138,13 +131,15 @@ void pitz::daq::EqFctCollector::init(void)
     if(m_shouldWork){return;}
     m_shouldWork = 1;
 
+    m_numberOfEntries.set_value(0);
+    m_rootLength.set_value(0);
+    m_entriesInError.set_value("");
+    m_numberOfEntriesInError.set_value(0);
+
     g_nLogLevel = m_logLevel.value();
     InitSocketLibrary();
 
     WriteLockEntries2();
-
-    m_entriesInError.set_value("");
-    m_numberOfEntriesInError.set_value(0);
 
     nNumberOfFillThreadsDesigned = m_numberOfFillThreadsDesigned.value();
     if(nNumberOfFillThreadsDesigned<=0){nNumberOfFillThreadsDesigned=1;m_numberOfFillThreadsDesigned.set_value(1);}
@@ -173,7 +168,7 @@ void pitz::daq::EqFctCollector::init(void)
         pn = strpbrk(data,s_LN);
         if( ( !pn ) || ( pn[0] == '#' ) ) continue;
         if(IsAllowedToAdd2(pn)){
-            AddNewEntryPrivate(entryCreationType::fromConfigFile, data);
+            AddNewEntryNotLocked(entryCreationType::fromConfigFile, data);
         }
     }
     fclose(fpConfig);
@@ -182,8 +177,9 @@ finalizeStuffPoint:
     WriteUnlockEntries2();
     DEBUG_APP_INFO(1," ");
 
-    m_threadRoot = STDN::thread(&EqFctCollector::RootThreadFunction,this);
-    m_threadLocalFileDeleter = STDN::thread(&EqFctCollector::LocalFileDeleterThread,this);
+    m_threadForEntryAdding = ::STDN::thread(&EqFctCollector::EntryAdderDeleter,this);
+    m_threadRoot = ::STDN::thread(&EqFctCollector::RootThreadFunction,this);
+    m_threadLocalFileDeleter = ::STDN::thread(&EqFctCollector::LocalFileDeleterThread,this);
 }
 
 
@@ -338,7 +334,7 @@ int pitz::daq::EqFctCollector::parse_old_config2(const std::string& a_daqConfFil
         pn = strpbrk(data,s_LN);
         if( ( !pn ) || ( pn[0] == '#' ) ) continue;
         if(IsAllowedToAdd2(pn)){
-            AddNewEntryPrivate(entryCreationType::fromOldFile, data);
+            AddNewEntryNotLocked(entryCreationType::fromOldFile, data);
         }
     }
     fclose(fpConfig);
@@ -354,7 +350,7 @@ returnPoint:
 }
 
 
-void pitz::daq::EqFctCollector::AddNewEntryPrivate(entryCreationType::Type a_creationType,const char* a_entryLine)
+void pitz::daq::EqFctCollector::AddNewEntryNotLocked(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
     ::std::list< SNetworkStruct* >::iterator    nextIterator;
     SingleEntry *pCurEntry(nullptr);
@@ -378,11 +374,7 @@ void pitz::daq::EqFctCollector::AddNewEntryPrivate(entryCreationType::Type a_cre
 }
 
 
-#ifdef NEW_GETTER_THREAD
-int pitz::daq::EqFctCollector::clear(void)
-#else
-void pitz::daq::EqFctCollector::cancel(void)
-#endif
+CLEAR_RET_TYPE pitz::daq::EqFctCollector::CLEAR_FUNC_NAME(void)
 {
     DEBUG_APP_INFO(0,"!!!!!!!!!!!!!!!!!!!!!!!!!! %s, m_nWork=%d",__FUNCTION__,static_cast<int>(m_shouldWork));
 
@@ -391,16 +383,21 @@ void pitz::daq::EqFctCollector::cancel(void)
 
     WriteEntriesToConfig();
 
-    for( auto netStruct : m_networsList){
-        DEBUG_APP_INFO(0,"!!!!!! stopping network\n");
-        delete netStruct;
-    }
-
     m_semaForRootThread.post();
     m_semaForLocalFileDeleter.post();
+    m_semaForEntryAdder.post();
 
     m_threadRoot.join();
     m_threadLocalFileDeleter.join();
+    m_threadForEntryAdding.join();
+
+    for( auto netStruct : m_networsList){
+        DEBUG_APP_INFO(0,"!!!!!! stopping network\n");
+        netStruct->StopThread();
+        delete netStruct;
+    }
+
+    m_networsList.clear();
 
     CleanSocketLibrary();
 
@@ -456,24 +453,16 @@ void pitz::daq::EqFctCollector::LocalFileDeleterThread()
 
 void pitz::daq::EqFctCollector::EntryAdderDeleter()
 {
-    bool bAction;
     while( m_shouldWork  ){
-        m_semaForEntryAdderDeleter.wait(-1);
+        m_semaForEntryAdder.wait(-1);
 
-        bAction = m_entriesToAdd.size() || m_entriesToDelete.size();
-
-        if(bAction){
+        if(m_entriesToAdd.size()){
             WriteLockEntries2();
 
             while(m_entriesToAdd.size()){
                 //AddNewEntryPrivate(entryCreationType::fromUser, ::std::move(m_entriesToAdd.front()));
-                AddNewEntryPrivate(entryCreationType::fromUser, m_entriesToAdd.front().c_str());
+                AddNewEntryNotLocked(entryCreationType::fromUser, m_entriesToAdd.front().c_str());
                 m_entriesToAdd.pop();
-            }
-
-            while(m_entriesToDelete.size()){
-                RemoveOneEntryPrivate(m_entriesToDelete.front());
-                m_entriesToDelete.pop();
             }
 
             WriteUnlockEntries2();
@@ -491,7 +480,7 @@ bool pitz::daq::EqFctCollector::AddNewEntryByUser(const char* a_entryLine)
     if(IsAllowedToAdd2(a_entryLine)){
         bRet=true;
         m_entriesToAdd.push(a_entryLine);
-        m_semaForEntryAdderDeleter.post();
+        m_semaForEntryAdder.post();
     }
 
     ReadUnlockEntries2();
@@ -505,7 +494,7 @@ bool pitz::daq::EqFctCollector::RemoveEntryByUser(const char* a_entryName)
     bool bRet(false);
     SingleEntry* pEntry;
 
-
+    this->WriteLockEntries2();
 
     if(FindEntryInAdding(a_entryName)){
         //bRet = true;
@@ -513,38 +502,39 @@ bool pitz::daq::EqFctCollector::RemoveEntryByUser(const char* a_entryName)
         return true;
     }
 
-
-    this->ReadLockEntries2();
     if( (pEntry=FindEntry(a_entryName))){
         bRet=true;
-        m_entriesToDelete.push(pEntry);
-        m_semaForEntryAdderDeleter.post();
+        TryToRemoveEntryNotLocked(pEntry);
     }
-    this->ReadUnlockEntries2();
+
+
+    this->WriteUnlockEntries2();
 
     return bRet;
 }
 
 
-void pitz::daq::EqFctCollector::RemoveOneEntryPrivate(SingleEntry* a_pEntry)
+void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 {
     bool bIsAllowedToDelete;
     SNetworkStruct* pNetworkParent;
-    int nNumOfEntriesInNetwork;
 
     if(!a_pEntry){
         return;
     }
 
-    bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnPossible();
+    bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnIfPossibleNow();
     a_pEntry->RemoveDoocsProperty();
 
     pNetworkParent = a_pEntry->networkParent();
     if(!pNetworkParent){fprintf(stderr,"!!!!!!!!!! Entry without parent!\n"); goto returnPoint;}
 
-    pNetworkParent->RemoveEntryNoDelete(a_pEntry,&nNumOfEntriesInNetwork);
+    //WriteLockEntries2();
+    pNetworkParent->RemoveEntryNoDelete(a_pEntry);
     m_pNextNetworkToAdd = pNetworkParent;
     m_numberOfEntries.set_value(--m_nNumberOfEntries);
+    //WriteUnlockEntries2();
+
     DEBUG_APP_INFO(0,"Number of entries for this network is: %d",m_nNumberOfEntries);
 
 returnPoint:
@@ -560,18 +550,14 @@ void pitz::daq::EqFctCollector::WriteLockEntries2()
 {
     pthread_t handleToThread;
 
-    //m_isWriteLockActive = 1;
     m_lockForEntries2.WriteLockWillBeCalled();
 
-    // this is not needed because :;std::list is protected
-    //m_lockForEntries.lock_shared();
 
     for(auto pNetwork : m_networsList){
         handleToThread = static_cast<pthread_t>(pNetwork->m_pThread->native_handle());
         pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
     }
 
-    //m_lockForEntries.unlock_shared();
 
     m_lockForEntries2.lock();
 
@@ -794,7 +780,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
 
 bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_data, SingleEntry* a_pEntry)
 {
-    bool bPossibleToAdd = a_pEntry->tryToMarkEntryForAddingToRoot();
+    bool bPossibleToAdd = a_pEntry->lockEntryForRoot();
 
     if(bPossibleToAdd){
         m_fifoToFill.push({a_pEntry,a_data});
@@ -878,7 +864,7 @@ void pitz::daq::EntryLock::lock()
 
 void pitz::daq::EntryLock::unlock()
 {
-    if(__atomic_fetch_sub(&m_nLocksCount,1,__ATOMIC_RELAXED) == 1){
+    if(__atomic_fetch_sub(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED) == WRITE_LOCK_ADD_VALUE){
 #ifdef USE_SHARED_LOCK
         ::STDN::shared_mutex::unlock();
 #endif
@@ -930,8 +916,12 @@ pitz::daq::RTree::RTree( pitz::daq::SingleEntry* a_pParentEntry )
 
 pitz::daq::RTree::~RTree()
 {
-    if(m_pParentEntry && m_pParentEntry->isMarkedForDeletionAndResetRootUsage()){
-        delete m_pParentEntry;
-        m_pParentEntry = NEWNULLPTR2;
+    if(m_pParentEntry ){
+        m_pParentEntry->SetRootTreeAndBranchAddress(NEWNULLPTR2);
+        if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
+            SingleEntry* pParentEntry( m_pParentEntry );
+            m_pParentEntry=NEWNULLPTR2;
+            delete pParentEntry;
+        }
     }
 }

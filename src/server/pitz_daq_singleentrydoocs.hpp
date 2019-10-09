@@ -34,6 +34,10 @@ public:
     void FromDoocsToMemory(DEC_OUT_PD(SingleData)* pMemory, const EqData* dcsData);
 
 protected:
+    bool GetEntryInfoFromServer( DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo ) const;
+    void CreateRootFormatString();
+
+protected:
     char* m_doocsUrl;
     char* m_rootFormatStr;
 };

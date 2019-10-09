@@ -23,6 +23,16 @@
 #define OVERRIDE3
 #endif
 
+#ifdef NEW_GETTER_THREAD
+#define CLEAR_FUNC_NAME                clear
+#define CLEAR_RET_TYPE                 int
+#define CAST_CLEAR_RET(_retValue)      (_retValue)
+#else
+#define CLEAR_FUNC_NAME                cancel
+#define CLEAR_RET_TYPE                 void
+#define CAST_CLEAR_RET(_retValue)
+#endif
+
 
 namespace pitz{namespace daq{
 
@@ -56,7 +66,7 @@ class EqFctCollector : public EqFct
 {
     //friend class D_addNewEntry;
     //friend class D_removeEntry;
-    friend class D_genEvent;
+    //friend class D_genEvent;
     friend class SNetworkStruct;
 
 protected:
@@ -81,18 +91,14 @@ protected:
     // API inherited from EqFct,
 private:
     void init(void) OVERRIDE2 FINAL2 ; // use complete (called before init) and post_init (called after init) or online (before)
-#ifdef NEW_GETTER_THREAD
-    int clear(void) OVERRIDE2 FINAL2 ;  // use 'virtual void cancel(void)' in the child (called before cancel)
-#else
-    void cancel(void) OVERRIDE2 ; // better to use 'virtual int clear(void)' in the child
-#endif
+    CLEAR_RET_TYPE CLEAR_FUNC_NAME(void) OVERRIDE2 FINAL2 ;  // use 'virtual void cancel(void)' in the child (called before cancel)
     int  write          (fstream &fprt) OVERRIDE2 FINAL2;   
 
     // API for internal usage
 private:
     SStructForFill  GetAndDeleteFirstData();
-    void AddNewEntryPrivate(entryCreationType::Type type, const char* entryLine);
-    void RemoveOneEntryPrivate(SingleEntry* pEntry);
+    void AddNewEntryNotLocked(entryCreationType::Type type, const char* entryLine);
+    void TryToRemoveEntryNotLocked(SingleEntry* pEntry);
     pitz::daq::SingleEntry* FindEntry(const char* entryName);
     bool FindEntryInAdding(const char* entryName);
     bool FindEntryInDeleting(const char* entryName);
@@ -140,17 +146,16 @@ private:
     D_loadOldConfig                     m_loadOldConfig;
     D_int                               m_numberOfEntriesInError;
     D_text                              m_entriesInError;
-    ::STDN::thread                      m_threadForEntryAddDelete;
+    ::STDN::thread                      m_threadForEntryAdding;
     ::STDN::thread                      m_threadRoot; // +
     ::STDN::thread                      m_threadLocalFileDeleter;
     ::std::list< SNetworkStruct* >      m_networsList;
     ::std::mutex                        m_mutexForEntriesInError;
     ::std::queue< SStructForFill >      m_fifoToFill;
     ::std::queue< ::std::string >       m_entriesToAdd;
-    ::std::queue< SingleEntry* >        m_entriesToDelete;
     ::std::queue< ::std::string >       m_fifoForLocalFileDeleter;
     common::UnnamedSemaphoreLite        m_semaForRootThread;
-    common::UnnamedSemaphoreLite        m_semaForEntryAdderDeleter;
+    common::UnnamedSemaphoreLite        m_semaForEntryAdder;
     common::UnnamedSemaphoreLite        m_semaForLocalFileDeleter;
     EntryLock                           m_lockForEntries2;
     SNetworkStruct*                     m_pNextNetworkToAdd;

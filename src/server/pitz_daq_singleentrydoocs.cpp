@@ -4,12 +4,13 @@
 // pitznoadc0 Eq function class
 
 #include "pitz_daq_singleentrydoocs.hpp"
+#include <eq_client.h>
+#include <new>
 
-#define DOOCS_URI_MAX_LEN   256
-#define SPECIAL_KEY_DOOCS "doocs"
-#define SPECIAL_KEY_DATA_TYPE "type"
-#define SPECIAL_KEY_DATA_SAMPLES "samples"
-#define DATA_TYPE_TAKE_FR_DOOCS -1
+#define DOOCS_URI_MAX_LEN           256
+#define SPECIAL_KEY_DOOCS           "doocs"
+#define SPECIAL_KEY_DATA_TYPE       "type"
+#define SPECIAL_KEY_DATA_SAMPLES    "samples"
 
 #ifndef PITZ_DAQ_UNSPECIFIED_DATA_TYPE
 #define PITZ_DAQ_UNSPECIFIED_DATA_TYPE  DATA_TYPE_TAKE_FR_DOOCS
@@ -25,8 +26,7 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
 {
 
     size_t unStrLen ;
-    int nSamples;
-    int nDataType;
+    DEC_OUT_PD(BranchDataRaw)   entryInfo;
 
     switch(a_creationType)
     {
@@ -35,9 +35,9 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             int from, step;
             char doocs_url[DOOCS_URI_MAX_LEN],daqName[256];
 
-            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&nSamples,&step,&nDataType);
+            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&entryInfo.itemsCountPerEntry,&step,&entryInfo.dataType);
 
-            this->SetEntryInfo(m_unOffset,{nDataType,nSamples});
+            if(entryInfo.itemsCountPerEntry<1){entryInfo.itemsCountPerEntry=1;}
 
             unStrLen = strlen(doocs_url);
             m_doocsUrl = static_cast<char*>(malloc(unStrLen + 1));
@@ -61,18 +61,24 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             memcpy(m_doocsUrl,pcNext,unStrLen);
             m_doocsUrl[unStrLen] = 0;
 
+            GetEntryInfoFromServer(&entryInfo);
+
             // Find data type
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_TYPE "=");
-            if(!pcNext){throw errorsFromConstructor::syntax;}
-            pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" );
-            nDataType = atoi(pcNext);
+            if(pcNext){
+                pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" );
+                entryInfo.dataType = atoi(pcNext);
+            }
 
             // Find number of samples
-            nSamples = 1;
+            //nSamples = 1;
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_SAMPLES "=");
-            if(!pcNext){pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );nSamples = atoi(pcNext);}
-
-            this->SetEntryInfo(m_unOffset,{nDataType,nSamples});
+            if(pcNext){
+                int nSamples;
+                pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );
+                nSamples = atoi(pcNext);
+                if(nSamples>0){entryInfo.itemsCountPerEntry = nSamples;}
+            }
 
         }
         break;
@@ -91,17 +97,28 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             memcpy(m_doocsUrl,pcNext,unStrLen);
             m_doocsUrl[unStrLen]=0;
 
+            if(!GetEntryInfoFromServer(&entryInfo)){
+                ::free(m_doocsUrl);
+                m_doocsUrl = NEWNULLPTR2;
+                throw errorsFromConstructor::doocsUnreachable;
+            }
+
             // Find data type
-            nDataType = DATA_TYPE_TAKE_FR_DOOCS;
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_TYPE "=");
-            if(pcNext){pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" ); nDataType = atoi(pcNext);}
+            if(pcNext){
+                pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" );
+                entryInfo.dataType = atoi(pcNext);
+            }
 
             // Find number of samples
-            nSamples = 1;
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_SAMPLES "=");
-            if(pcNext){pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );nSamples = atoi(pcNext);}
+            if(pcNext){
+                int nSamples;
+                pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );
+                nSamples = atoi(pcNext);
+                if(nSamples>0){entryInfo.itemsCountPerEntry = nSamples;}
+            }
 
-            this->SetEntryInfo(m_unOffset,{nDataType,nSamples});
         }
         break;
 
@@ -109,7 +126,8 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
         throw errorsFromConstructor::type;
     }
 
-    if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}
+    this->SetEntryInfo(m_unOffset,entryInfo);
+    CreateRootFormatString();
 
 }
 
@@ -204,6 +222,28 @@ void pitz::daq::SingleEntryDoocs::FromDoocsToMemory(DEC_OUT_PD(SingleData)* a_pM
 }
 
 
+bool pitz::daq::SingleEntryDoocs::GetEntryInfoFromServer( DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo )const
+{
+    int nReturn;
+    EqCall eqCall;
+    EqData dataIn, dataOut;
+    EqAdr eqAddr;
+
+    eqAddr.adr(m_doocsUrl);
+    nReturn = eqCall.get(&eqAddr,&dataIn,&dataOut);
+
+    if(nReturn){
+        a_pEntryInfo->dataType = DATA_INT;
+        a_pEntryInfo->itemsCountPerEntry = 1;
+        return false;
+    }
+
+    a_pEntryInfo->dataType = dataOut.type();
+    a_pEntryInfo->itemsCountPerEntry = dataOut.length();
+
+    return true;
+}
+
 
 const char* pitz::daq::SingleEntryDoocs::rootFormatString()const
 {
@@ -257,49 +297,56 @@ void pitz::daq::SingleEntryDoocs::PermanentDataIntoFile(FILE* a_fpFile)const
 }
 
 
-#if 0
-pitz::daq::data::memory::ForServerBase* pitz::daq::SingleEntryDoocs::CreateMemoryInherit()
+void pitz::daq::SingleEntryDoocs::CreateRootFormatString()
 {
     //m_dataType %= 100;
 
-    switch ( m_dataType )
+    switch ( m_branchInfo.dataType )
     {
     case  1 :
-        copyString(&m_rootFormatStr,"time/I:buffer/I:int_value/I");
-        return new data::memory::M01(this);
+        m_rootFormatStr = strdup("time/I:buffer/I:int_value/I");
+        break;
     case  2 :
-        copyString(&m_rootFormatStr,"time/I:buffer/I:float_value/F");
-        return new data::memory::M02(this);
+        m_rootFormatStr = strdup("time/I:buffer/I:float_value/F");
+        break;
     case  3 :
-        copyString(&m_rootFormatStr,"time/I:buffer/I:char_array[60]/C");
-        return new data::memory::M03(this,60);
+        m_rootFormatStr = strdup("time/I:buffer/I:char_array[60]/C");
+        break;
     case  4 :
-        copyString(&m_rootFormatStr,"time/I:buffer/I:int_value/I");
-        return new data::memory::M01(this);
+        m_rootFormatStr = strdup("time/I:buffer/I:int_value/I");
+        break;
     case  6 :
-        copyString(&m_rootFormatStr,"time/I:buffer/I:float_value/F");
-        return new data::memory::M02(this);
+        m_rootFormatStr = strdup("time/I:buffer/I:float_value/F");
+        break;
     case 14 :
-        copyString(&m_rootFormatStr,"time/I:buffer/I:IIII_array[60]/C");
-        return new data::memory::M15(this);
+        m_rootFormatStr = strdup("time/I:buffer/I:IIII_array[60]/C");
+        break;
     case 15 :
-        copyString(&m_rootFormatStr,"time/I:buffer/I:IFFF_array[60]/C");
-        return new data::memory::M15(this);
+        m_rootFormatStr = strdup("time/I:buffer/I:IFFF_array[60]/C");
+        break;
     case 19 :
         m_rootFormatStr = static_cast<char*>(malloc(1024));
-        snprintf(m_rootFormatStr,1023,"time/I:buffer/I:array_value[%d]/F",m_nSamples);
-        return new data::memory::M19(this,m_nSamples,3*sizeof(int));
+        snprintf(m_rootFormatStr,1023,"time/I:buffer/I:array_value[%d]/F",m_branchInfo.itemsCountPerEntry);
+        break;
     case 119:
-        m_rootFormatStr = (char*)malloc(1024);
-        snprintf(m_rootFormatStr,1023,"seconds/I:gen_event/I:array_value[%d]/F",m_nSamples);
-        return new data::memory::M19(this,m_nSamples,3*sizeof(int));
+        m_rootFormatStr = static_cast<char*>(malloc(1024));
+        snprintf(m_rootFormatStr,1023,"seconds/I:gen_event/I:array_value[%d]/F",m_branchInfo.itemsCountPerEntry);
+        break;
     case 219:
-        copyString(&m_rootFormatStr,"seconds/I:gen_event/I:array_value[2048]/F");
-        return new data::memory::M19(this,m_nSamples,3*sizeof(int));
+        m_rootFormatStr = strdup("seconds/I:gen_event/I:array_value[2048]/F");
+        break;
+    case DATA_A_SHORT:
+        m_rootFormatStr = static_cast<char*>(malloc(1024));
+        snprintf(m_rootFormatStr,1023,"seconds/I:gen_event/I:data[%d]/S",m_branchInfo.itemsCountPerEntry);
+        break;
     default :
     break;
     }
 
-    return nullptr;
+    if(!m_rootFormatStr){
+        ::free(m_doocsUrl);
+        m_doocsUrl = NEWNULLPTR2;
+        throw ::std::bad_alloc();
+    }
+
 }
-#endif

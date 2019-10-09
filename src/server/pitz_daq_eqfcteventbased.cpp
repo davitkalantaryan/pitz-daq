@@ -10,6 +10,7 @@
 #include <eq_client.h>
 #include "pitz_daq_eqfcteventbased.cpp.hpp"
 #include <thread>
+#include <common/inthash.hpp>
 
 #ifndef HANDLE_LOW_MEMORY
 #define HANDLE_LOW_MEMORY(_memory,...) do{if(!(_memory)){exit(1);}}while(0)
@@ -72,61 +73,63 @@ pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreation
 void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
 {
     SNetworkStructZmqDoocs* pNetZmq = static_cast< SNetworkStructZmqDoocs* >(a_pNet);
-    SingleEntryZmqDoocs* pEntryCheck;
-    zmq_pollitem_t *pItemsTmp;
-    //::std::list< SingleEntryZmqDoocs* > validList; // instead of this hash table should be used
+    DEC_OUT_PD(SingleData)* dataFromNetwork;
+    SingleEntryZmqDoocs* pEntry;
     time_t  lastUpdateTime = 0, currentTime;
     size_t unNumbeOfEntries(0);
     int i;
     int nReturn;
     const ::std::list< SingleEntry* >& entriesList = a_pNet->daqEntries();
     ::std::list< SingleEntry* >::const_iterator pIter, pIterEnd;
+    // which one is the best container
+    //::common::IntHash< SingleEntryZmqDoocs* >  validEntries(entriesList.size() * 2);
+    //::std::vector< SingleEntryZmqDoocs* > validEntries;
+    ::std::list< SingleEntryZmqDoocs* > validEntries;
+    ::std::list< SingleEntryZmqDoocs* >::iterator listIter, listIterTmp, listIterEnd;
 
     while(shouldWork() && a_pNet->shouldRun() ){
 
         time(&currentTime);
 
         if(currentTime-lastUpdateTime>PITZ_DAQ_LIST_UPDATE_DEFAULT_TIME){
-            validList.clear();
-            //m_mutexForEntries.lock_shared();
-            if(entriesList.size()<1){/*m_mutexForEntries.unlock_shared();*/return;}
 
-            validList.clear();
+            validEntries.clear();
 
             this->ReadLockEntries2();
 
+            pNetZmq->ResizeItemsCount();
             pIterEnd = entriesList.end();
             for(pIter=entriesList.begin();pIter!=pIterEnd;++pIter){
-                pEntryCheck = static_cast< SingleEntryZmqDoocs* >( *pIter );
-                if(pEntryCheck->LoadOrValidateData(pNetZmq->m_pContext)){
-                    validList.push_back(pEntryCheck);
+                pEntry = static_cast< SingleEntryZmqDoocs* >( *pIter );
+                if(pEntry->LoadOrValidateData(pNetZmq->m_pContext)){
+                    if(pEntry->lockEntryForNetwork()){
+                        validEntries.push_back(pEntry);
+                        //validEntries.AddNewElement(pEntryCheck->socket(),pEntryCheck);
+                    }
                 }
             }
 
             this->ReadUnlockEntries2();
 
-            unNumbeOfEntries = validList.size();
+            unNumbeOfEntries = validEntries.size();
             if(unNumbeOfEntries<1){
+                SleepMs(1);
                 return;
             }
 
-            if(unNumbeOfEntries>pNetZmq->m_unCreatedItemsCount){
-                pItemsTmp = static_cast<zmq_pollitem_t*>(realloc(pNetZmq->m_pItems,sizeof(zmq_pollitem_t)*unNumbeOfEntries));
-                HANDLE_LOW_MEMORY(pItemsTmp);
-                pNetZmq->m_pItems = pItemsTmp;
-                pNetZmq->m_unCreatedItemsCount = unNumbeOfEntries;
-            }
             lastUpdateTime = currentTime;
 
-        }
+        }  // if(currentTime-lastUpdateTime>PITZ_DAQ_LIST_UPDATE_DEFAULT_TIME){
 
+        unNumbeOfEntries = validEntries.size();
         if(unNumbeOfEntries<1){
-            ::std::this_thread::sleep_for( ::std::chrono::seconds(1) );
-            continue;
+            SleepMs(1);
+            return;
         }
 
         i = 0;
-        for(auto pEntry : validList){
+        //for(auto pEntry : validEntries){
+        for(listIter=validEntries.begin(),listIterEnd=validEntries.end(),pEntry=validEntries.front();listIter!=listIterEnd;++listIter,pEntry=*listIter){
             pNetZmq->m_pItems[i].revents = 0;
             pNetZmq->m_pItems[i].socket = pEntry->socket();
             pNetZmq->m_pItems[i].events = ZMQ_POLLIN;
@@ -140,10 +143,27 @@ void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
         }
 
         i = 0;
-        for(auto pEntry : validList){
+        listIterEnd=validEntries.end();
+        for(listIter=validEntries.begin();listIter!=listIterEnd;){
+            pEntry=*listIter;
             if(pNetZmq->m_pItems[i].revents & ZMQ_POLLIN){
-                //pEntry->RemoveDoocsProperty();
-                pEntry->ReadData();
+                if( (dataFromNetwork=pEntry->ReadData())){
+                    AddJobForRootThread(dataFromNetwork,pEntry);
+                }
+                else{
+                    // set network error
+                }
+            }
+
+            if(pEntry->resetNetworkLockAndReturnIfDeletable()){
+                listIterTmp = listIter;
+                ++listIterTmp;
+                validEntries.erase(listIter);
+                delete pEntry;
+                listIter = listIterTmp;
+            }
+            else{
+                ++listIter;
             }
             ++i;
         }
@@ -166,9 +186,22 @@ pitz::daq::SNetworkStructZmqDoocs::SNetworkStructZmqDoocs( EqFctCollector* a_pPa
 
 pitz::daq::SNetworkStructZmqDoocs::~SNetworkStructZmqDoocs()
 {
-    free(m_pItems);
     if(m_pContext){
         zmq_ctx_destroy(m_pContext);
+    }
+
+    free(m_pItems);
+}
+
+
+void pitz::daq::SNetworkStructZmqDoocs::ResizeItemsCount()
+{
+    const size_t newCount(m_daqEntries.size());
+    if(newCount>m_unCreatedItemsCount){
+        zmq_pollitem_t* pItemsTmp = static_cast<zmq_pollitem_t*>(realloc(m_pItems,sizeof(zmq_pollitem_t)*newCount));
+        HANDLE_LOW_MEMORY(pItemsTmp);
+        m_pItems = pItemsTmp;
+        m_unCreatedItemsCount = newCount;
     }
 }
 
@@ -298,51 +331,12 @@ DEC_OUT_PD(SingleData)* SingleEntryZmqDoocs::ReadData()
 bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 {
     int nReturn;
-    int nSamplesFromServer;
-    int nDataTypeFromServer;
-    EqCall eqCall;
-    EqData dataIn, dataOut;
-    EqAdr eqAddr;
-
-    eqAddr.adr(m_doocsUrl);
-    nReturn = eqCall.get(&eqAddr,&dataIn,&dataOut);
-
-    if(nReturn){
-        return false;
-    }
-
-    nDataTypeFromServer = dataOut.type();
-
-    if((nDataTypeFromServer!=m_branchInfo.dataType)&&(m_branchInfo.dataType!=PITZ_DAQ_UNSPECIFIED_DATA_TYPE)){
-        // todo: error reporting
-        return false;
-    }
-    m_branchInfo.dataType = nDataTypeFromServer;
-
-    nSamplesFromServer = dataOut.length();
-    if((nSamplesFromServer!=m_branchInfo.itemsCountPerEntry)&&(m_branchInfo.itemsCountPerEntry!=PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES)){
-        // todo: error reporting
-        return false;
-    }
-    m_branchInfo.itemsCountPerEntry = nSamplesFromServer;
-    if((m_branchInfo.itemsCountPerEntry==PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES)||(m_branchInfo.itemsCountPerEntry==0)){
-        m_branchInfo.itemsCountPerEntry = nSamplesFromServer;
-    }
-    //else if(m_nSamples>m_nKnownSamples){
-    //    // todo: only warn user
-    //    m_nSamples = m_nKnownSamples;
-    //}
-
-    if(m_isDataLoaded){
-        // todo: make check
-        return true;
-    }
-
     int nType;
     ::std::string propToSubscribe;
     ::std::string zmqEndpoint;
-
-    m_isValid = 0;
+    EqCall eqCall;
+    EqData dataIn, dataOut;
+    EqAdr eqAddr;
 
     eqAddr.adr(m_doocsUrl);
     propToSubscribe = eqAddr.property();
@@ -350,11 +344,18 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
     dataIn.set (1, 0.0f, 0.0f, static_cast<time_t>(0), propToSubscribe.c_str(), 0);
 
     nReturn=eqCall.set(&eqAddr,&dataIn,&dataOut);
+    m_isValid = 0;
     if(nReturn){
         // we have error
         ::std::string errorString = dataOut.get_string();
         ::std::cerr << errorString << ::std::endl;
+        m_isDataLoaded = 0;
         return false;
+    }
+
+    if(m_isDataLoaded){
+        // todo: make check
+        return true;
     }
 
     nType=dataOut.type();
@@ -369,13 +370,14 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         char         *sp;
         dataOut.get_ustr (&this->m_nPort, &f1, &f2, &tm, &sp, 0);
         //this->m_dataType = static_cast<int>(f1);
-        this->m_branchInfo.dataType = static_cast<int>(f1);
+        if(this->m_branchInfo.dataType != static_cast<decltype (this->m_branchInfo.dataType)>(f1) ){
+            return false;
+        }
     }break;
     default:
         return false;
     }  // switch(nType){
 
-    //eqAddr.set_property(propToSubscribe);
     nReturn=eqCall.get_option(&eqAddr,&dataIn,&dataOut,EQ_HOSTNAME);
     if(nReturn<0){
         return false;
@@ -469,7 +471,10 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
     case DATA_A_SHORT:
         //db->data_u.DataUnion_u.d_short_array.d_short_array_val = (short*)dp;
         //db->data_u.DataUnion_u.d_short_array.d_short_array_len = len;
-        //break;
+
+        m_expectedReadHeader2 = 0;
+        m_bufferSize = static_cast<uint32_t>(m_branchInfo.itemsCountPerEntry) * sizeof(int16_t);
+        break;
 
     case DATA_A_INT:
         //db->data_u.DataUnion_u.d_int_array.d_int_array_val = (int*)dp;
@@ -495,14 +500,14 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
     case DATA_TEXT:
         //db->data_u.DataUnion_u.d_char.d_char_val = dp;
         //db->data_u.DataUnion_u.d_char.d_char_len = strlen(dp);
-        //break;
+        break;
 
     case DATA_A_USTR:
         //db->data_u.DataUnion_u.d_ustr_array.d_ustr_array_val = (USTR*)dp;
         //db->data_u.DataUnion_u.d_ustr_array.d_ustr_array_len = len;
         //usp = (USTR*)dp;
         //usp->str_data.str_data_val = dp + sizeof(USTR);
-        //break;
+        break;
 
     case DATA_IMAGE: {
         //char* ptr = dp;
@@ -526,7 +531,7 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
         //dp += strlen(dp) + 1;
         //db->data_u.DataUnion_u.d_image.val.val_val = (u_char*)dp;
         //db->data_u.DataUnion_u.d_image.val.val_len = sz - (dp - ptr);
-    } /*break*/;
+    } break;
 
     case DATA_A_BYTE: {
         //int* hdp = (int*)dp;
@@ -541,7 +546,8 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
         //
         //db->data_u.DataUnion_u.d_byte_struct.d_byte_array.d_byte_array_len = hdp[0];
         //db->data_u.DataUnion_u.d_byte_struct.d_byte_array.d_byte_array_val = (u_char*)dp;
-    } /*break*/;
+    } break;
+
 
     default:
         return false;

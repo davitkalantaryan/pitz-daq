@@ -52,7 +52,7 @@ class SingleEntry;
 class EqFctCollector;
 
 namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknownCreation};}
-namespace errorsFromConstructor{enum Error{noError=0,syntax=1,lowMemory, type};}
+namespace errorsFromConstructor{enum Error{noError=0,syntax=1,lowMemory, type,doocsUnreachable};}
 
 time_t STRING_TO_EPOCH(const char* _a_string,const char* a_cpcInf);
 const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* a_buffer, int a_bufferLength);
@@ -116,12 +116,12 @@ public:
     virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork();
 
 public:
-    bool  markEntryForDeleteAndReturnPossible();
-    bool  tryToMarkEntryForAddingToRoot();
-    bool  tryToMarkEntryForUsingByNetwork();
-    bool  isMarkedForDeletionAndResetRootUsage()const;
-    bool  isUsedByRootOrNetworkThread()const;
-    void  resetUsageByRoot();
+    bool  markEntryForDeleteAndReturnIfPossibleNow();
+    bool  lockEntryForRoot();
+    bool  lockEntryForNetwork();
+    bool  resetRootLockAndReturnIfDeletable();
+    bool  resetNetworkLockAndReturnIfDeletable();
+    bool  isLockedByRootOrNetwork()const;
 
     //int dataType()const{return m_branchInfo.dataType;}
     //void setDataType(int a_dataType){m_branchInfo.dataType = a_dataType;}
@@ -202,9 +202,10 @@ public:
     EqFctCollector*  parent();
 
     bool AddNewEntry(SingleEntry *newEntry);
-    void RemoveEntryNoDelete(SingleEntry *entry,int* numberOfEntriesRemained=NEWNULLPTR2);
+    void RemoveEntryNoDelete(SingleEntry *entry);
     const ::std::list< SingleEntry* >& daqEntries()const;
     uint64_t shouldRun()const;
+    void StopThread();
 
 private:
     void DataGetterThread();
@@ -212,7 +213,7 @@ private:
 private:
     SNetworkStruct(const SNetworkStruct&){}
 
-private:
+protected:
     EqFctCollector*                             m_pParent;
     STDN::thread*                               m_pThread;
     uint64_t                                    m_shouldRun : 1;

@@ -30,37 +30,39 @@ struct TestStruct
     uint32_t        bitw1 : 1;
 };
 
-class Item
+class TapakVector
 {
 public:
-    Item(){
+    TapakVector(){
         ::std::cout << __FUNCTION__ << ::std::endl;
     }
 
-    ~Item(){
+    ~TapakVector(){
         ::std::cout << __FUNCTION__ << ::std::endl;
     }
 };
 
-class ItemCont
+class Collector
 {
 public:
-    ItemCont(){
+    Collector(){
         ::std::cout << __FUNCTION__ << ::std::endl;
     }
 
-    ~ItemCont(){
+    ~Collector(){
         ::std::cout << __FUNCTION__ << ::std::endl;
     }
 
 private:
-    Item    m_item;
+    TapakVector    m_item;
 };
 
 int main()
 {
     //TestStruct testStruct;
-    ItemCont aContainer;
+    Collector aContainer;
+
+    return 0;
 
     uint32_t nRootStopCount=0;
     uint32_t nReturn2;
@@ -101,6 +103,12 @@ int main()
     ::std::cout << "nReturn="<<nReturn <<",readCount="<<nReadCount<<",writeCount="<<nWriteCount << ::std::endl;
 
     nReturn2 = __atomic_exchange_n (&nReturn,1,__ATOMIC_RELAXED);
+    ::std::cout << "nReturn2="<<nReturn2 << ::std::endl;
+
+    nReturn2 = __atomic_add_fetch (&nReturn,1,__ATOMIC_RELAXED);
+    ::std::cout << "nReturn2="<<nReturn2 << ::std::endl;
+
+    nReturn2 = __atomic_fetch_nand (&nReturn,2,__ATOMIC_RELAXED);
     ::std::cout << "nReturn2="<<nReturn2 << ::std::endl;
 
 

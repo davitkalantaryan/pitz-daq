@@ -180,73 +180,93 @@ pitz::daq::SingleEntry::~SingleEntry()
     free(this->m_daqName);
 }
 
-#define VALUE_FOR_DELETE            1
-#define VALUE_FOR_ADD_TO_ROOT       (1<<1)
-#define VALUE_FOR_ADD_TO_NETW       (1<<2)
-#define VALUE_FOR_UNKNOWN_STATE     (1<<8)
+#define VALUE_FOR_DELETE            1u
+#define VALUE_FOR_ADD_TO_ROOT       static_cast<uint32_t>(1<<4)
+#define VALUE_FOR_ADD_TO_NETW       static_cast<uint32_t>(1<<8)
+#define VALUE_FOR_UNKNOWN_STATE     static_cast<uint32_t>(1<<12)
+#define NON_DELETABLE_BITS          (VALUE_FOR_ADD_TO_ROOT | VALUE_FOR_ADD_TO_NETW)
 
-bool pitz::daq::SingleEntry::markEntryForDeleteAndReturnPossible()
+bool pitz::daq::SingleEntry::markEntryForDeleteAndReturnIfPossibleNow()
 {
-    uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
+    //uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
+    //uint32_t nReturn = __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
+    uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
 
-    if(!nReturn){
-        return true;
-    }
+    //if(!nReturn){
+    //    return true;
+    //}
+    //
+    //if(nReturn&VALUE_FOR_DELETE){
+    //    __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
+    //}
+    //
+    ////__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
+    //return false;
 
-    if(nReturn&VALUE_FOR_DELETE){
-        __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
-    }
-
-    //__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
-    return false;
+    return nReturn ? false : true;
 }
 
 
-bool pitz::daq::SingleEntry::tryToMarkEntryForAddingToRoot()
+bool pitz::daq::SingleEntry::lockEntryForRoot()
 {
-    uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    //uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    //uint32_t nReturn = __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
 
     if(!(nReturn&VALUE_FOR_DELETE)){
         return true;
     }
 
-    __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
-    return false;
-}
-
-
-bool pitz::daq::SingleEntry::tryToMarkEntryForUsingByNetwork()
-{
-    uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
-
-    if(!(nReturn&VALUE_FOR_DELETE)){
-        return true;
-    }
-
-    __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
-    return false;
-}
-
-
-bool pitz::daq::SingleEntry::isMarkedForDeletionAndResetRootUsage()const
-{
-    //uint32_t nReturn = __atomic_exchange_n (&m_willBeDeletedOrAddedToRootAtomic,0,__ATOMIC_RELAXED);
-    uint32_t nReturn = __atomic_load_n (&m_willBeDeletedOrAddedToRootAtomic,__ATOMIC_RELAXED);
-
-    if(nReturn == VALUE_FOR_DELETE){ return true; }
-
-    __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
-
+    __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    //__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
     //__atomic_store_n(&m_willBeDeletedOrAddedToRootAtomic,nReturn,__ATOMIC_RELAXED);
     return false;
 }
 
 
-bool pitz::daq::SingleEntry::isUsedByRootOrNetworkThread()const
+bool pitz::daq::SingleEntry::lockEntryForNetwork()
+{
+    //uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    //uint32_t nReturn = __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+
+    if(!(nReturn&VALUE_FOR_DELETE)){
+        return true;
+    }
+
+    //__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    return false;
+}
+
+
+bool pitz::daq::SingleEntry::resetRootLockAndReturnIfDeletable()
+{
+    //uint32_t nReturn = __atomic_exchange_n (&m_willBeDeletedOrAddedToRootAtomic,0,__ATOMIC_RELAXED);
+    //uint32_t nReturn = __atomic_load_n (&m_willBeDeletedOrAddedToRootAtomic,__ATOMIC_RELAXED);
+    //uint32_t nReturn = __atomic_sub_fetch(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    uint32_t nReturn = __atomic_and_fetch (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+
+    if(nReturn == VALUE_FOR_DELETE){ return true; }
+
+    //__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    //__atomic_store_n(&m_willBeDeletedOrAddedToRootAtomic,nReturn,__ATOMIC_RELAXED);
+    return false;
+}
+
+
+bool pitz::daq::SingleEntry::resetNetworkLockAndReturnIfDeletable()
+{
+    uint32_t nReturn = __atomic_and_fetch (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    return nReturn == VALUE_FOR_DELETE ? true : false;
+}
+
+
+bool pitz::daq::SingleEntry::isLockedByRootOrNetwork()const
 {
     uint32_t nReturn = __atomic_load_n (&m_willBeDeletedOrAddedToRootAtomic,__ATOMIC_RELAXED);
 
-    if((nReturn&VALUE_FOR_ADD_TO_ROOT)||(nReturn&VALUE_FOR_ADD_TO_NETW)){ return true; }
+    if(nReturn&NON_DELETABLE_BITS){ return true; }
 
     //__atomic_store_n(&m_willBeDeletedOrAddedToRootAtomic,nReturn,__ATOMIC_RELAXED);
     return false;
@@ -272,7 +292,6 @@ int pitz::daq::SingleEntry::SetEntryInfo(uint32_t a_unOffset, const DEC_OUT_PD(B
         m_unOffset = a_unOffset;
         m_bufferSize = bufferNewSize;
 
-        return 0;
     }
 
     m_branchInfo = a_branchInfo;
@@ -608,12 +627,24 @@ pitz::daq::SNetworkStruct::SNetworkStruct(EqFctCollector* a_parent)
 
 pitz::daq::SNetworkStruct::~SNetworkStruct()
 {
-    pthread_t handleToThread = static_cast<pthread_t>(m_pThread->native_handle());
+    StopThread();
+    for(auto pEntry : m_daqEntries){
+        delete pEntry;
+    }
+}
 
-    m_shouldRun = 0;
-    pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
-    m_pThread->join();
-    delete m_pThread;
+
+void pitz::daq::SNetworkStruct::StopThread()
+{
+    if(m_pThread){
+        pthread_t handleToThread = static_cast<pthread_t>(m_pThread->native_handle());
+
+        m_shouldRun = 0;
+        pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
+        m_pThread->join();
+        delete m_pThread;
+        m_pThread = NEWNULLPTR2;
+    }
 }
 
 
@@ -670,12 +701,10 @@ uint64_t pitz::daq::SNetworkStruct::shouldRun()const
 }
 
 
-void pitz::daq::SNetworkStruct::RemoveEntryNoDelete(SingleEntry *a_newEntry,int* a_pnNumberOfEntries)
+void pitz::daq::SNetworkStruct::RemoveEntryNoDelete(SingleEntry *a_newEntry)
 {
     if(!a_newEntry){return ;}
     m_daqEntries.erase(a_newEntry->m_thisIter);
-
-    if(a_pnNumberOfEntries){*a_pnNumberOfEntries = static_cast<int>(m_daqEntries.size());}
 }
 
 
