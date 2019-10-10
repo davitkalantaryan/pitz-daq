@@ -26,7 +26,7 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
 {
 
     size_t unStrLen ;
-    DEC_OUT_PD(BranchDataRaw)   entryInfo;
+    DEC_OUT_PD(BranchDataRaw)&  entryInfo = m_branchInfo;
 
     switch(a_creationType)
     {
@@ -126,8 +126,10 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
         throw errorsFromConstructor::type;
     }
 
-    this->SetEntryInfo(m_unOffset,entryInfo);
-    CreateRootFormatString();
+    m_rootFormatStr = this->ApplyEntryInfo(1);
+    if(!m_rootFormatStr){
+        throw ::std::bad_alloc();
+    }
 
 }
 
@@ -294,59 +296,4 @@ void pitz::daq::SingleEntryDoocs::PermanentDataIntoFile(FILE* a_fpFile)const
             m_doocsUrl,
             m_branchInfo.dataType,
             m_branchInfo.itemsCountPerEntry);
-}
-
-
-void pitz::daq::SingleEntryDoocs::CreateRootFormatString()
-{
-    //m_dataType %= 100;
-
-    switch ( m_branchInfo.dataType )
-    {
-    case  1 :
-        m_rootFormatStr = strdup("time/I:buffer/I:int_value/I");
-        break;
-    case  2 :
-        m_rootFormatStr = strdup("time/I:buffer/I:float_value/F");
-        break;
-    case  3 :
-        m_rootFormatStr = strdup("time/I:buffer/I:char_array[60]/C");
-        break;
-    case  4 :
-        m_rootFormatStr = strdup("time/I:buffer/I:int_value/I");
-        break;
-    case  6 :
-        m_rootFormatStr = strdup("time/I:buffer/I:float_value/F");
-        break;
-    case 14 :
-        m_rootFormatStr = strdup("time/I:buffer/I:IIII_array[60]/C");
-        break;
-    case 15 :
-        m_rootFormatStr = strdup("time/I:buffer/I:IFFF_array[60]/C");
-        break;
-    case 19 :
-        m_rootFormatStr = static_cast<char*>(malloc(1024));
-        snprintf(m_rootFormatStr,1023,"time/I:buffer/I:array_value[%d]/F",m_branchInfo.itemsCountPerEntry);
-        break;
-    case 119:
-        m_rootFormatStr = static_cast<char*>(malloc(1024));
-        snprintf(m_rootFormatStr,1023,"seconds/I:gen_event/I:array_value[%d]/F",m_branchInfo.itemsCountPerEntry);
-        break;
-    case 219:
-        m_rootFormatStr = strdup("seconds/I:gen_event/I:array_value[2048]/F");
-        break;
-    case DATA_A_SHORT:
-        m_rootFormatStr = static_cast<char*>(malloc(1024));
-        snprintf(m_rootFormatStr,1023,"seconds/I:gen_event/I:data[%d]/S",m_branchInfo.itemsCountPerEntry);
-        break;
-    default :
-    break;
-    }
-
-    if(!m_rootFormatStr){
-        ::free(m_doocsUrl);
-        m_doocsUrl = NEWNULLPTR2;
-        throw ::std::bad_alloc();
-    }
-
 }

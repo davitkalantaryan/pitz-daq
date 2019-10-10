@@ -12,6 +12,11 @@
 #include <time.h>
 #include "pitz_daq_eqfctcollector.cpp.hpp"
 
+#define MIN_FILL_UNSAVED_COUNT          10000
+#define MAX_FILL_UNSAVED_COUNT          100000
+
+#define MINIMUM_ROOT_FILE_SIZE_HARD     1000
+
 #define SEMA_WAIT_TIME_MS       10000
 #define BUF_LEN_FOR_STRFTIME    64
 #define data_length             1024
@@ -30,7 +35,7 @@ pitz::daq::EqFctCollector::EqFctCollector()
         :
           EqFct("Name = location"),
           m_genEvent("GEN_EVENT value",this),
-          m_rootLength("ROOT_LENGTH max length of file", this),
+          m_fileMaxSize("FILE_SIZE_MAXIMUM approximate size of final file", this),
           m_numberOfEntries("NUMBER.OF.ENTRIES",this),
           m_logLevel("LOG.LEVEL log level of server", this),
           m_rootDirPathBaseRemote("ROOT.DIR.PATH.REMOTE",this),
@@ -41,6 +46,7 @@ pitz::daq::EqFctCollector::EqFctCollector()
           m_numberOfFillThreadsDesigned("NUMBER.OF.FILL.THREDS.DESIGNED",this),
           m_numberOfFillThreadsFinal("NUMBER.OF.FILL.THREDS.FINAL",this),
           m_currentFileSize("CURRENT.FILE.SIZE",this),
+          m_maxUnsavedDataInTheFile("MAX.UNSAVED.DATA.IN.THE.FILE",this),
           m_addNewEntry("ADD.NEW.ENTRY",this),
           m_removeEntry("DELETE.ENTRY",this),
           m_loadOldConfig("LOAD.OLD.CONFIG",this),
@@ -61,10 +67,10 @@ pitz::daq::EqFctCollector::EqFctCollector()
     m_genEvent.set_ro_access();
     m_numberOfEntries.set_ro_access();
     m_rootDirPathBaseRemote.set_ro_access();
-    m_rootDirPathBaseLocal.set_ro_access();
-    m_folderName.set_ro_access();
-    m_rootFileNameBase.set_ro_access();
-    m_numberOfFillThreadsDesigned.set_ro_access();
+    //m_rootDirPathBaseLocal.set_ro_access();
+    //m_folderName.set_ro_access();
+    //m_rootFileNameBase.set_ro_access();
+    //m_numberOfFillThreadsDesigned.set_ro_access();
     m_numberOfFillThreadsFinal.set_ro_access();
 
 }
@@ -132,9 +138,10 @@ void pitz::daq::EqFctCollector::init(void)
     m_shouldWork = 1;
 
     m_numberOfEntries.set_value(0);
-    m_rootLength.set_value(0);
     m_entriesInError.set_value("");
     m_numberOfEntriesInError.set_value(0);
+    m_currentFileSize.set_value(0);
+    if(m_fileMaxSize.value()<MINIMUM_ROOT_FILE_SIZE_HARD){m_fileMaxSize.set_value(MINIMUM_ROOT_FILE_SIZE_HARD);}
 
     g_nLogLevel = m_logLevel.value();
     InitSocketLibrary();
@@ -393,7 +400,7 @@ CLEAR_RET_TYPE pitz::daq::EqFctCollector::CLEAR_FUNC_NAME(void)
 
     for( auto netStruct : m_networsList){
         DEBUG_APP_INFO(0,"!!!!!! stopping network\n");
-        netStruct->StopThread();
+        netStruct->StopThreadAndClear();
         delete netStruct;
     }
 
@@ -523,25 +530,19 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
         return;
     }
 
-    bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnIfPossibleNow();
-    a_pEntry->RemoveDoocsProperty();
-
-    pNetworkParent = a_pEntry->networkParent();
-    if(!pNetworkParent){fprintf(stderr,"!!!!!!!!!! Entry without parent!\n"); goto returnPoint;}
+    bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnIfPossibleNow(); 
 
     //WriteLockEntries2();
-    pNetworkParent->RemoveEntryNoDelete(a_pEntry);
+    pNetworkParent = a_pEntry->CleanEntryNoFree();
     m_pNextNetworkToAdd = pNetworkParent;
     m_numberOfEntries.set_value(--m_nNumberOfEntries);
     //WriteUnlockEntries2();
 
-    DEBUG_APP_INFO(0,"Number of entries for this network is: %d",m_nNumberOfEntries);
+    DEBUG_APP_INFO(0,"Number of entries remained is: %d",m_nNumberOfEntries);
 
-returnPoint:
     if(bIsAllowedToDelete){
         delete a_pEntry;
     }
-
 }
 
 
@@ -627,7 +628,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
     int	nContinueFill;
     int nSeconds, nEventNumber;
     int nPreviousGenEvent(0),nPreviousTime(0);
-    bool bTimeToSave;
+    int nFillUnsavedCount, nMaxFillUnsavedCount, nMaxFillUnsavedCountHalf;
     SStructForFill strToFill;
     SingleEntry* pCurEntry;
     DEC_OUT_PD(SingleData)* pCurrentData;
@@ -635,6 +636,12 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
     while( this->shouldWork()  ){
 
         nContinueFill = 1;
+        nFillUnsavedCount = 0;
+        nMaxFillUnsavedCount = m_maxUnsavedDataInTheFile.value();
+        if(nMaxFillUnsavedCount<MIN_FILL_UNSAVED_COUNT){nMaxFillUnsavedCount=MIN_FILL_UNSAVED_COUNT;}
+        else if(nMaxFillUnsavedCount>MAX_FILL_UNSAVED_COUNT){nMaxFillUnsavedCount=MAX_FILL_UNSAVED_COUNT;}
+        m_maxUnsavedDataInTheFile.set_value(nMaxFillUnsavedCount);
+        nMaxFillUnsavedCountHalf = nMaxFillUnsavedCount/2;
 
         // the while below corresponds to file filling
         while( this->shouldWork() && nContinueFill  ){
@@ -675,19 +682,25 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
                     pRootTree = new RTree(pCurEntry);
                     pCurEntry->SetRootTreeAndBranchAddress(pRootTree);  // todo: remove this to the contructor of RTree
                 }
-                pCurEntry->SetNextFillableData(&bTimeToSave,pCurrentData);
+                pCurEntry->SetNextFillableData(pCurrentData);
                 pCurEntry->AddExistanceInRootFile(nSeconds,nEventNumber);
                 pRootTree->Fill();                                                                            // --> 2.
                 pCurEntry->SetMemoryBack(pCurrentData);
 
-                if(bTimeToSave){
+                if((++nFillUnsavedCount)>nMaxFillUnsavedCount){
+                    nFillUnsavedCount = 0;
                     pRootTree->AutoSave("SaveSelf");
                     nFileSize = static_cast<int>(pRootFile->GetSize());
                     m_currentFileSize.set_value(nFileSize);
-                    if( nFileSize >= m_rootLength.value() ) { nContinueFill = 0; }
+                    if( nFileSize >= m_fileMaxSize.value() ) { nContinueFill = 0; }
                 }
-            } // while(m_fifoToFill.Extract(&pMemToProc)){
-        }// while( (Close_File_R == 0) && (eq_fct_->ThreadStatus_.value() == 1) )
+                else if( nFillUnsavedCount == nMaxFillUnsavedCountHalf){
+                    nFileSize = static_cast<int>(pRootFile->GetSize());
+                    m_currentFileSize.set_value(nFileSize);
+                    if( nFileSize >= m_fileMaxSize.value() ) { nContinueFill = 0; }
+                }
+            } // while( this->shouldWork() && (m_fifoToFill.size()>0) ){
+        }// while( this->shouldWork() && nContinueFill  ){
 
         //m_mutexForEntries.lock_shared();
         //for(pCurEntry=m_pEntryFirst; pCurEntry; pCurEntry=pCurEntry->next){

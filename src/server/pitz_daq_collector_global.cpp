@@ -54,7 +54,7 @@ void eq_init_prolog() 	// called once before init of all EqFct's
         fprintf(stderr," shared memory is not created... Exit !!!\n");
         goto exitPoint;
     }
-    if ( (g_shareptr = (struct H_struct *) shmat(s_shmid, NEWNULLPTR2, 0)) == (struct H_struct *) -1)
+    if ( (g_shareptr = static_cast<struct H_struct *>(shmat(s_shmid, NEWNULLPTR2, 0))) == reinterpret_cast<struct H_struct *>(-1) )
     {
         fprintf(stderr," can't attach to shared memory... Exit !!!\n");
         goto exitPoint;

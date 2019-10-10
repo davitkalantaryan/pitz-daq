@@ -21,13 +21,11 @@ class SingleEntryDoocs : public SingleEntry
 {
 public:
     SingleEntryDoocs(entryCreationType::Type creationType,const char* entryLine);
-    virtual ~SingleEntryDoocs();
+    virtual ~SingleEntryDoocs() OVERRIDE2;
 
-    //const char* specialStringForDoocsProperty()const;
-    void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const;
-    const char* rootFormatString()const;
-    void PermanentDataIntoFile(FILE* fpFile)const;
-    //bool ValueStringByKeyInherited(const std::string& a_key, char* a_buffer, int a_bufferLength);
+    virtual void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const OVERRIDE2;
+    const char* rootFormatString()const OVERRIDE2;
+    void PermanentDataIntoFile(FILE* fpFile)const OVERRIDE2;
 
     const char* doocsUrl()const {return m_doocsUrl;}
 
@@ -35,7 +33,6 @@ public:
 
 protected:
     bool GetEntryInfoFromServer( DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo ) const;
-    void CreateRootFormatString();
 
 protected:
     char* m_doocsUrl;

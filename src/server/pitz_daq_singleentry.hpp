@@ -101,11 +101,9 @@ protected:
 public:
     virtual ~SingleEntry();
 public:
-    SingleEntry(entryCreationType::Type creationType,const char* entryLine);
+    SingleEntry( /*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type creationType,const char* entryLine);
 
     virtual const char* rootFormatString()const=0;
-    //virtual pitz::daq::data::memory::ForServerBase* CreateMemoryInherit()=0;
-    //virtual DEC_OUT_PD(SingleData)* CreateMemoryInherit2()=0;
     virtual void PermanentDataIntoFile(FILE* fpFile)const=0;
 
 private:
@@ -115,6 +113,9 @@ public:
     virtual void SetMemoryBack( DEC_OUT_PD(SingleData)* pMemory );
     virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork();
 
+protected:
+    virtual void CleanEntryNoFreeInheritable();
+
 public:
     bool  markEntryForDeleteAndReturnIfPossibleNow();
     bool  lockEntryForRoot();
@@ -122,13 +123,11 @@ public:
     bool  resetRootLockAndReturnIfDeletable();
     bool  resetNetworkLockAndReturnIfDeletable();
     bool  isLockedByRootOrNetwork()const;
-
-    //int dataType()const{return m_branchInfo.dataType;}
-    //void setDataType(int a_dataType){m_branchInfo.dataType = a_dataType;}
+    SNetworkStruct* CleanEntryNoFree();
 
 public:
-    void SetNextFillableData(bool* pbTimeToSave, DEC_OUT_PD(SingleData)* pNewMemory);
-    pitz::daq::SNetworkStruct* networkParent(){return m_pNetworkParent;}
+    void SetNextFillableData(DEC_OUT_PD(SingleData)* pNewMemory);
+    //pitz::daq::SNetworkStruct* networkParent(){return m_pNetworkParent;}
     //void SetRootTreeAndBranchAddress(TTree* tree, const char* a_cpcBranchName);
     void SetRootTreeAndBranchAddress(TTree* tree);
     TTree* rootTree(){return m_pTreeOnRoot;}
@@ -141,7 +140,7 @@ public:
     int lastSecond()const{return m_lastSecond;}
     int lastEventNumber()const{return m_lastEventNumber;}
     uint64_t isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
-    void RemoveDoocsProperty();
+    //void RemoveDoocsProperty();
     void WriteContentToTheFile(FILE* fpFile)const;
     bool KeepEntry()const;
     void MaskErrors(const char* maskResetTime);
@@ -154,8 +153,9 @@ public:
 
     // This API will be used only by
 protected:
-    int  SetEntryInfo(uint32_t a_unOffset, const DEC_OUT_PD(BranchDataRaw)& a_branchInfo);
-    void SetNetworkParent(SNetworkStruct* a_pNetworkParent);
+    //int  SetEntryInfo(uint32_t a_unOffset, const DEC_OUT_PD(BranchDataRaw)& a_branchInfo);
+    char*  ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString );
+    void   SetNetworkParent(SNetworkStruct* a_pNetworkParent);
         
 
 private:
@@ -170,8 +170,6 @@ private:
     int                                     m_nNumberInCurrentFile;
     int                                     m_nNumOfErrors;
     int                                     m_nError2;
-    int                                     m_nFillUnsavedCount;
-    int                                     m_nMaxFillUnsavedCount;
     int                                     m_nLastEventNumberHandled;
 
     SPermanentParams2                       m_pp;
@@ -179,12 +177,14 @@ protected:
     ::std::list< SingleEntry* >::iterator   m_thisIter;
     DEC_OUT_PD(BranchDataRaw)               m_branchInfo;
     DEC_OUT_PD(SingleData)*                 m_pForRoot;
-    uint32_t                                m_bufferSize;
+    uint32_t                                m_totalRootBufferSize;
+    uint32_t                                m_onlyNetDataBufferSize;
     uint32_t                                m_unOffset;
     uint32_t                                m_unAllocatedBufferSize;
     mutable uint32_t                        m_willBeDeletedOrAddedToRootAtomic ;
 
     uint64_t                                m_isPresentInCurrentFile : 1;
+    uint64_t                                m_isCleanEntryInheritableCalled : 1;
 
 
 protected:
@@ -195,20 +195,21 @@ protected:
 class SNetworkStruct
 {
     friend class EqFctCollector;
+    friend class SingleEntry;
 public:
     SNetworkStruct(EqFctCollector* parent);
     virtual ~SNetworkStruct();
 
-    EqFctCollector*  parent();
+    virtual void StopThreadAndClear();
 
+    EqFctCollector*  parent();
     bool AddNewEntry(SingleEntry *newEntry);
-    void RemoveEntryNoDelete(SingleEntry *entry);
     const ::std::list< SingleEntry* >& daqEntries()const;
     uint64_t shouldRun()const;
-    void StopThread();
 
 private:
     void DataGetterThread();
+    //void RemoveEntryNoDeletePrivate(SingleEntry *entry);
 
 private:
     SNetworkStruct(const SNetworkStruct&){}

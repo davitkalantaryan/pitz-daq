@@ -16,16 +16,14 @@ namespace pitz{namespace daq{
 class SingleEntryZmqDoocs final: public SingleEntryDoocs
 {
 public:
-    //using SingleEntryDoocs::SingleEntryDoocs;
     SingleEntryZmqDoocs(entryCreationType::Type creationType,const char* entryLine);
+    ~SingleEntryZmqDoocs() OVERRIDE2;
 
     int zmqPort()const{return m_nPort;}
     const ::std::string& host()const{return m_hostName;}
     void* socket()const;
 
     bool LoadOrValidateData(void* a_pContext);
-    void Disconnect();
-    bool GetExpectedSizesAndCreateBuffers();
     DEC_OUT_PD(SingleData)* ReadData();
 
 private:

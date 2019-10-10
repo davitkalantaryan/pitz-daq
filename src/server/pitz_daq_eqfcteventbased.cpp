@@ -186,11 +186,12 @@ pitz::daq::SNetworkStructZmqDoocs::SNetworkStructZmqDoocs( EqFctCollector* a_pPa
 
 pitz::daq::SNetworkStructZmqDoocs::~SNetworkStructZmqDoocs()
 {
+    free(m_pItems);
+
     if(m_pContext){
         zmq_ctx_destroy(m_pContext);
     }
 
-    free(m_pItems);
 }
 
 
@@ -213,13 +214,21 @@ pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_cr
     m_hostName = "";
     m_pSocket = NEWNULLPTR;
     m_expectedReadHeader2 = 0;
-    //m_nKnownDataType = PITZ_DAQ_UNSPECIFIED_DATA_TYPE;
     m_nPort = PITZ_DAQ_UNKNOWN_ZMQ_PORT;
-    //m_nReserved = 0;
-    m_isValid = 0;
     m_isDataLoaded = 0;
+    m_isValid = 0;
     m_reserved = 0;
     m_pBufferForHeader2 = NEWNULLPTR;
+}
+
+
+pitz::daq::SingleEntryZmqDoocs::~SingleEntryZmqDoocs()
+{
+    ::std::cout << __FUNCTION__ << ::std::endl;
+    if(m_pSocket){
+        zmq_close(m_pSocket);
+        m_pSocket = NEWNULLPTR;
+    }
 }
 
 
@@ -296,7 +305,7 @@ DEC_OUT_PD(SingleData)* SingleEntryZmqDoocs::ReadData()
         }
     }
 
-    if(m_bufferSize>0){
+    if(m_onlyNetDataBufferSize>0){
         more_size = sizeof(more);
         nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -311,8 +320,8 @@ DEC_OUT_PD(SingleData)* SingleEntryZmqDoocs::ReadData()
             return NEWNULLPTR;
         }
 
-        nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromEntry(pMemory),m_bufferSize,0);
-        if(nReturn!=static_cast<int>(m_bufferSize)){
+        nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromEntry(pMemory),m_onlyNetDataBufferSize,0);
+        if(nReturn!=static_cast<int>(m_onlyNetDataBufferSize)){
             // todo: set proper error code
             this->SetMemoryBack(pMemory);
             return NEWNULLPTR;
@@ -371,7 +380,9 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         dataOut.get_ustr (&this->m_nPort, &f1, &f2, &tm, &sp, 0);
         //this->m_dataType = static_cast<int>(f1);
         if(this->m_branchInfo.dataType != static_cast<decltype (this->m_branchInfo.dataType)>(f1) ){
-            return false;
+            DEBUG_APP_INFO(0,"Data type for entry %s is changed from %d to %d",
+                           daqName(),static_cast<int>(this->m_branchInfo.dataType),static_cast<int>(f1));
+            this->m_branchInfo.dataType = static_cast<decltype (this->m_branchInfo.dataType)>(f1);
         }
     }break;
     default:
@@ -400,11 +411,14 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         return false;
     }
 
-    if( !GetExpectedSizesAndCreateBuffers() ){
-        return false;
+    if(m_rootFormatStr){
+        if(!this->ApplyEntryInfo(0)){return false;}
+    }
+    else{
+        m_rootFormatStr = this->ApplyEntryInfo(0);
+        if(!m_rootFormatStr){return false;}
     }
 
-    this->SetEntryInfo(m_unOffset,m_branchInfo);
     m_isValid = 1;
     m_isDataLoaded = 1;
 
@@ -412,166 +426,3 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 }
 
 
-bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
-{
-    m_expectedReadHeader2=0;
-    //m_expectedReadData=0;
-    m_bufferSize = 0;
-
-    //EqDataBlock* db;
-    //char* dp;
-
-    switch (m_branchInfo.dataType) {
-
-    case DATA_INT:
-        m_bufferSize = static_cast<uint32_t>(m_branchInfo.itemsCountPerEntry) * sizeof(int);
-        break;
-
-    case DATA_FLOAT:
-        m_bufferSize = static_cast<uint32_t>(m_branchInfo.itemsCountPerEntry) * sizeof(float);
-        break;
-
-    case DATA_DOUBLE:
-        //memcpy(&db->data_u.DataUnion_u.d_double, dp, sizeof(db->data_u.DataUnion_u.d_double));
-        //break;
-
-    case DATA_IIII:
-        //memcpy(&db->data_u.DataUnion_u.d_iiii, dp, sizeof(db->data_u.DataUnion_u.d_iiii));
-        //break;
-
-    case DATA_IFFF:
-        //memcpy(&db->data_u.DataUnion_u.d_ifff, dp, sizeof(db->data_u.DataUnion_u.d_ifff));
-        //break;
-
-    case DATA_TTII:
-        //memcpy(&db->data_u.DataUnion_u.d_ttii, dp, sizeof(db->data_u.DataUnion_u.d_ttii));
-        //break;
-
-    case DATA_XYZS:
-        //memcpy(&db->data_u.DataUnion_u.d_xyzs, dp, sizeof(db->data_u.DataUnion_u.d_xyzs));
-        //db->data_u.DataUnion_u.d_xyzs.loc.loc_val = dp + sizeof(XYZS);
-        //break;
-
-    case DATA_SPECTRUM:
-        //memcpy(&db->data_u.DataUnion_u.d_spectrum, dp, sizeof(db->data_u.DataUnion_u.d_spectrum));
-        //db->data_u.DataUnion_u.d_spectrum.comment.comment_val = dp + sizeof(SPECTRUM);
-        //db->data_u.DataUnion_u.d_spectrum.d_spect_array.d_spect_array_val = (float*)(dp + sizeof(SPECTRUM) + STRING_LENGTH);
-        //break;
-
-        m_expectedReadHeader2 = sizeof(struct SPECTRUM) + STRING_LENGTH ;
-        m_bufferSize = static_cast<uint32_t>(m_branchInfo.itemsCountPerEntry) * sizeof(float);  // in order to keep socket clean
-        break;
-
-    case DATA_GSPECTRUM:
-        //memcpy(&db->data_u.DataUnion_u.d_gspectrum, dp, sizeof(db->data_u.DataUnion_u.d_gspectrum));
-        //db->data_u.DataUnion_u.d_gspectrum.comment.comment_val = dp + sizeof(GSPECTRUM);
-        //db->data_u.DataUnion_u.d_gspectrum.d_gspect_array.d_gspect_array_val = (float*)(dp + sizeof(GSPECTRUM) + STRING_LENGTH);
-        //break;
-
-    case DATA_A_SHORT:
-        //db->data_u.DataUnion_u.d_short_array.d_short_array_val = (short*)dp;
-        //db->data_u.DataUnion_u.d_short_array.d_short_array_len = len;
-
-        m_expectedReadHeader2 = 0;
-        m_bufferSize = static_cast<uint32_t>(m_branchInfo.itemsCountPerEntry) * sizeof(int16_t);
-        break;
-
-    case DATA_A_INT:
-        //db->data_u.DataUnion_u.d_int_array.d_int_array_val = (int*)dp;
-        //db->data_u.DataUnion_u.d_int_array.d_int_array_len = len;
-        //break;
-
-    case DATA_A_LONG:
-        //db->data_u.DataUnion_u.d_llong_array.d_llong_array_val = (long long*)dp;
-        //db->data_u.DataUnion_u.d_llong_array.d_llong_array_len = len;
-        //break;
-
-    case DATA_A_FLOAT:
-        //db->data_u.DataUnion_u.d_float_array.d_float_array_val = (float*)dp;
-        //db->data_u.DataUnion_u.d_float_array.d_float_array_len = len;
-        //break;
-
-    case DATA_A_DOUBLE:
-        //db->data_u.DataUnion_u.d_double_array.d_double_array_val = (double*)dp;
-        //db->data_u.DataUnion_u.d_double_array.d_double_array_len = len;
-        //break;
-
-    case DATA_STRING:
-    case DATA_TEXT:
-        //db->data_u.DataUnion_u.d_char.d_char_val = dp;
-        //db->data_u.DataUnion_u.d_char.d_char_len = strlen(dp);
-        break;
-
-    case DATA_A_USTR:
-        //db->data_u.DataUnion_u.d_ustr_array.d_ustr_array_val = (USTR*)dp;
-        //db->data_u.DataUnion_u.d_ustr_array.d_ustr_array_len = len;
-        //usp = (USTR*)dp;
-        //usp->str_data.str_data_val = dp + sizeof(USTR);
-        break;
-
-    case DATA_IMAGE: {
-        //char* ptr = dp;
-        //
-        //
-        //memcpy(&db->data_u.DataUnion_u.d_image.hdr, dp, sizeof(db->data_u.DataUnion_u.d_image.hdr));
-        //
-        //dp += sizeof(db->data_u.DataUnion_u.d_image.hdr);
-        //db->data_u.DataUnion_u.d_image.sec = *(time_t*)dp;
-        //
-        //dp += sizeof(time_t);
-        //db->data_u.DataUnion_u.d_image.usec = *(time_t*)dp;
-        //
-        //dp += sizeof(time_t);
-        //db->data_u.DataUnion_u.d_image.status = *(int*)dp;
-        //
-        //dp += sizeof(int);
-        //db->data_u.DataUnion_u.d_image.comment.comment_val = dp;
-        //db->data_u.DataUnion_u.d_image.comment.comment_len = strlen(dp) + 1;
-        //
-        //dp += strlen(dp) + 1;
-        //db->data_u.DataUnion_u.d_image.val.val_val = (u_char*)dp;
-        //db->data_u.DataUnion_u.d_image.val.val_len = sz - (dp - ptr);
-    } break;
-
-    case DATA_A_BYTE: {
-        //int* hdp = (int*)dp;
-        //
-        //db->data_u.DataUnion_u.d_byte_struct.x_dim = hdp[0];
-        //db->data_u.DataUnion_u.d_byte_struct.y_dim = hdp[1];
-        //db->data_u.DataUnion_u.d_byte_struct.x_offset = hdp[2];
-        //db->data_u.DataUnion_u.d_byte_struct.y_offset = hdp[3];
-        //db->data_u.DataUnion_u.d_byte_struct.option = hdp[4];
-        //
-        //dp += sizeof(int) * 5;
-        //
-        //db->data_u.DataUnion_u.d_byte_struct.d_byte_array.d_byte_array_len = hdp[0];
-        //db->data_u.DataUnion_u.d_byte_struct.d_byte_array.d_byte_array_val = (u_char*)dp;
-    } break;
-
-
-    default:
-        return false;
-    }
-
-    if(m_pBufferForHeader2){
-        free(m_pBufferForHeader2);
-        m_pBufferForHeader2 = nullptr;
-    }
-    if(m_expectedReadHeader2){
-        m_pBufferForHeader2 = static_cast<char*>(malloc(m_expectedReadHeader2));
-    }
-
-#if 0
-
-
-    if(m_pBuffer2){
-        free(m_pBuffer2);
-        m_pBuffer2 = nullptr;
-    }
-    if(m_expectedRead2){
-        m_pBuffer2 = static_cast<char*>(malloc(m_expectedRead2));
-    }
-#endif
-
-    return true;
-}
