@@ -687,18 +687,17 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
                 pRootTree->Fill();                                                                            // --> 2.
                 pCurEntry->SetMemoryBack(pCurrentData);
 
-                if((++nFillUnsavedCount)>nMaxFillUnsavedCount){
-                    nFillUnsavedCount = 0;
-                    pRootTree->AutoSave("SaveSelf");
+                if((++nFillUnsavedCount)>nMaxFillUnsavedCountHalf){
+                    if(nFillUnsavedCount>nMaxFillUnsavedCount){
+                        nFillUnsavedCount = 0;
+                        pRootTree->AutoSave("SaveSelf");
+                    }
+                    nMaxFillUnsavedCountHalf=nMaxFillUnsavedCount;
+
                     nFileSize = static_cast<int>(pRootFile->GetSize());
                     m_currentFileSize.set_value(nFileSize);
                     if( nFileSize >= m_fileMaxSize.value() ) { nContinueFill = 0; }
-                }
-                else if( nFillUnsavedCount == nMaxFillUnsavedCountHalf){
-                    nFileSize = static_cast<int>(pRootFile->GetSize());
-                    m_currentFileSize.set_value(nFileSize);
-                    if( nFileSize >= m_fileMaxSize.value() ) { nContinueFill = 0; }
-                }
+                } // if((++nFillUnsavedCount)>nMaxFillUnsavedCountHalf){
             } // while( this->shouldWork() && (m_fifoToFill.size()>0) ){
         }// while( this->shouldWork() && nContinueFill  ){
 
