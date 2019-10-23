@@ -2,6 +2,10 @@
 //  Example of usage
 //   ./simple_root_reader_test /doocs/data/DAQdata/daqL/pitznoadc0/PITZ_DATA.pitznoadc0.2019-02-25-0803.root CATH__NAME
 
+#ifdef _MSC_VER
+#pragma warning(disable:4996)
+#endif
+
 #include <iostream>
 #include <stdio.h>
 #include <TFile.h>
@@ -13,6 +17,7 @@
 #include <string>
 #include "TROOT.h"
 #include "TPluginManager.h"
+#include <stdint.h>
 
 typedef struct struct19
 {
@@ -39,11 +44,12 @@ int main(int argc, char* argv[])
     FILE* fpFileOut(NULL);
     TBranch *pBranch;
     TTree* pTree;
-    TFile* tFile ;
-    struct19 aStrForRootIn,aStrForRootFn;
+    TFile* tFile = nullptr;
+    struct19 *pStrForRootIn,*pStrForRootFn;
     std::vector<std::string> vLastEntries;
     size_t i,unVectorSize;
-    int nReturn(0), nNumOfEntries;
+	int nReturn(0);
+	int64_t nNumOfEntries;
     int nTimeSeconds;
     int nOffset;
     int nSeekReturn;
@@ -57,6 +63,18 @@ int main(int argc, char* argv[])
         std::cerr<<"Too less arguments! ... "<<std::endl;
         return 1;
     }
+
+	pStrForRootIn = static_cast<struct19*>(::calloc(1, sizeof(struct19)));
+	if (!pStrForRootIn) {
+		std::cerr << "Unable to allocate memory! ... " << std::endl;
+		return 1;
+	}
+
+	pStrForRootFn = static_cast<struct19*>(::calloc(1, sizeof(struct19)));
+	if (!pStrForRootFn) {
+		std::cerr << "Unable to allocate memory! ... " << std::endl;
+		goto returnPoint;
+	}
 
     gROOT->GetPluginManager()->AddHandler("TVirtualStreamerInfo",
                                           "*",
@@ -96,17 +114,17 @@ int main(int argc, char* argv[])
     printf("pBranch = %p\n",pBranch);
     if(!pBranch){nReturn=3;goto returnPoint;}
 
-    nNumOfEntries = pBranch->GetEntries();
-    printf("nNumOfEntries = %d\n",nNumOfEntries);
+    nNumOfEntries = static_cast<int>(pBranch->GetEntries());
+    printf("nNumOfEntries = %d\n",static_cast<int>(nNumOfEntries));
 
-    pBranch->SetAddress(&aStrForRootIn);
+    pBranch->SetAddress(pStrForRootIn);
     pBranch->GetEntry(0);
 
-    pBranch->SetAddress(&aStrForRootFn);
+    pBranch->SetAddress(pStrForRootFn);
     pBranch->GetEntry(nNumOfEntries-1);
 
     snprintf(vcBufferToAdd,1023,"%d:%d,%d:%d,%s",
-             aStrForRootIn.time,aStrForRootIn.buffer,aStrForRootFn.time,aStrForRootFn.buffer,argv[1]);
+             static_cast<int>(pStrForRootIn->time),pStrForRootIn->buffer, static_cast<int>(pStrForRootFn->time), pStrForRootFn->buffer,argv[1]);
 
     printf("%s\n",vcBufferToAdd);
 
@@ -123,7 +141,7 @@ int main(int argc, char* argv[])
     }
 
     bFound = false;
-    nOffset = indexFileIn.tellg();
+    nOffset = static_cast<int>(indexFileIn.tellg());
     while(!indexFileIn.fail()){
         indexFileIn.getline(vcBuffer,1023);
         if(strncmp(vcBufferToAdd,vcBuffer,1023)==0){
@@ -131,10 +149,10 @@ int main(int argc, char* argv[])
             goto returnPoint;
         }
         nTimeSeconds = (int)strtol(vcBuffer,&pcNext,10);
-        if(nTimeSeconds>aStrForRootIn.time){
+        if(nTimeSeconds>pStrForRootIn->time){
             vLastEntries.push_back(vcBuffer); bFound=true;break;
         }
-        nOffset = indexFileIn.tellg();
+		nOffset = static_cast<int>(indexFileIn.tellg());
     }
 
     while(!indexFileIn.fail()){
@@ -184,6 +202,8 @@ returnPoint:
     if(fpFileOut){fclose(fpFileOut);}
     if(indexFileIn.is_open()){indexFileIn.close();}
     if(tFile){tFile->Close();}
+	free(pStrForRootFn);
+	free(pStrForRootIn);
 
     return nReturn;
 }

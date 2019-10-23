@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LocalDebuggerCommandArguments>\\afs\ifh.de\group\pitz\doocs\data\DAQdata\daqL\pitzdiag.adc\PITZ_DATA.pitzdiag.adc.2019-10-01-0903.root GUN__COUPLER__PMT_20140905</LocalDebuggerCommandArguments>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerEnvironment>Path=D:\davit\dev\.binaries\root_v6.18.04\bin;%Path%
+$(LocalDebuggerEnvironment)</LocalDebuggerEnvironment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LocalDebuggerCommandArguments>\\afs\ifh.de\group\pitz\doocs\data\DAQdata\daqL\pitzdiag.adc\PITZ_DATA.pitzdiag.adc.2019-10-01-0903.root GUN__COUPLER__PMT_20140905</LocalDebuggerCommandArguments>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerEnvironment>Path=D:\davit\dev\.binaries\root_v6.18.04\bin;%Path%
+$(LocalDebuggerEnvironment)</LocalDebuggerEnvironment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LocalDebuggerCommandArguments>\\afs\ifh.de\group\pitz\doocs\data\DAQdata\daqL\pitzdiag.adc\PITZ_DATA.pitzdiag.adc.2019-10-01-0903.root GUN__COUPLER__PMT_20140905</LocalDebuggerCommandArguments>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerEnvironment>Path=D:\davit\dev\.binaries\root_v6.18.04\bin;%Path%
+$(LocalDebuggerEnvironment)</LocalDebuggerEnvironment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LocalDebuggerCommandArguments>\\afs\ifh.de\group\pitz\doocs\data\DAQdata\daqL\pitzdiag.adc\PITZ_DATA.pitzdiag.adc.2019-10-01-0903.root GUN__COUPLER__PMT_20140905</LocalDebuggerCommandArguments>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerEnvironment>Path=D:\davit\dev\.binaries\root_v6.18.04\bin;%Path%
+$(LocalDebuggerEnvironment)</LocalDebuggerEnvironment>
+  </PropertyGroup>
+</Project>
