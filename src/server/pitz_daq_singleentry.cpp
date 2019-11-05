@@ -3,6 +3,9 @@
 // 2017 Sep 15
 
 
+#include <cstdlib>
+#define atoll       atol
+#define strtoull    strtoul
 #include "pitz_daq_singleentry.hpp"
 #include <string.h>
 #include <stdlib.h>
@@ -293,7 +296,7 @@ char* pitz::daq::SingleEntry::ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString
         return NEWNULLPTR2;
     }
 
-    pcRootFormatString = PrepareDaqEntryBasedOnType(a_bDubRootString,&m_branchInfo,&unOnlyDataBufferSize,&unTotalRootBufferSize);
+    pcRootFormatString = PrepareDaqEntryBasedOnType(a_bDubRootString,&m_branchInfo,&unOnlyDataBufferSize,&unTotalRootBufferSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
     if(!pcRootFormatString){return NEWNULLPTR2;}
 
     unTotalAllocationSize = unTotalRootBufferSize + m_unOffset;

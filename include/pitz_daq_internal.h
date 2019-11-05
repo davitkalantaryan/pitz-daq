@@ -110,6 +110,9 @@
 #define END_C_DECL2     }
 
 #ifdef CPP11_DEFINED // later on should be checked whether we have cpp11+
+#ifdef nullptr
+#undef nullptr
+#endif
 #define NEWNULLPTR2     nullptr
 #else
 #define NEWNULLPTR2     NULL

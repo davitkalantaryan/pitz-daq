@@ -86,8 +86,9 @@ struct SPermanentParams2
     int         numberInAllFiles;
     time_t      expirationTime;
     time_t      creationTime;
-    bool        masked;
-    bool        collect;
+    uint64_t    masked : 1;
+    uint64_t    collect : 1;
+    uint64_t    reserved64bit : 62;
     SMaskParam  mp;
 };
 

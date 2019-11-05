@@ -9,8 +9,10 @@
 //#define IMPLEMENT_CONDITIONS
 //#define ALARM_UNDERSTOOD
 
+#include <cstdlib>
+#define atoll       atol
+#define strtoull    strtoul
 #include "pitz_daq_eqfctrr.hpp"
-//#include <eq_fct_errors.h>
 #include <ctime>
 #include <cstdio>
 #include <iostream>
@@ -68,7 +70,6 @@ public:
     //const char* specialStringForDoocsProperty()const;
     void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const;
     const char* rootFormatString()const;
-    data::memory::ForServerBase* CreateMemoryInherit();
     void PermanentDataIntoFile(FILE* fpFile)const;
     //bool ValueStringByKeyInherited(const std::string& a_key, char* a_buffer, int a_bufferLength);
 
@@ -76,7 +77,7 @@ public:
     int dataType()const{return m_dataType;}
     void setDataType(int a_dataType){m_dataType = a_dataType;}
 
-    void FromDoocsToMemory(data::memory::ForServerBase* pMemory, const EqData* dcsData);
+    //void FromDoocsToMemory(data::memory::ForServerBase* pMemory, const EqData* dcsData);
 
 private:
     char* m_doocsUrl;
@@ -96,7 +97,7 @@ static bool GetEventAndTime(int* a_event, int* a_time);
 //
 EqFct* eq_create(int a_eq_code, void* )
 {
-        ::EqFct* pRet = NULL;
+        ::EqFct* pRet = NEWNULLPTR2;
         switch (a_eq_code)
         {
         case EqFctRR_code:pRet = new pitz::daq::EqFctRR;break;
@@ -132,7 +133,7 @@ pitz::daq::SingleEntry* pitz::daq::EqFctRR::CreateNewEntry(entryCreationType::Ty
     SingleEntryRR* pEntry = new SingleEntryRR(a_creationType,a_entryLine);
     int nDcsCallResult;
 
-    if(!pEntry){return NULL;}
+    if(!pEntry){return NEWNULLPTR2;}
 
     dcsAddr.adr( pEntry->doocsUrl());
     dataIn.init();dataOut.init();
@@ -153,7 +154,7 @@ pitz::daq::SingleEntry* pitz::daq::EqFctRR::CreateNewEntry(entryCreationType::Ty
 returnPoint:
 
     if(nDcsCallResult && (a_creationType == entryCreationType::fromUser)){
-        delete pEntry;return NULL;
+        delete pEntry;return NEWNULLPTR2;
     }
 
     return pEntry;
@@ -232,8 +233,8 @@ void pitz::daq::EqFctRR::DataGetterThread(SNetworkStruct* a_pNet)
 pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,const char* a_entryLine)
         :
         SingleEntry(a_creationType, a_entryLine),
-        m_doocsUrl(NULL),
-        m_rootFormatStr(NULL)
+        m_doocsUrl(NEWNULLPTR2),
+        m_rootFormatStr(NEWNULLPTR2)
 {
 
     size_t unStrLen ;
@@ -249,7 +250,7 @@ pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,c
                    daqName,doocs_url,&from,&m_nSamples,&step,&m_dataType);
 
             unStrLen = strlen(doocs_url);
-            m_doocsUrl = (char*)malloc(unStrLen + 1);
+            m_doocsUrl = static_cast<char*>(malloc(unStrLen + 1));
             if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}
             memcpy(m_doocsUrl,doocs_url,unStrLen);
             m_doocsUrl[unStrLen] = 0;
@@ -264,8 +265,8 @@ pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,c
             //strspn();// later ignore empty
             tmpStr = strpbrk(pcNext,POSIIBLE_TERM_SYMBOLS);
             if(!tmpStr){throw errorsFromConstructor::syntax;}
-            unStrLen = tmpStr - pcNext;
-            m_doocsUrl = (char*)malloc(unStrLen+1);
+            unStrLen = static_cast<size_t>(tmpStr - pcNext);
+            m_doocsUrl = static_cast<char*>(malloc(unStrLen+1));
             if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}
             memcpy(m_doocsUrl,pcNext,unStrLen);
             m_doocsUrl[unStrLen] = 0;
@@ -292,8 +293,8 @@ pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,c
             tmpStr = strpbrk(pcNext,POSIIBLE_TERM_SYMBOLS);
             //strspn();// later ignore empty
             if(!tmpStr){unStrLen = strlen(pcNext);}
-            else{unStrLen = tmpStr - pcNext;}
-            m_doocsUrl = (char*)malloc(unStrLen+1);
+            else{unStrLen = static_cast<size_t>(tmpStr - pcNext);}
+            m_doocsUrl = static_cast<char*>(malloc(unStrLen+1));
             if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}
             memcpy(m_doocsUrl,pcNext,unStrLen);
             m_doocsUrl[unStrLen]=0;
@@ -327,6 +328,7 @@ pitz::daq::SingleEntryRR::~SingleEntryRR()
 }
 
 
+#if 0
 void pitz::daq::SingleEntryRR::FromDoocsToMemory(data::memory::ForServerBase* a_pMemory,const EqData* a_dcsData)
 {
     switch ( m_dataType % 100 )
@@ -396,6 +398,7 @@ void pitz::daq::SingleEntryRR::FromDoocsToMemory(data::memory::ForServerBase* a_
     }
 
 }
+#endif
 
 
 
@@ -415,21 +418,21 @@ void pitz::daq::SingleEntryRR::ValueStringByKeyInherited(bool a_bReadAll, const 
     int nWritten,nBufLen(a_bufferLength);
 
     if(a_bReadAll ||strstr(SPECIAL_KEY_DOOCS,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,SPECIAL_KEY_DOOCS "=%s; ",m_doocsUrl);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),SPECIAL_KEY_DOOCS "=%s; ",m_doocsUrl);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
 
     if(a_bReadAll ||strstr(SPECIAL_KEY_DATA_TYPE,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,SPECIAL_KEY_DATA_TYPE "=%d; ",m_dataType);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),SPECIAL_KEY_DATA_TYPE "=%d; ",m_dataType);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
     }
 
     if(a_bReadAll ||strstr(SPECIAL_KEY_DATA_SAMPLES,a_request)){
-        nWritten = snprintf(pcBufToWrite,nBufLen,SPECIAL_KEY_DATA_SAMPLES "=%d; ",m_nSamples);
+        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),SPECIAL_KEY_DATA_SAMPLES "=%d; ",m_nSamples);
         pcBufToWrite += nWritten;
         nBufLen -= nWritten;
         if(nBufLen<=0){return;}
@@ -451,6 +454,7 @@ void pitz::daq::SingleEntryRR::PermanentDataIntoFile(FILE* a_fpFile)const
 }
 
 
+#if 0
 pitz::daq::data::memory::ForServerBase* pitz::daq::SingleEntryRR::CreateMemoryInherit()
 {
     //m_dataType %= 100;
@@ -502,6 +506,7 @@ pitz::daq::data::memory::ForServerBase* pitz::daq::SingleEntryRR::CreateMemoryIn
 
     return NULL;
 }
+#endif
 
 
 /*////////////////////////////////////////////////////////////*/

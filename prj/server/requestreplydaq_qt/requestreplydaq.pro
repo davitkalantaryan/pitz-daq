@@ -8,9 +8,11 @@
 #QMAKE_CXXFLAGS += "-include types.h"
 #DEFINES += u_int=unsigned
 
-QMAKE_CXXFLAGS += -std=c++0x
+#QMAKE_CXXFLAGS += -std=c++0x
+QMAKE_CXXFLAGS += -std=c++14
 
 #DEFINES += DEBUG_APP
 include(../../common/common_qt/daqcollector_common.pri)
 SOURCES += ../../../src/server/pitz_daq_eqfctrr.cpp
 HEADERS += ../../../src/server/pitz_daq_eqfctrr.hpp
+INCLUDEPATH += ../../../contrib/matlab/include

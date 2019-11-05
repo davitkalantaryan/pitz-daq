@@ -30,7 +30,7 @@ extern int g_nLogLevel;
 #define SleepMs    Sleep
 #else
 #include <unistd.h>
-#define SleepMs(_x_) usleep(1000*(_x_))
+#define SleepMs(_x_) usleep(static_cast<useconds_t>(1000*(_x_)))
 #endif
 
 #define DUMMY_ARGS2(...)

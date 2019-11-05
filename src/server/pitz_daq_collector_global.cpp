@@ -3,6 +3,9 @@
 // pitz_daq_collector_global.cpp
 // int mkdir_p(const char *a_path, mode_t a_mode) defined here
 
+#include <cstdlib>
+#define atoll       atol
+#define strtoull    strtoul
 #include <TPluginManager.h>
 #include <TROOT.h>
 #include <sys/types.h>

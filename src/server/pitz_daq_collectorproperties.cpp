@@ -2,6 +2,9 @@
 // 2017 Sep 18
 //
 
+#include <cstdlib>
+#define atoll       atol
+#define strtoull    strtoul
 #include "pitz_daq_collectorproperties.hpp"
 #include "pitz_daq_eqfctcollector.hpp"
 #include <stdarg.h>
