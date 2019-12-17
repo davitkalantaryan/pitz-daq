@@ -7,6 +7,15 @@ message("!!! daqcollector_common.pri:")
 include(../../common/common_qt/root_no_gui_common.pri)
 DEFINES += ROOT_APP
 
+include($${PWD}/../../../contrib/matlab/prj/common/common_qt/matlab_matrix_without_libs_common.pri)
+DEFINES += USE_NEW_MATLB_NAMES
+
+DEFINES += R__NULLPTR
+DEFINES += ROOT_APP
+
+SOURCES += \
+    $${PWD}/../../../contrib/data_handling/src/libs/common_libs_matlab_independent_functions.cpp
+
 # call qmake CONFIG+=test
 optionsTest = $$find(CONFIG, "1test")
 count(optionsTest, 1):message("!!! test1 version") DEFINES += TEST_VERSION111

@@ -3,6 +3,18 @@
 # Created by : Davit Kalantaryan (davit.kalantaryan@desy.de)
 # This file can be used to produce Makefile for daqadcreceiver application
 # for PITZ
+
+win32{
+    SOURCES += \
+
+} else {
+    GCCPATH = $$system(which gcc)
+    message("!!!!!!!!!!! GCCPATH=$$GCCPATH")
+    QMAKE_CXXFLAGS += -std=c++11
+    SOURCES += \
+
+}
+
 INCLUDEPATH += ../../../src/tmp
 #DEFINES += DEBUG_APP
 include(../../common/common_qt/daqcollector_common.pri)

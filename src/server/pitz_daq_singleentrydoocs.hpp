@@ -20,7 +20,7 @@ namespace pitz{namespace daq{
 class SingleEntryDoocs : public SingleEntry
 {
 public:
-    SingleEntryDoocs(entryCreationType::Type creationType,const char* entryLine);
+    SingleEntryDoocs(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     virtual ~SingleEntryDoocs() OVERRIDE2;
 
     virtual void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const OVERRIDE2;

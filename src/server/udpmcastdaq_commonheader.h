@@ -2,8 +2,8 @@
 // udpmcastdaq_commonheader.h
 // 2017 Oct 23
 
-#ifndef __udpmcastdaq_commonheader_h__
-#define __udpmcastdaq_commonheader_h__
+#ifndef udpmcastdaq_commonheader_h
+#define udpmcastdaq_commonheader_h
 
 
 #if 0
@@ -31,4 +31,5 @@ struct DATA_struct
         float            f[2048];
 };
 
-#endif // #ifndef __udpmcastdaq_commonheader_h__
+
+#endif // #ifndef udpmcastdaq_commonheader_h

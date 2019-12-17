@@ -5,6 +5,3 @@
 # for PITZ
 message("!!! daqcollector_event_based_common.pri:")
 include(../../common/common_qt/daqcollector_common.pri)
-
-DEFINES += R__NULLPTR
-DEFINES += ROOT_APP

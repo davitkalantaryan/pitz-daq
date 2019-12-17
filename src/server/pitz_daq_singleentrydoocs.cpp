@@ -18,9 +18,9 @@
 
 /*////////////////////////////////////////////////////*/
 
-pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creationType,const char* a_entryLine)
+pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
-        SingleEntry(a_creationType, a_entryLine),
+        SingleEntry(a_creationType, a_entryLine, a_pHelper),
         m_doocsUrl(NEWNULLPTR2),
         m_rootFormatStr(NEWNULLPTR2)
 {

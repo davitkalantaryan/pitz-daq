@@ -51,6 +51,8 @@ class SNetworkStruct;
 class SingleEntry;
 class EqFctCollector;
 
+typedef const char* TypeConstCharPtr;
+
 namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknownCreation};}
 namespace errorsFromConstructor{enum Error{noError=0,syntax=1,lowMemory, type,doocsUnreachable};}
 
@@ -59,19 +61,19 @@ const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* 
 
 #define D_BASE_FOR_STR  D_text
 
-class D_stringForEntry : public D_BASE_FOR_STR
-{
-public:
-    D_stringForEntry(const char* pn, SingleEntry* parent);
-    ~D_stringForEntry();
-
-private:
-    void    get (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
-    void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
-
-private:
-    SingleEntry* m_pParent;
-};
+//class D_stringForEntry : public D_BASE_FOR_STR
+//{
+//public:
+//    D_stringForEntry(const char* pn, SingleEntry* parent);
+//    ~D_stringForEntry();
+//
+//private:
+//    void    get (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
+//    void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
+//
+//private:
+//    SingleEntry* m_pParent;
+//};
 
 
 struct SMaskParam
@@ -93,16 +95,16 @@ struct SPermanentParams2
 };
 
 
-class SingleEntry
+class SingleEntry : protected D_BASE_FOR_STR
 {
     //friend class D_stringForEntry;
     friend class SNetworkStruct;
     //friend class EqFctCollector;
 protected:
 public:
-    virtual ~SingleEntry();
+    virtual ~SingleEntry() OVERRIDE2;
 public:
-    SingleEntry( /*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type creationType,const char* entryLine);
+    SingleEntry( /*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
 
     virtual const char* rootFormatString()const=0;
     virtual void PermanentDataIntoFile(FILE* fpFile)const=0;
@@ -143,7 +145,7 @@ public:
     uint64_t isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
     //void RemoveDoocsProperty();
     void WriteContentToTheFile(FILE* fpFile)const;
-    bool KeepEntry()const;
+    //bool KeepEntry2()const;
     void MaskErrors(const char* maskResetTime);
     void UnmaskErrors();
     // APIs for DOOCS property
@@ -151,6 +153,7 @@ public:
     void SetProperty(const char* propertyAndAttributes);
     int LastEventNumberHandled(void)const;
     void SetLastEventNumberHandled(int a_nLastEventNumber);
+    void RemoveDoocsProperty2();
 
     // This API will be used only by
 protected:
@@ -163,7 +166,7 @@ private:
     char*                                   m_daqName;
     int                                     m_firstEventNumber,m_lastEventNumber;
     int                                     m_firstSecond,m_lastSecond;
-    D_stringForEntry*                       m_pDoocsProperty;
+    //D_stringForEntry*                       m_pDoocsProperty;
     SNetworkStruct*                         m_pNetworkParent;
     TTree*                                  m_pTreeOnRoot;
     TBranch*                                m_pBranchOnTree;
@@ -186,10 +189,11 @@ protected:
 
     uint64_t                                m_isPresentInCurrentFile : 1;
     uint64_t                                m_isCleanEntryInheritableCalled : 1;
+    uint64_t                                m_bitwise64Reserved : 62;
 
 
 protected:
-    SingleEntry(const SingleEntry&){}
+    SingleEntry(const SingleEntry&) = delete ;
 };
 
 

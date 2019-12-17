@@ -73,11 +73,11 @@ switch optionR
 %         branches{1}='HIGH1__IGP1_P';
 %         branches{1}='GUN__TEMP__WG2__THW_TOP_D1_20140905';
 
-return;
+%return;
         
-        dev_mex_daq_browser('--set-log-level',10);
+        %dev_mex_daq_browser('--set-log-level',10);
         %data =dev_mex_daq_browser('--get-data-for-time-interval',branches,time1i32,time2i32,'--debug-app');
-        data =daq_browser_3_2_3('--get-data-for-time-interval',branches,time1i32,time2i32);
+        data =dev_mex_daq_browser('--get-data-for-time-interval',branches,time1i32,time2i32);
 end
 
 if nargout>0

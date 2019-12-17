@@ -62,7 +62,8 @@ pitz::daq::SNetworkStruct* pitz::daq::EqFctEventBased::CreateNewNetworkStruct()
 
 pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
-    SingleEntryZmqDoocs* pEntry = new SingleEntryZmqDoocs(a_creationType,a_entryLine);
+    const char* cpcLine;
+    SingleEntryZmqDoocs* pEntry = new SingleEntryZmqDoocs(a_creationType,a_entryLine,&cpcLine);
 
     if(!pEntry){return pEntry;}
 
@@ -207,9 +208,9 @@ void pitz::daq::SNetworkStructZmqDoocs::ResizeItemsCount()
 }
 
 /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
-pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_creationType,const char* a_entryLine)
+pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
     :
-      SingleEntryDoocs(a_creationType,a_entryLine)
+      SingleEntryDoocs(a_creationType,a_entryLine,a_pHelper)
 {
     m_hostName = "";
     m_pSocket = NEWNULLPTR;

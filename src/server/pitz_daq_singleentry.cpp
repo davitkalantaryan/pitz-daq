@@ -20,22 +20,45 @@
 static void SignalHandler(int){}
 
 
-pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine)
+namespace pitz{ namespace daq{
+
+typedef char* TypeCharPtr;
+
+static ::std::string GetPropertyName(const char* a_entryLine, TypeConstCharPtr* a_pcLineStart, TypeCharPtr* a_pDaqName)
+{
+    char vcBuffer[512];
+    size_t daqNameLen;
+
+    *a_pcLineStart = strpbrk(a_entryLine,POSIIBLE_TERM_SYMBOLS);
+
+    if(!(*a_pcLineStart)){throw errorsFromConstructor::syntax;}
+    daqNameLen = static_cast<size_t>((*a_pcLineStart)-a_entryLine);
+
+    *a_pDaqName = static_cast<char*>(malloc(daqNameLen+1));
+    if(!(*a_pDaqName)){throw errorsFromConstructor::lowMemory;}
+    memcpy(*a_pDaqName,a_entryLine,daqNameLen);
+    (*a_pDaqName)[daqNameLen] = 0;
+    snprintf(vcBuffer,511,"_ENTRY.%s",(*a_pDaqName));
+    return vcBuffer;
+}
+
+}}  // namespace pitz{ namespace daq{
+
+
+pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
-        m_daqName(NEWNULLPTR2),
-        m_pDoocsProperty(NEWNULLPTR2),
+        D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2),
         m_pNetworkParent(NEWNULLPTR2),
         m_pTreeOnRoot(NEWNULLPTR2),
         m_pBranchOnTree(NEWNULLPTR2)
 {
-    const char* pLine = strpbrk(a_entryLine,POSIIBLE_TERM_SYMBOLS);
+    TypeConstCharPtr& pLine = *a_pHelper;
     const char* pcNext ;
     size_t strStart;
-    size_t daqNameLen;
     int nError(errorsFromConstructor::noError);
 
     if(!pLine){throw errorsFromConstructor::syntax;}
-
+    m_bitwise64Reserved = 0;
 
     /******************************************************************************************************************************/
     //m_firstEventNumber = m_lastEventNumber =0;
@@ -60,13 +83,6 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     m_isPresentInCurrentFile = 0;
     m_isCleanEntryInheritableCalled = 0;
     /******************************************************************************************************************************/
-
-
-    daqNameLen = static_cast<size_t>(pLine-a_entryLine);
-    m_daqName = static_cast<char*>(malloc(daqNameLen+1));
-    if(!m_daqName){throw errorsFromConstructor::lowMemory;}
-    memcpy(m_daqName,a_entryLine,daqNameLen);
-    m_daqName[daqNameLen] = 0;
 
     strStart = strspn (pLine,POSIIBLE_TERM_SYMBOLS);
     if(pLine[strStart]==0){nError = errorsFromConstructor::syntax;goto reurnPoint;}
@@ -189,7 +205,6 @@ reurnPoint:
 pitz::daq::SingleEntry::~SingleEntry()
 {
     SetError(0);
-    delete m_pDoocsProperty;
     free(this->m_daqName);
 }
 
@@ -201,29 +216,13 @@ pitz::daq::SingleEntry::~SingleEntry()
 
 bool pitz::daq::SingleEntry::markEntryForDeleteAndReturnIfPossibleNow()
 {
-    //uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
-    //uint32_t nReturn = __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
     uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
-
-    //if(!nReturn){
-    //    return true;
-    //}
-    //
-    //if(nReturn&VALUE_FOR_DELETE){
-    //    __atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
-    //}
-    //
-    ////__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
-    //return false;
-
     return nReturn ? false : true;
 }
 
 
 bool pitz::daq::SingleEntry::lockEntryForRoot()
 {
-    //uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
-    //uint32_t nReturn = __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
     uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
 
     if(!(nReturn&VALUE_FOR_DELETE)){
@@ -231,23 +230,18 @@ bool pitz::daq::SingleEntry::lockEntryForRoot()
     }
 
     __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
-    //__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
-    //__atomic_store_n(&m_willBeDeletedOrAddedToRootAtomic,nReturn,__ATOMIC_RELAXED);
     return false;
 }
 
 
 bool pitz::daq::SingleEntry::lockEntryForNetwork()
 {
-    //uint32_t nReturn = __atomic_fetch_add (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
-    //uint32_t nReturn = __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
     uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
 
     if(!(nReturn&VALUE_FOR_DELETE)){
         return true;
     }
 
-    //__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
     __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
     return false;
 }
@@ -255,15 +249,10 @@ bool pitz::daq::SingleEntry::lockEntryForNetwork()
 
 bool pitz::daq::SingleEntry::resetRootLockAndReturnIfDeletable()
 {
-    //uint32_t nReturn = __atomic_exchange_n (&m_willBeDeletedOrAddedToRootAtomic,0,__ATOMIC_RELAXED);
-    //uint32_t nReturn = __atomic_load_n (&m_willBeDeletedOrAddedToRootAtomic,__ATOMIC_RELAXED);
-    //uint32_t nReturn = __atomic_sub_fetch(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
     uint32_t nReturn = __atomic_and_fetch (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
 
     if(nReturn == VALUE_FOR_DELETE){ return true; }
 
-    //__atomic_fetch_sub(&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
-    //__atomic_store_n(&m_willBeDeletedOrAddedToRootAtomic,nReturn,__ATOMIC_RELAXED);
     return false;
 }
 
@@ -281,7 +270,6 @@ bool pitz::daq::SingleEntry::isLockedByRootOrNetwork()const
 
     if(nReturn&NON_DELETABLE_BITS){ return true; }
 
-    //__atomic_store_n(&m_willBeDeletedOrAddedToRootAtomic,nReturn,__ATOMIC_RELAXED);
     return false;
 }
 
@@ -311,9 +299,6 @@ char* pitz::daq::SingleEntry::ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString
         m_unAllocatedBufferSize = unTotalAllocationSize;
     }
 
-    //m_unOffset = a_unOffset;
-    //m_bufferSize = bufferNewSize;
-    //m_branchInfo = a_branchInfo;
     m_totalRootBufferSize = unTotalRootBufferSize;
     m_onlyNetDataBufferSize = unOnlyDataBufferSize;
 
@@ -321,15 +306,12 @@ char* pitz::daq::SingleEntry::ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString
 }
 
 
-//void pitz::daq::SingleEntry::RemoveDoocsProperty()
-//{
-//    if(m_pDoocsProperty && m_pNetworkParent && m_pNetworkParent->parent()){
-//        m_pNetworkParent->parent()->rem_property(m_pDoocsProperty);
-//    }
-//
-//    delete m_pDoocsProperty;
-//    m_pDoocsProperty = NEWNULLPTR2;
-//}
+void pitz::daq::SingleEntry::RemoveDoocsProperty2()
+{
+    if( m_pNetworkParent && m_pNetworkParent->parent()){
+        m_pNetworkParent->parent()->rem_property(this);
+    }
+}
 
 
 void pitz::daq::SingleEntry::SetNetworkParent(SNetworkStruct* a_pNetworkParent)
@@ -343,10 +325,7 @@ void pitz::daq::SingleEntry::SetNetworkParent(SNetworkStruct* a_pNetworkParent)
     m_pNetworkParent = a_pNetworkParent;
 
     if(a_pNetworkParent && a_pNetworkParent->parent()){
-        char vcBuffer[512];
-        snprintf(vcBuffer,511,"_ENTRY.%s",m_daqName ? m_daqName : "UNKNOWN");
-        this->m_pDoocsProperty = new D_stringForEntry(vcBuffer,this);
-        a_pNetworkParent->parent()->add_property(m_pDoocsProperty);
+        a_pNetworkParent->parent()->add_property(this);
     }
 }
 
@@ -358,18 +337,18 @@ void pitz::daq::SingleEntry::SetNetworkParent(SNetworkStruct* a_pNetworkParent)
 //}
 
 
-bool pitz::daq::SingleEntry::KeepEntry()const
-{
-    if(m_pp.expirationTime>0){
-        time_t currentTime;
-        currentTime = time(&currentTime);
-        if(currentTime>=m_pp.expirationTime){
-            return false;
-        }
-    }
-
-    return true;
-}
+//bool pitz::daq::SingleEntry::KeepEntry2()const
+//{
+//    if(m_pp.expirationTime>0){
+//        time_t currentTime;
+//        currentTime = time(&currentTime);
+//        if(currentTime>=m_pp.expirationTime){
+//            return false;
+//        }
+//    }
+//
+//    return true;
+//}
 
 
 void pitz::daq::SingleEntry::MaskErrors(const char* a_maskResetTime)
@@ -441,14 +420,8 @@ void pitz::daq::SingleEntry::SetRootTreeAndBranchAddress(TTree* a_tree)
     ++m_pp.numOfFilesIn;
     m_nNumberInCurrentFile = 0;
     m_isPresentInCurrentFile = 0;
-    if(m_pDoocsProperty){
-        //m_pDoocsProperty->CalculateAndSetString();
-    }
 
-    //m_pBranchOnTree = m_pTreeOnRoot->Branch(a_cpcBranchName,NULL,this->rootFormatString());
-    //m_pBranchOnTree = new MyTBranch(m_pTreeOnRoot,a_cpcBranchName,NULL,this->rootFormatString());
-    //m_pBranchOnTree->SetTree(m_pTreeOnRoot);
-    //return m_pBranchOnTree;
+    //CalculateAndSetString();
 
     if(m_pForRoot){
         m_pTreeOnRoot->Branch(this->daqName(),m_pForRoot,this->rootFormatString());
@@ -480,15 +453,10 @@ void pitz::daq::SingleEntry::CleanEntryNoFreeInheritable()
 {
     if(m_pNetworkParent){
         m_pNetworkParent->m_daqEntries.erase(this->m_thisIter);
-        if(m_pDoocsProperty && m_pNetworkParent->parent()){
-            m_pNetworkParent->parent()->rem_property(m_pDoocsProperty);
+        if(m_pNetworkParent->parent()){
+            m_pNetworkParent->parent()->rem_property(this);
         }
         m_pNetworkParent = NEWNULLPTR2;
-    }
-
-    if(m_pDoocsProperty){
-        delete m_pDoocsProperty;
-        m_pDoocsProperty = NEWNULLPTR2;
     }
 
     m_isCleanEntryInheritableCalled=1;
@@ -633,10 +601,12 @@ void pitz::daq::SingleEntry::ValueStringByKey2(const char* a_request, char* a_bu
 
 void pitz::daq::SingleEntry::SetError(int a_error)
 {
-    if((!a_error)&&(!m_nError2)){return;}
-    if(a_error && m_pp.masked){return;}
+    //if((!a_error)&&(!m_nError2)){return;}
+    //if(a_error && m_pp.masked){return;}
 
     EqFctCollector* pClc = m_pNetworkParent?m_pNetworkParent->parent():NEWNULLPTR2;
+
+
 
     if(a_error&&(!m_nError2)){
         ++m_nNumOfErrors;        
@@ -759,60 +729,60 @@ bool pitz::daq::SNetworkStruct::AddNewEntry(SingleEntry *a_newEntry)
 
 
 /*////////////////////////////////////*/
-pitz::daq::D_stringForEntry::D_stringForEntry(const char* a_pn, SingleEntry* a_parent)
-        :
-        D_BASE_FOR_STR(a_pn,NEWNULLPTR2),
-        m_pParent(a_parent)
-{
-}
-
-
-pitz::daq::D_stringForEntry::~D_stringForEntry()
-{
-}
-
-
-void pitz::daq::D_stringForEntry::get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/)
-{
-    char vcBuffer[4096];
-    char vcFromUser[512];
-    //bool bFound = m_pParent->ValueStringByKey(dataFromUser,vcBuffer,511);
-
-    a_dataFromUser->get_string(vcFromUser,511);
-
-    m_pParent->ValueStringByKey2(vcFromUser,vcBuffer,4095);
-
-    a_dataToUser->set(vcBuffer);
-}
-
-
-void pitz::daq::D_stringForEntry::set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc)
-{
-
-    char vcBuffer[1024];
-
-    a_dataFromUser->get_string(vcBuffer,1023);
-
-    m_pParent->SetProperty(vcBuffer);
-
-    D_BASE_FOR_STR::set(a_dcsAddr, a_dataFromUser, a_dataToUser,a_loc);
-
-#if 0
-    std::string dataFromUser = a_dataFromUser->get_string();
-    char vcBuffer[512];
-    bool bFound = m_pParent->ValueStringByKey(dataFromUser,vcBuffer,511);
-
-    CalculateAndSetString();
-
-    if(bFound){
-        a_dataToUser->set(vcBuffer);
-    }
-    else{
-        D_BASE_FOR_STR::get(a_dcsAddr, a_dataFromUser, a_dataToUser,a_loc);
-    }
-#endif
-
-}
+//pitz::daq::D_stringForEntry::D_stringForEntry(const char* a_pn, SingleEntry* a_parent)
+//        :
+//        D_BASE_FOR_STR(a_pn,NEWNULLPTR2),
+//        m_pParent(a_parent)
+//{
+//}
+//
+//
+//pitz::daq::D_stringForEntry::~D_stringForEntry()
+//{
+//}
+//
+//
+//void pitz::daq::D_stringForEntry::get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/)
+//{
+//    char vcBuffer[4096];
+//    char vcFromUser[512];
+//    //bool bFound = m_pParent->ValueStringByKey(dataFromUser,vcBuffer,511);
+//
+//    a_dataFromUser->get_string(vcFromUser,511);
+//
+//    m_pParent->ValueStringByKey2(vcFromUser,vcBuffer,4095);
+//
+//    a_dataToUser->set(vcBuffer);
+//}
+//
+//
+//void pitz::daq::D_stringForEntry::set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc)
+//{
+//
+//    char vcBuffer[1024];
+//
+//    a_dataFromUser->get_string(vcBuffer,1023);
+//
+//    m_pParent->SetProperty(vcBuffer);
+//
+//    D_BASE_FOR_STR::set(a_dcsAddr, a_dataFromUser, a_dataToUser,a_loc);
+//
+//#if 0
+//    std::string dataFromUser = a_dataFromUser->get_string();
+//    char vcBuffer[512];
+//    bool bFound = m_pParent->ValueStringByKey(dataFromUser,vcBuffer,511);
+//
+//    CalculateAndSetString();
+//
+//    if(bFound){
+//        a_dataToUser->set(vcBuffer);
+//    }
+//    else{
+//        D_BASE_FOR_STR::get(a_dcsAddr, a_dataFromUser, a_dataToUser,a_loc);
+//    }
+//#endif
+//
+//}
 
 /*////////////////////////////////////////////////////////////////////////////////////////*/
 

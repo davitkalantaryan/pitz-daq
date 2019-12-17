@@ -48,6 +48,7 @@
 #include <TError.h>
 #include <TNetFile.h>
 #include <stdio.h>
+#include "pitz_daq_singleentrydoocs.hpp"
 
 #include "eq_errors.h"
 #include "eq_sts_codes.h"
@@ -61,10 +62,10 @@
 
 namespace pitz{namespace daq{
 
-class SingleEntryRR : public SingleEntry
+class SingleEntryRR : public SingleEntryDoocs
 {
 public:
-    SingleEntryRR(entryCreationType::Type creationType,const char* entryLine);
+    SingleEntryRR(entryCreationType::Type creationType,const char* entryLine,TypeConstCharPtr* a_pHelper);
     ~SingleEntryRR();
 
     //const char* specialStringForDoocsProperty()const;
@@ -77,11 +78,7 @@ public:
     int dataType()const{return m_dataType;}
     void setDataType(int a_dataType){m_dataType = a_dataType;}
 
-    //void FromDoocsToMemory(data::memory::ForServerBase* pMemory, const EqData* dcsData);
-
 private:
-    char* m_doocsUrl;
-    char* m_rootFormatStr;
     int m_dataType;
     int m_nSamples;
 };
@@ -130,7 +127,8 @@ pitz::daq::SingleEntry* pitz::daq::EqFctRR::CreateNewEntry(entryCreationType::Ty
     EqAdr dcsAddr;
     EqData dataIn, dataOut;
     EqCall eqCall;
-    SingleEntryRR* pEntry = new SingleEntryRR(a_creationType,a_entryLine);
+    const char* cpcLine;
+    SingleEntryRR* pEntry = new SingleEntryRR(a_creationType,a_entryLine,&cpcLine);
     int nDcsCallResult;
 
     if(!pEntry){return NEWNULLPTR2;}
@@ -164,61 +162,56 @@ extern int g_nInTheStack;
 
 void pitz::daq::EqFctRR::DataGetterThread(SNetworkStruct* a_pNet)
 {
-    data::memory::ForServerBase* pMemory;
-    SingleEntryRR *pCurEntry, *pNextOfLast;
+    DEC_OUT_PD(SingleData)* pMemory;
+    ::std::list< SingleEntry* >::const_iterator pIter, pIterEnd;
+    const ::std::list< SingleEntry* >& entriesList = a_pNet->daqEntries();
+
+    //data::memory::ForServerBase* pMemory;
+    SingleEntryRR *pEntry;
+    //SingleEntryRR *pEntry, *pCurEntry, *pNextOfLast;
     EqAdr  dcsAddr;
     EqData dataIn, dataOut;
     EqCall eqCall;
     int nDcsCallresult, nEventNumber;
     int nWaitMs;
     int nTime;
-    int nNoEntryErrorNumber=0;
 
-    while(m_nWork){
-        m_mutexForEntries.lock_shared();
-        pNextOfLast = (SingleEntryRR*)a_pNet->last()->next;
+    while(shouldWork() && a_pNet->shouldRun()){
+        //m_mutexForEntries.lock_shared();
+        //pNextOfLast = (SingleEntryRR*)a_pNet->last()->next;
         GetEventAndTime(&nEventNumber,&nTime);
-        //printf("Ev=%d, tm=%d\n",nEventNumber,nTime);
-        for(pCurEntry=(SingleEntryRR*)a_pNet->first();pCurEntry != pNextOfLast;pCurEntry=(SingleEntryRR*)pCurEntry->next)
-        {
-            dcsAddr.adr(pCurEntry->doocsUrl());
-            dataIn.init();dataOut.init();
-            //if(strcmp(pCurEntry->doocsUrl(),"PITZ.RF/X2TIMER/TDS/EVENT2")==0){
-            //    printf("Problematic point!\n");
-            //}
-            nDcsCallresult = eqCall.get(&dcsAddr,&dataIn,&dataOut);
-            //printf("call=%d, entry=%s, dcsAddr=%s, rtStr=%s  \n",nDcsCallresult,pCurEntry->daqName(),pCurEntry->doocsUrl(),pCurEntry->rootFormatString());
-            if(nDcsCallresult==0){
-                //DEBUG_("Getting from stack (num=%d)",--g_nInTheStack);
-                if(pCurEntry->stack.GetFromStack(&pMemory)){
 
-                    pMemory->time() =nTime;
-                    pMemory->gen_event() = nEventNumber;
-                    pCurEntry->FromDoocsToMemory(pMemory,&dataOut);
-                    //printf("----------- %d Getting from the stack \n",--s_nStack);
-                    //m_fifoToFill.AddElement(pMemory);
-                    //m_semaForRootThr.post();
-                    //printf("!!!!! Adding!\n");
-                    if(!AddJobForRootThread(pMemory)){
-                        pCurEntry->SetError(-2);
-                        fprintf(stderr, "No place in root fifo!\n");
-                    }
-                }
-                else{
-                    pCurEntry->SetError(-3);
-                    if(nNoEntryErrorNumber++==0){
-                        fprintf(stderr,"!!!!!!!!!!!!!!! No any entry in the stack!!!!!!!!!!!!!!!!!!\n");
-                    }
-                    if(nNoEntryErrorNumber==1000){nNoEntryErrorNumber=0;}
-                }
-            } // if(nDcsCallresult==0){
-            else{
-                pCurEntry->SetError(-4);
+        pIterEnd = entriesList.end();
+        for(pIter=entriesList.begin();pIter!=pIterEnd;++pIter){
+            pEntry = static_cast< SingleEntryRR* >( *pIter );
+            //if(pEntry->LoadOrValidateData(pNetZmq->m_pContext)){
+            //    if(pEntry->lockEntryForNetwork()){
+            //        validEntries.push_back(pEntry);
+            //        //validEntries.AddNewElement(pEntryCheck->socket(),pEntryCheck);
+            //    }
+            //}
+
+            dcsAddr.adr(pEntry->doocsUrl());
+            dataIn.init();dataOut.init();
+            nDcsCallresult = eqCall.get(&dcsAddr,&dataIn,&dataOut);
+
+            if(nDcsCallresult){
+                //if(pEntry->MaskErrors(nullptr)){}
+                pEntry->SetError(-3);
+                continue;
             }
 
-        } // for(pCurEntry=pFirst;pCurEntry!=pLastPlus1;pCurEntry=pCurEntry->next){
-        m_mutexForEntries.unlock_shared();
-        m_genEvent.set_value(nEventNumber);
+            pMemory = pEntry->GetNewMemoryForNetwork();
+            pMemory->eventNumber = nEventNumber;
+            pMemory->timestampSeconds = nTime;
+            pEntry->FromDoocsToMemory(pMemory,&dataOut);
+
+            if(!AddJobForRootThread(pMemory,pEntry)){
+                pEntry->SetError(-2);
+                fprintf(stderr, "No place in root fifo!\n");
+            }
+        }
+
         nWaitMs = m_pollingPeriod.value();
         if(!nWaitMs){nWaitMs=1;}
         SleepMs(nWaitMs);
@@ -230,11 +223,9 @@ void pitz::daq::EqFctRR::DataGetterThread(SNetworkStruct* a_pNet)
 
 /*////////////////////////////////////////////////////*/
 
-pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,const char* a_entryLine)
+pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,const char* a_entryLine,TypeConstCharPtr* a_pHelper)
         :
-        SingleEntry(a_creationType, a_entryLine),
-        m_doocsUrl(NEWNULLPTR2),
-        m_rootFormatStr(NEWNULLPTR2)
+        SingleEntryDoocs(a_creationType, a_entryLine,a_pHelper)
 {
 
     size_t unStrLen ;
@@ -313,7 +304,7 @@ pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,c
 
     default:
         throw errorsFromConstructor::type;
-        break;
+        //break;
     }
 
     if(!m_doocsUrl){throw errorsFromConstructor::lowMemory;}

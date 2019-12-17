@@ -16,7 +16,7 @@ namespace pitz{namespace daq{
 class SingleEntryZmqDoocs final: public SingleEntryDoocs
 {
 public:
-    SingleEntryZmqDoocs(entryCreationType::Type creationType,const char* entryLine);
+    SingleEntryZmqDoocs(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     ~SingleEntryZmqDoocs() OVERRIDE2;
 
     int zmqPort()const{return m_nPort;}
