@@ -6,75 +6,32 @@
 #pragma warning(disable:4996)
 #endif
 
-#include <iostream>
-#include <stdio.h>
+#include <TROOT.h>
+#include <TPluginManager.h>
 #include <TFile.h>
 #include <TTree.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <fstream>
-#include <vector>
-#include <string>
-#include "TROOT.h"
-#include "TPluginManager.h"
-#include <stdint.h>
 
-typedef struct struct19
+
+#define ROOT_FILE_NAME  "~/dev/.pitz/daq/prj/test/build-collector_test-Desktop_Qt_5_12_2_GCC_64bit-Debug/test_root_file.root"
+#define DAQ_ENTRY_NAME  "TEST_DAQ_NAME"
+
+struct DaqDataStruct
 {
-        int       time;
-        int       buffer;
-        char      any_value[32768];
-}struct19;
-
-#define ROOT_FILE_NAME_BASE_ACS "dcap://dcap:22125/pnfs/ifh.de"
-#define ROOT_FILE_NAME_BASE_LOC ""
-
-//#define DAQ_ENTRY_NAME  "GUN__COUPLER__PMT_20140905"
-//#define ROOT_FILE_NAME  "/acs/pitz/daq/2017/10/pitzdiag.adc/PITZ_DATA.pitzdiag.adc.2017-10-01-0100.root","READ"
+    int   timeS;
+    int   eventNumber;
+    float fData;
+};
 
 
-int main(int argc, char* argv[])
+int main(void)
 {
-    //char vcFileNameBuffer[1024];
-    //snprintf(a_pcFinalRootFileName,a_nFinalRtFlNmLen,"dcap://dcap:22125/pnfs/ifh.de%s",a_cpcDebugRootFlName);
-
-    const char* cpcEntry;
-    char* pcNext;
-    std::ifstream indexFileIn;
-    FILE* fpFileOut(NULL);
-    TBranch *pBranch;
-    TTree* pTree;
+    int nReturn = -1;
+    int i, nNumOfEntries,nNumOfEntriesHeader,nNumOfEntriesData;
     TFile* tFile = nullptr;
-    struct19 *pStrForRootIn,*pStrForRootFn;
-    std::vector<std::string> vLastEntries;
-    size_t i,unVectorSize;
-	int nReturn(0);
-	int64_t nNumOfEntries;
-    int nTimeSeconds;
-    int nOffset;
-    int nSeekReturn;
-    char vcBuffer[1024], vcBufferToAdd[1024],vcIndexFileNameBuffer[1024];
-    bool bFound;
-
-    //printf("Press any key to continue!\n");
-    //getchar();
-
-    if(argc<3){
-        std::cerr<<"Too less arguments! ... "<<std::endl;
-        return 1;
-    }
-
-	pStrForRootIn = static_cast<struct19*>(::calloc(1, sizeof(struct19)));
-	if (!pStrForRootIn) {
-		std::cerr << "Unable to allocate memory! ... " << std::endl;
-		return 1;
-	}
-
-	pStrForRootFn = static_cast<struct19*>(::calloc(1, sizeof(struct19)));
-	if (!pStrForRootFn) {
-		std::cerr << "Unable to allocate memory! ... " << std::endl;
-		goto returnPoint;
-	}
+    TTree* pTree;
+    TBranch *pBranchHeader, *pBranchData;
+    TObjArray* pList;
+    DaqDataStruct daqDataBuf;
 
     gROOT->GetPluginManager()->AddHandler("TVirtualStreamerInfo",
                                           "*",
@@ -82,129 +39,50 @@ int main(int argc, char* argv[])
                                           "RIO",
                                           "TStreamerInfo()");
 
-    if(strncmp(argv[1],"/acs/",5)==0){
-        snprintf(vcBuffer,1023,ROOT_FILE_NAME_BASE_ACS "%s",argv[1]);
-    }
-    else{
-        snprintf(vcBuffer,1023,ROOT_FILE_NAME_BASE_LOC "%s",argv[1]);
-    }
-
-
-    tFile = TFile::Open(vcBuffer);
-
+    tFile = TFile::Open(ROOT_FILE_NAME);
     if(!tFile || !tFile->IsOpen()){
-        // report
-        std::cerr<<"Unable to open root file"<<std::endl;
-        return 1;
+        goto returnPoint;
     }
 
-    std::cout<< "Root file opened succes....!"<<std::endl;
-
-    //tFile->ls("-d");
-    //gFile = tFile;
-
-    pTree = (TTree *)tFile->Get(argv[2]);
-    printf("pTree = %p\n",pTree);
+    pTree = static_cast<TTree *>(tFile->Get(DAQ_ENTRY_NAME));
     if(!pTree){
-        std::cerr<<"Tree not found in the file"<<std::endl;
-        nReturn=2;goto returnPoint;
-    }
-
-    pBranch = pTree->GetBranch(argv[2]);
-    printf("pBranch = %p\n",pBranch);
-    if(!pBranch){nReturn=3;goto returnPoint;}
-
-    nNumOfEntries = static_cast<int>(pBranch->GetEntries());
-    printf("nNumOfEntries = %d\n",static_cast<int>(nNumOfEntries));
-
-    pBranch->SetAddress(pStrForRootIn);
-    pBranch->GetEntry(0);
-
-    pBranch->SetAddress(pStrForRootFn);
-    pBranch->GetEntry(nNumOfEntries-1);
-
-    snprintf(vcBufferToAdd,1023,"%d:%d,%d:%d,%s",
-             static_cast<int>(pStrForRootIn->time),pStrForRootIn->buffer, static_cast<int>(pStrForRootFn->time), pStrForRootFn->buffer,argv[1]);
-
-    printf("%s\n",vcBufferToAdd);
-
-    snprintf(vcIndexFileNameBuffer,1023,"/doocs/data/DAQdata/INDEX/%s.idx",argv[2]);
-
-    // TO FIND
-    //indexFile.open(vcIndexFileNameBuffer,std::ios_base::in|std::ios_base::out|std::ios::app);
-    indexFileIn.open(vcIndexFileNameBuffer);
-
-    if(!indexFileIn.is_open()){
-        std::cerr<<"Unable to open index file"<<vcIndexFileNameBuffer<<std::endl;
-        nReturn = 3;
         goto returnPoint;
     }
 
-    bFound = false;
-    nOffset = static_cast<int>(indexFileIn.tellg());
-    while(!indexFileIn.fail()){
-        indexFileIn.getline(vcBuffer,1023);
-        if(strncmp(vcBufferToAdd,vcBuffer,1023)==0){
-            printf("%s root file is already in the %s index file!\n",argv[1],vcIndexFileNameBuffer);
-            goto returnPoint;
+    nNumOfEntries = static_cast<int>(pTree->GetEntries());
+
+    //pBranch = pTree->GetBranch(DAQ_ENTRY_NAME); // old approach
+    {// below is new approach
+        pBranchHeader = nullptr;
+        pBranchData = nullptr;
+        pList = static_cast<TObjArray*>(pTree->GetListOfBranches());
+        if(pList && (pList->GetEntries()>1)){
+            pBranchHeader = static_cast<TBranch*>(pList->First());
+            pBranchData = static_cast<TBranch*>(pList->At(1));
         }
-        nTimeSeconds = (int)strtol(vcBuffer,&pcNext,10);
-        if(nTimeSeconds>pStrForRootIn->time){
-            vLastEntries.push_back(vcBuffer); bFound=true;break;
-        }
-		nOffset = static_cast<int>(indexFileIn.tellg());
     }
-
-    while(!indexFileIn.fail()){
-        indexFileIn.getline(vcBuffer,1023);
-        vLastEntries.push_back(vcBuffer);
-    }
-
-    indexFileIn.close();
-
-    fpFileOut = fopen(vcIndexFileNameBuffer,"r+");
-
-    if(!fpFileOut){
-        std::cerr<<"Unable to open index file for write!"<<std::endl;
-        nReturn = 5;
+    if((!pBranchHeader)||(!pBranchData)){
         goto returnPoint;
     }
 
-    if(!bFound){
-        nSeekReturn = fseek(fpFileOut,0,SEEK_END);
-        if(nSeekReturn){
-            std::cerr<<"Unable to seek, error code="<<nSeekReturn<<"\n";
-            nReturn = 7;
-            goto returnPoint;
-        }
-        fprintf(fpFileOut,"%s\n",vcBufferToAdd);
-        goto returnPoint;
+    nNumOfEntriesHeader = static_cast<int>(pBranchHeader->GetEntries());
+    pBranchHeader->SetAddress(&daqDataBuf);
+
+    nNumOfEntriesData = static_cast<int>(pBranchData->GetEntries());
+    pBranchData->SetAddress(&daqDataBuf.fData);
+
+    nNumOfEntries = nNumOfEntriesHeader<nNumOfEntriesData ? nNumOfEntriesHeader:nNumOfEntriesData;
+
+    for(i=0;i<nNumOfEntries;++i){
+        pBranchHeader->GetEntry(i);
+        pBranchData->GetEntry(i);
     }
 
-    nSeekReturn = fseek(fpFileOut,nOffset,SEEK_SET);
-    if(nSeekReturn){
-        std::cerr<<"Unable to seek, error code="<<nSeekReturn<<"\n";
-        nReturn = 7;
-        goto returnPoint;
-    }
-    fprintf(fpFileOut,"%s\n",vcBufferToAdd);
-
-
-    unVectorSize = vLastEntries.size();
-    for(i=0;i<unVectorSize;++i){
-        cpcEntry = vLastEntries[i].c_str();
-        //indexFileOut.write(cpcEntry,vLastEntries[i].length());
-        //indexFileOut.write("\n",1);
-        fprintf(fpFileOut,"%s\n",cpcEntry);
-    }
-
+    nReturn =0;
 returnPoint:
-    if(fpFileOut){fclose(fpFileOut);}
-    if(indexFileIn.is_open()){indexFileIn.close();}
     if(tFile){tFile->Close();}
-	free(pStrForRootFn);
-	free(pStrForRootIn);
-
+    gROOT->GetPluginManager()->RemoveHandler("TVirtualStreamerInfo","*");
     return nReturn;
+
 }
 

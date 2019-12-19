@@ -8,6 +8,8 @@
 
 message("!!! root_no_gui_common.pri")
 
+DEFINES += R__NULLPTR
+
 MYROOT_SYS_DIR = $$system(env | grep ROOT_SYS_DIR)
 
 #message("!!! env:MYROOT_SYS_DIR : $$MYROOT_SYS_DIR")
