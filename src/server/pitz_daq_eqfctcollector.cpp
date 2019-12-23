@@ -13,10 +13,6 @@
 #include <sys/timeb.h>
 #include <sys/time.h>
 #include <time.h>
-#include "pitz_daq_eqfctcollector.cpp.hpp"
-
-#define MIN_FILL_UNSAVED_COUNT          10000
-#define MAX_FILL_UNSAVED_COUNT          100000
 
 #define MINIMUM_ROOT_FILE_SIZE_HARD     1000
 
@@ -49,7 +45,6 @@ pitz::daq::EqFctCollector::EqFctCollector()
           m_numberOfFillThreadsDesigned("NUMBER.OF.FILL.THREDS.DESIGNED",this),
           m_numberOfFillThreadsFinal("NUMBER.OF.FILL.THREDS.FINAL",this),
           m_currentFileSize("CURRENT.FILE.SIZE",this),
-          m_maxUnsavedDataInTheFile("MAX.UNSAVED.DATA.IN.THE.FILE",this),
           m_addNewEntry("ADD.NEW.ENTRY",this),
           m_removeEntry("DELETE.ENTRY",this),
           m_loadOldConfig("LOAD.OLD.CONFIG",this),
@@ -624,30 +619,38 @@ void pitz::daq::EqFctCollector::CheckGenEventError(int* a_pnPreviousTime, int* a
 
 void pitz::daq::EqFctCollector::RootThreadFunction()
 {
-    TTree*  pRootTree;
-    TFile*  pRootFile = NEWNULLPTR2;
+    TFile *pGlobalRootFileInitial,*pRootFile = NEWNULLPTR2;
     std::string filePathLocal, filePathRemote, localDirPath, remoteDirPath, fileName;
-    int nFileSize;
-    int	nContinueFill;
     int nSeconds, nEventNumber;
     int nPreviousGenEvent(0),nPreviousTime(0);
-    int nFillUnsavedCount, nMaxFillUnsavedCount, nMaxFillUnsavedCountHalf;
     SStructForFill strToFill;
     SingleEntry* pCurEntry;
     DEC_OUT_PD(SingleData)* pCurrentData;
+    int64_t llnCurFileSize;
 
     while( this->shouldWork()  ){
 
-        nContinueFill = 1;
-        nFillUnsavedCount = 0;
-        nMaxFillUnsavedCount = m_maxUnsavedDataInTheFile.value();
-        if(nMaxFillUnsavedCount<MIN_FILL_UNSAVED_COUNT){nMaxFillUnsavedCount=MIN_FILL_UNSAVED_COUNT;}
-        else if(nMaxFillUnsavedCount>MAX_FILL_UNSAVED_COUNT){nMaxFillUnsavedCount=MAX_FILL_UNSAVED_COUNT;}
-        m_maxUnsavedDataInTheFile.set_value(nMaxFillUnsavedCount);
-        nMaxFillUnsavedCountHalf = nMaxFillUnsavedCount/2;
+        CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
+        CalcLocalDir2(&localDirPath);
+        filePathLocal = localDirPath+"/"+fileName;
+        filePathRemote = remoteDirPath+"/"+fileName;
+        std::cout<<"locDirPath="<<localDirPath<<std::endl;
+        std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
+        mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+        mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+
+        pRootFile = new TFile(filePathLocal.c_str(),"UPDATE","DATA",1);// SetCompressionLevel(1)
+        if ((!pRootFile) || pRootFile->IsZombie()){
+            fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
+            exit(-1);
+        }
+        pGlobalRootFileInitial = gFile;
+        pRootFile->cd(); gFile = pRootFile;
+        llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(llnCurFileSize);
+        DEBUG_APP_INFO(2," ");
 
         // the while below corresponds to file filling
-        while( this->shouldWork() && nContinueFill  ){
+        for( ;this->shouldWork()&&(pRootFile->GetSize()<m_fileMaxSize.value());llnCurFileSize=pRootFile->GetSize(),m_currentFileSize.set_value(llnCurFileSize)  ){
 
             m_semaForRootThread.wait(SEMA_WAIT_TIME_MS);
             CheckGenEventError(&nPreviousTime,&nPreviousGenEvent);
@@ -658,76 +661,22 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
                 nSeconds = pCurrentData->timestampSeconds;
                 nEventNumber=pCurrentData->eventNumber;
 
-                pRootTree = pCurEntry->rootTree();
-                if(!pRootTree){ // new added entry
+                pCurEntry->Fill(strToFill.data,nSeconds,nEventNumber);
 
-                    if (!pRootFile) {
-                        CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
-                        CalcLocalDir2(&localDirPath);
-                        filePathLocal = localDirPath+"/"+fileName;
-                        filePathRemote = remoteDirPath+"/"+fileName;
-                        std::cout<<"locDirPath="<<localDirPath<<std::endl;
-                        std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
-                        mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
-                        mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
-
-                        pRootFile = new TFile(filePathLocal.c_str(),"UPDATE","DATA",1);// SetCompressionLevel(1)
-                        if ((!pRootFile) || pRootFile->IsZombie()){
-                            fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
-                            exit(-1);
-                        }
-                        pRootFile->cd(); gFile = pRootFile;
-                        DEBUG_APP_INFO(2," ");
-                    }
-
-                    m_currentFileSize.set_value(0);
-
-                    pRootTree = new RTree(pCurEntry);
-                    pCurEntry->SetRootTreeAndBranchAddress(pRootTree);  // todo: remove this to the contructor of RTree
-                }
-                pCurEntry->SetNextFillableData(pCurrentData);
-                pCurEntry->AddExistanceInRootFile(nSeconds,nEventNumber);
-                pRootTree->Fill();                                                                            // --> 2.
-                pCurEntry->SetMemoryBack(pCurrentData);
-
-                if((++nFillUnsavedCount)>nMaxFillUnsavedCountHalf){
-                    if(nFillUnsavedCount>nMaxFillUnsavedCount){
-                        nFillUnsavedCount = 0;
-                        pRootTree->AutoSave("SaveSelf");
-                    }
-                    nMaxFillUnsavedCountHalf=nMaxFillUnsavedCount;
-
-                    nFileSize = static_cast<int>(pRootFile->GetSize());
-                    m_currentFileSize.set_value(nFileSize);
-                    if( nFileSize >= m_fileMaxSize.value() ) { nContinueFill = 0; }
-                } // if((++nFillUnsavedCount)>nMaxFillUnsavedCountHalf){
             } // while( this->shouldWork() && (m_fifoToFill.size()>0) ){
         }// while( this->shouldWork() && nContinueFill  ){
 
-        //m_mutexForEntries.lock_shared();
-        //for(pCurEntry=m_pEntryFirst; pCurEntry; pCurEntry=pCurEntry->next){
-        //    pTree2 = pCurEntry->tree2();
-        //    if(!pTree2){continue;}
-        //    pTree2->AutoSave("SaveSelf");
-        //}
-        //m_mutexForEntries.unlock_shared();
+        pRootFile->cd();
+        gFile = pRootFile;
+        pRootFile->TDirectory::DeleteAll();
+        pRootFile->TDirectory::Close();
+        delete pRootFile;
+        pRootFile = NEWNULLPTR2;
+        gFile = pGlobalRootFileInitial;
 
-
-        if(pRootFile){
-            pRootFile->cd();
-            gFile = pRootFile;
-            pRootFile->TDirectory::DeleteAll();
-            pRootFile->TDirectory::Close();
-            delete pRootFile;
-            pRootFile = NEWNULLPTR2;
-            m_currentFileSize.set_value(0);
-
-            CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
-        }
-
+        CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
 
     } // while( m_nWork && (m_threadStatus.value() == 1) )
-
 
 }
 
@@ -918,25 +867,3 @@ void pitz::daq::EntryLock::unlock_shared()
 
 #endif   // #ifndef USE_SHARED_LOCK
 
-
-/*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
-pitz::daq::RTree::RTree( pitz::daq::SingleEntry* a_pParentEntry )
-    :
-      ::TTree(a_pParentEntry->daqName(), "DATA"),
-      m_pParentEntry(a_pParentEntry)
-{
-    //m_pParentEntry->SetT
-}
-
-
-pitz::daq::RTree::~RTree()
-{
-    if(m_pParentEntry ){
-        m_pParentEntry->SetRootTreeAndBranchAddress(NEWNULLPTR2);
-        if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
-            SingleEntry* pParentEntry( m_pParentEntry );
-            m_pParentEntry=NEWNULLPTR2;
-            delete pParentEntry;
-        }
-    }
-}

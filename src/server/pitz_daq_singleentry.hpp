@@ -5,11 +5,8 @@
 #ifndef PITZ_DAQ_SINGLEENTRY_HPP
 #define PITZ_DAQ_SINGLEENTRY_HPP
 
-//#include "common/common_fifofast.hpp"
-//#include <pitz/daq/data/memory/forserver.hpp>
 #include <cpp11+/thread_cpp11.hpp>
-#include "eq_fct.h"
-#include "TTree.h"
+#include <eq_fct.h>
 #include <time.h>
 #include <signal.h>
 #include <stdint.h>
@@ -17,6 +14,7 @@
 #include <pitz_daq_data_handling.h>
 #include <pitz_daq_data_handling_daqdev.h>
 #include <list>
+#include <TTree.h>
 
 #ifndef PITZ_DAQ_UNSPECIFIED_DATA_TYPE
 #define PITZ_DAQ_UNSPECIFIED_DATA_TYPE  -1
@@ -50,6 +48,7 @@ namespace pitz{ namespace daq{
 class SNetworkStruct;
 class SingleEntry;
 class EqFctCollector;
+class TreeForSingleEntry;
 
 typedef const char* TypeConstCharPtr;
 
@@ -78,7 +77,7 @@ const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* 
 
 struct SMaskParam
 {
-    time_t unmaskTime;
+    time_t expirationTime;
 };
 
 
@@ -88,10 +87,12 @@ struct SPermanentParams2
     int         numberInAllFiles;
     time_t      expirationTime;
     time_t      creationTime;
-    uint64_t    masked : 1;
+    uint64_t    errorsMasked : 1;
+    uint64_t    collectionMasked : 1;
     uint64_t    collect : 1;
-    uint64_t    reserved64bit : 62;
-    SMaskParam  mp;
+    uint64_t    reserved64bit : 61;
+    SMaskParam  collectingMaskParam;
+    SMaskParam  errorMaskParam;
 };
 
 
@@ -100,6 +101,7 @@ class SingleEntry : protected D_BASE_FOR_STR
     //friend class D_stringForEntry;
     friend class SNetworkStruct;
     //friend class EqFctCollector;
+    friend class TreeForSingleEntry;
 protected:
 public:
     virtual ~SingleEntry() OVERRIDE2;
@@ -113,7 +115,7 @@ private:
     virtual void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const=0;
 
 public:
-    virtual void SetMemoryBack( DEC_OUT_PD(SingleData)* pMemory );
+    //virtual void SetMemoryBack( DEC_OUT_PD(SingleData)* pMemory );
     virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork();
 
 protected:
@@ -129,31 +131,24 @@ public:
     SNetworkStruct* CleanEntryNoFree();
 
 public:
-    void SetNextFillableData(DEC_OUT_PD(SingleData)* pNewMemory);
-    //pitz::daq::SNetworkStruct* networkParent(){return m_pNetworkParent;}
-    //void SetRootTreeAndBranchAddress(TTree* tree, const char* a_cpcBranchName);
-    void SetRootTreeAndBranchAddress(TTree* tree);
-    TTree* rootTree(){return m_pTreeOnRoot;}
-    void SetError(int a_error);
+    void Fill(DEC_OUT_PD(SingleData)* pNewMemory, int a_second, int a_eventNumber);
     const char* daqName()const{return m_daqName;}
-    //void copyForRoot(const MemoryBase* a_cM){m_forRoot->copyFrom(a_cM);}
-    void AddExistanceInRootFile(int second, int eventNumber);
+    //void AddExistanceInRootFile(int second, int eventNumber);
     int firstSecond()const{return m_firstSecond;}
     int firstEventNumber()const{return m_firstEventNumber;}
     int lastSecond()const{return m_lastSecond;}
     int lastEventNumber()const{return m_lastEventNumber;}
     uint64_t isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
-    //void RemoveDoocsProperty();
     void WriteContentToTheFile(FILE* fpFile)const;
-    //bool KeepEntry2()const;
     void MaskErrors(const char* maskResetTime);
     void UnmaskErrors();
+    void MaskCollection(const char* maskResetTime);
+    void UnmaskCollection();
     // APIs for DOOCS property
     void ValueStringByKey2(const char* request, char* buffer, int bufferLength)const;
     void SetProperty(const char* propertyAndAttributes);
-    int LastEventNumberHandled(void)const;
-    void SetLastEventNumberHandled(int a_nLastEventNumber);
     void RemoveDoocsProperty2();
+    void SetError(int a_error);
 
     // This API will be used only by
 protected:
@@ -161,36 +156,33 @@ protected:
     char*  ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString );
     void   SetNetworkParent(SNetworkStruct* a_pNetworkParent);
         
-
 private:
-    char*                                   m_daqName;
-    int                                     m_firstEventNumber,m_lastEventNumber;
-    int                                     m_firstSecond,m_lastSecond;
-    //D_stringForEntry*                       m_pDoocsProperty;
-    SNetworkStruct*                         m_pNetworkParent;
-    TTree*                                  m_pTreeOnRoot;
-    TBranch*                                m_pBranchOnTree;
-    // new for property
-    int                                     m_nNumberInCurrentFile;
-    int                                     m_nNumOfErrors;
-    int                                     m_nError2;
-    int                                     m_nLastEventNumberHandled;
-
-    SPermanentParams2                       m_pp;
-protected:
     ::std::list< SingleEntry* >::iterator   m_thisIter;
     DEC_OUT_PD(BranchDataRaw)               m_branchInfo;
-    DEC_OUT_PD(SingleData)*                 m_pForRoot;
+    // the story is following
+    // everihhing, that is not nullable is set before the member m_nReserved
+    // everything that should not be set to 0, should be declared before this line
+    int                                     m_nReserved;
+    int                                     m_firstEventNumber,m_lastEventNumber;
+    int                                     m_firstSecond,m_lastSecond;
+    int                                     m_nNumberInCurrentFile;
+    int                                     m_nNumOfErrors;
+    int                                     m_nError;
+
+    char*                                   m_daqName;
+    SNetworkStruct*                         m_pNetworkParent;
+    TTree*                                  m_pTreeOnRoot2;
+    TBranch*                                m_pBranchOnTree;
+    SPermanentParams2                       m_pp;
+protected:
     uint32_t                                m_totalRootBufferSize;
     uint32_t                                m_onlyNetDataBufferSize;
     uint32_t                                m_unOffset;
-    uint32_t                                m_unAllocatedBufferSize;
     mutable uint32_t                        m_willBeDeletedOrAddedToRootAtomic ;
 
     uint64_t                                m_isPresentInCurrentFile : 1;
     uint64_t                                m_isCleanEntryInheritableCalled : 1;
     uint64_t                                m_bitwise64Reserved : 62;
-
 
 protected:
     SingleEntry(const SingleEntry&) = delete ;

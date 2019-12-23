@@ -25,8 +25,9 @@ int main()
 {
     int nReturn = -1;
     int nIteration;
-    int nFileSize;
-    DaqDataStruct daqDataBuf;
+    int nFileSize, nFileSizePrev=0;
+    //DaqDataStruct daqDataBuf;
+    DaqDataStruct* pDaqDataBuf;
     TFile* pRootFile = nullptr;// SetCompressionLevel(1)
     TTree* pRootTree = nullptr;
     TBranch *pBranchHeader, *pBranchData;
@@ -45,20 +46,34 @@ int main()
     pRootFile->cd();gFile = pRootFile;
 
     pRootTree = new TTree(TEST_DAQ_ENTRY_NAME,"DATA");
-    pBranchHeader=pRootTree->Branch("header",&daqDataBuf,TEST_ROOT_FORMAT_STRING_HEADER);
-    pBranchData=pRootTree->Branch("data",&daqDataBuf.fData,TEST_ROOT_FORMAT_STRING_DATA);
+    pBranchHeader=pRootTree->Branch("header",nullptr,TEST_ROOT_FORMAT_STRING_HEADER);
+    pBranchData=pRootTree->Branch("data",nullptr,TEST_ROOT_FORMAT_STRING_DATA);
 
-    for(nIteration=0,nFileSize=0,daqDataBuf.eventNumber=0;nFileSize<1000000;++nIteration,++daqDataBuf.eventNumber){
-        daqDataBuf.timeS= static_cast<int>(time(nullptr));
-        daqDataBuf.fData = static_cast<float>(sin(static_cast<double>(daqDataBuf.timeS)/10.));
-        //pRootTree->Fill();
-        pBranchHeader->Fill();
-        pBranchData->Fill();
-        if(nIteration>10000){
-            pRootTree->AutoSave("SaveSelf");
-            nIteration = 0;
-        }
+    for(nIteration=0,nFileSize=0;nFileSize<1000000;++nIteration){
+
+        pDaqDataBuf = new DaqDataStruct;
+        pDaqDataBuf->timeS= static_cast<int>(time(nullptr));
+        pDaqDataBuf->eventNumber = nIteration;
+        pDaqDataBuf->fData = static_cast<float>(sin(static_cast<double>(pDaqDataBuf->timeS)/10.));
+
+        pBranchHeader->SetAddress(pDaqDataBuf);
+        pBranchData->SetAddress(&pDaqDataBuf->fData);
+
+        pRootTree->Fill();
+        //pBranchHeader->Fill();
+        //pBranchData->Fill();
+
+        delete pDaqDataBuf;
+
+        //if(nIteration>10000){
+        //    pRootTree->AutoSave("SaveSelf");
+        //    nIteration = 0;
+        //}
         nFileSize = static_cast<int>(pRootFile->GetSize());
+        if(nFileSizePrev!=nFileSize){
+            printf("%.5d  => fileSize=%d\n",nIteration,nFileSize);
+            nFileSizePrev = nFileSize;
+        }
     }
 
     pRootFile->cd();gFile = pRootFile;

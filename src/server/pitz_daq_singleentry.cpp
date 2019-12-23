@@ -13,6 +13,7 @@
 #include "pitz_daq_eqfctcollector.hpp"
 #include <signal.h>
 #include <pitz_daq_data_handling_types.h>
+#include "pitz_daq_singleentry.cpp.hpp"
 
 #define DATA_SIZE_TO_SAVE   50000  // 40 kB
 #define MIN_NUMBER_OF_FILLS 20
@@ -47,10 +48,7 @@ static ::std::string GetPropertyName(const char* a_entryLine, TypeConstCharPtr* 
 
 pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
-        D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2),
-        m_pNetworkParent(NEWNULLPTR2),
-        m_pTreeOnRoot(NEWNULLPTR2),
-        m_pBranchOnTree(NEWNULLPTR2)
+        D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2)
 {
     TypeConstCharPtr& pLine = *a_pHelper;
     const char* pcNext ;
@@ -60,29 +58,10 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     if(!pLine){throw errorsFromConstructor::syntax;}
     m_bitwise64Reserved = 0;
 
-    /******************************************************************************************************************************/
-    //m_firstEventNumber = m_lastEventNumber =0;
-    //m_firstSecond=m_lastSecond = 0;
-    //D_stringForEntry*                       m_pDoocsProperty;
-    //SNetworkStruct*                         m_pNetworkParent;
-    //TTree*                                  m_pTreeOnRoot;
-    //TBranch*                                m_pBranchOnTree;
-    // new for property
-    m_nNumberInCurrentFile = 0;
-    m_nNumOfErrors = 0;
-    m_nError2 = 0;
-    m_nLastEventNumberHandled = 0;
-    memset(&m_pp,0,sizeof(m_pp));
+    // the story is following
+    // everihhing, that is not nullable is set before the member m_nReserved
+    memset(&m_nReserved,0,sizeof(SingleEntry)-static_cast<size_t>(reinterpret_cast<char*>(&m_nReserved)-reinterpret_cast<char*>(this)));
     m_branchInfo = {PITZ_DAQ_UNSPECIFIED_DATA_TYPE,PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES};
-    m_pForRoot = NEWNULLPTR2;
-    m_totalRootBufferSize = 0;
-    m_onlyNetDataBufferSize = 0;
-    m_unOffset = 0;
-    m_unAllocatedBufferSize = 0;
-    m_willBeDeletedOrAddedToRootAtomic =0;
-    m_isPresentInCurrentFile = 0;
-    m_isCleanEntryInheritableCalled = 0;
-    /******************************************************************************************************************************/
 
     strStart = strspn (pLine,POSIIBLE_TERM_SYMBOLS);
     if(pLine[strStart]==0){nError = errorsFromConstructor::syntax;goto reurnPoint;}
@@ -96,7 +75,8 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
         m_pp.creationTime = time(&m_pp.creationTime);
         m_pp.expirationTime = NON_EXPIRE_TIME;
         m_pp.masked = false;
-        m_pp.mp.unmaskTime = NON_EXPIRE_TIME;
+        m_pp.errorMaskParam.expirationTime = NON_EXPIRE_TIME;
+        m_pp.collectingMaskParam.expirationTime = NON_EXPIRE_TIME;
         break;
     case entryCreationType::fromConfigFile:
 
@@ -278,7 +258,7 @@ bool pitz::daq::SingleEntry::isLockedByRootOrNetwork()const
 char* pitz::daq::SingleEntry::ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString )
 {
     char* pcRootFormatString;
-    uint32_t unOnlyDataBufferSize,unTotalRootBufferSize, unTotalAllocationSize;
+    uint32_t unOnlyDataBufferSize,unTotalRootBufferSize;
 
     if( (m_branchInfo.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(m_branchInfo.itemsCountPerEntry<1) ){
         return NEWNULLPTR2;
@@ -286,18 +266,6 @@ char* pitz::daq::SingleEntry::ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString
 
     pcRootFormatString = PrepareDaqEntryBasedOnType(a_bDubRootString,&m_branchInfo,&unOnlyDataBufferSize,&unTotalRootBufferSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
     if(!pcRootFormatString){return NEWNULLPTR2;}
-
-    unTotalAllocationSize = unTotalRootBufferSize + m_unOffset;
-
-    if(unTotalAllocationSize>m_unAllocatedBufferSize){
-        DEC_OUT_PD(SingleData)* pNewData = ResizeDataWithNewOffset(m_pForRoot,m_unOffset,unTotalRootBufferSize);
-        if(!pNewData){
-            if(a_bDubRootString && pcRootFormatString){ ::free(pcRootFormatString); }
-            return NEWNULLPTR2;
-        }
-        m_pForRoot = pNewData;
-        m_unAllocatedBufferSize = unTotalAllocationSize;
-    }
 
     m_totalRootBufferSize = unTotalRootBufferSize;
     m_onlyNetDataBufferSize = unOnlyDataBufferSize;
@@ -353,9 +321,9 @@ void pitz::daq::SingleEntry::SetNetworkParent(SNetworkStruct* a_pNetworkParent)
 
 void pitz::daq::SingleEntry::MaskErrors(const char* a_maskResetTime)
 {
-    m_pp.mp.unmaskTime = STRING_TO_EPOCH(a_maskResetTime,MASK_NO_EXPIRE_STRING);
-    if(m_pp.mp.unmaskTime<0){m_pp.mp.unmaskTime=NON_EXPIRE_TIME;}
-    m_pp.masked = true;
+    m_pp.errorMaskParam.expirationTime = STRING_TO_EPOCH(a_maskResetTime,MASK_NO_EXPIRE_STRING);
+    if(m_pp.errorMaskParam.expirationTime<0){m_pp.errorMaskParam.expirationTime=NON_EXPIRE_TIME;}
+    m_pp.errorsMasked = true;
 
     SetError(0);
 }
@@ -363,20 +331,8 @@ void pitz::daq::SingleEntry::MaskErrors(const char* a_maskResetTime)
 
 void pitz::daq::SingleEntry::UnmaskErrors()
 {
-    m_pp.masked = false;
-    m_pp.mp.unmaskTime = NON_EXPIRE_TIME;
-}
-
-
-int pitz::daq::SingleEntry::LastEventNumberHandled(void)const
-{
-    return m_nLastEventNumberHandled;
-}
-
-
-void pitz::daq::SingleEntry::SetLastEventNumberHandled(int a_nLastEventNumber)
-{
-    if(a_nLastEventNumber>m_nLastEventNumberHandled){m_nLastEventNumberHandled=a_nLastEventNumber;}
+    m_pp.errorsMasked = false;
+    m_pp.errorMaskParam.expirationTime=NON_EXPIRE_TIME;
 }
 
 
@@ -413,21 +369,19 @@ void pitz::daq::SingleEntry::SetProperty(const char* a_propertyAndAttributes)
 }
 
 
-void pitz::daq::SingleEntry::SetRootTreeAndBranchAddress(TTree* a_tree)
-{
-    m_pTreeOnRoot = a_tree;
-    if(!a_tree){return;}
-    ++m_pp.numOfFilesIn;
-    m_nNumberInCurrentFile = 0;
-    m_isPresentInCurrentFile = 0;
-
-    //CalculateAndSetString();
-
-    if(m_pForRoot){
-        m_pTreeOnRoot->Branch(this->daqName(),m_pForRoot,this->rootFormatString());
-    }
-
-}
+//void pitz::daq::SingleEntry::SetRootTreeAndBranchAddress(TTree* a_tree)
+//{
+//    m_pTreeOnRoot2 = a_tree;
+//    if(!a_tree){m_pBranchOnTree=nullptr; return;}
+//    ++m_pp.numOfFilesIn;
+//    m_nNumberInCurrentFile = 0;
+//    m_isPresentInCurrentFile = 0;
+//
+//    //CalculateAndSetString();
+//
+//    m_pBranchOnTree = m_pTreeOnRoot2->Branch(this->daqName(),nullptr,this->rootFormatString());
+//
+//}
 
 
 DEC_OUT_PD(SingleData)* pitz::daq::SingleEntry::GetNewMemoryForNetwork()
@@ -463,21 +417,29 @@ void pitz::daq::SingleEntry::CleanEntryNoFreeInheritable()
 }
 
 
-void pitz::daq::SingleEntry::SetMemoryBack( DEC_OUT_PD(SingleData)* a_pMemory )
+//void pitz::daq::SingleEntry::SetMemoryBack( DEC_OUT_PD(SingleData)* a_pMemory )
+//{
+//    FreeDataWithOffset(a_pMemory,m_unOffset);
+//}
+
+
+void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory, int a_second, int a_eventNumber)
 {
-    FreeDataWithOffset(a_pMemory,m_unOffset);
-}
+    if(!m_pTreeOnRoot2){
+        m_pTreeOnRoot2 = new TreeForSingleEntry(this);
+        m_pBranchOnTree = m_pTreeOnRoot2->Branch(this->daqName(),nullptr,this->rootFormatString());
 
+        if(!m_pBranchOnTree){
+            delete m_pTreeOnRoot2;
+            m_pTreeOnRoot2 = nullptr;
+            SetError(1);
+            return ;
+        }
+    }
 
-void pitz::daq::SingleEntry::SetNextFillableData( DEC_OUT_PD(SingleData)* a_pNewMemory)
-{
-    if(!m_pTreeOnRoot){return;}
-    memcpy(m_pForRoot,a_pNewMemory,m_totalRootBufferSize);
-}
+    m_pBranchOnTree->SetAddress(a_pNewMemory);
+    m_pTreeOnRoot2->Fill();
 
-
-void pitz::daq::SingleEntry::AddExistanceInRootFile(int a_second, int a_eventNumber)
-{
     if(!m_isPresentInCurrentFile){
         m_firstSecond = a_second;
         m_firstEventNumber = a_eventNumber;
@@ -491,6 +453,23 @@ void pitz::daq::SingleEntry::AddExistanceInRootFile(int a_second, int a_eventNum
     m_lastSecond = a_second;
     m_lastEventNumber = a_eventNumber;
 }
+
+
+//void pitz::daq::SingleEntry::AddExistanceInRootFile(int a_second, int a_eventNumber)
+//{
+//    if(!m_isPresentInCurrentFile){
+//        m_firstSecond = a_second;
+//        m_firstEventNumber = a_eventNumber;
+//        m_isPresentInCurrentFile = 1;
+//    }
+//
+//    ++m_nNumberInCurrentFile;
+//    ++m_pp.numberInAllFiles;
+//    SetError(0);
+//
+//    m_lastSecond = a_second;
+//    m_lastEventNumber = a_eventNumber;
+//}
 
 
 void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
@@ -783,6 +762,29 @@ bool pitz::daq::SNetworkStruct::AddNewEntry(SingleEntry *a_newEntry)
 //#endif
 //
 //}
+
+/*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+pitz::daq::TreeForSingleEntry::TreeForSingleEntry( pitz::daq::SingleEntry* a_pParentEntry )
+    :
+      ::TTree(a_pParentEntry->daqName(), "DATA"),
+      m_pParentEntry(a_pParentEntry)
+{
+    //m_pParentEntry->SetT
+}
+
+
+pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
+{
+    if(m_pParentEntry ){
+        m_pParentEntry->m_pBranchOnTree = NEWNULLPTR2;
+        m_pParentEntry->m_pTreeOnRoot2 = NEWNULLPTR2;
+        if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
+            SingleEntry* pParentEntry( m_pParentEntry );
+            m_pParentEntry=NEWNULLPTR2;
+            delete pParentEntry;
+        }
+    }
+}
 
 /*////////////////////////////////////////////////////////////////////////////////////////*/
 

@@ -79,7 +79,7 @@ HEADERS += \
     $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
     $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp                             \
     $${PWD}/../../../include/pitz_daq_internal.h                                            \
-    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp.hpp                             \
+    $${PWD}/../../../src/server/pitz_daq_singleentry.cpp.hpp                                \
     $${PWD}/../../../include/common/inthash.hpp                                             \
     $${PWD}/../../../include/common/inthash.impl.hpp                                        \
     $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_types.h           \
