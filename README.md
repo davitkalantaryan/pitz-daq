@@ -27,7 +27,7 @@ an IL event, to understand its origin if there were a few IL detectors triggered
 <br />
 
 ## Most used parts of the system are following
-### 1. [Data collector servers]()
+### 1. [Data collector servers](docs/subsystems/collectors)
 ### 2. Application to control the collectors
 ### 3. Data getter and handler applications and tools
 
