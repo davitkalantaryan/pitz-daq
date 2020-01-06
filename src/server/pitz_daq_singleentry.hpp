@@ -57,26 +57,10 @@ typedef const char* TypeConstCharPtr;
 namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknownCreation};}
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
-time_t STRING_TO_EPOCH(const char* _a_string,const char* a_cpcInf);
-time_t STRING_TO_EPOCH2(const char* a_string);
-const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* a_buffer, int a_bufferLength);
-size_t EPOCH_TO_STRING3(const time_t& a_epoch, char* a_buffer, size_t a_bufferLength);
+//time_t STRING_TO_EPOCH(const char* _a_string,const char* a_cpcInf);
+//const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* a_buffer, int a_bufferLength);
 
 #define D_BASE_FOR_STR  D_text
-
-//class D_stringForEntry : public D_BASE_FOR_STR
-//{
-//public:
-//    D_stringForEntry(const char* pn, SingleEntry* parent);
-//    ~D_stringForEntry();
-//
-//private:
-//    void    get (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
-//    void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
-//
-//private:
-//    SingleEntry* m_pParent;
-//};
 
 namespace EntryParams{
 
@@ -139,62 +123,33 @@ private:
 } // namespace EntryParams{
 
 
-//struct SMaskParam
-//{
-//    time_t expirationTime;
-//};
-//
-//
-//struct SPermanentParams2
-//{
-//    int         numOfFilesIn;
-//    int         numberInAllFiles;
-//    time_t      expirationTime;
-//    time_t      creationTime;
-//    uint64_t    errorsMasked : 1;
-//    uint64_t    collectionMasked : 1;
-//    uint64_t    collect : 1;
-//    uint64_t    reserved64bit : 61;
-//    SMaskParam  collectingMaskParam;
-//    SMaskParam  errorMaskParam;
-//};
-
 
 class SingleEntry : protected D_BASE_FOR_STR
 {
-    //friend class D_stringForEntry;
     friend class SNetworkStruct;
-    //friend class EqFctCollector;
     friend class TreeForSingleEntry;
-    //friend EntryParams::Base;
-protected:
-public:
-    virtual ~SingleEntry() OVERRIDE2;
 public:
     SingleEntry( /*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
-
-    virtual const char* rootFormatString()const=0;
-    //virtual void PermanentDataIntoFile(FILE* fpFile)const=0;
+    virtual ~SingleEntry() OVERRIDE2;
 
 private:
+    virtual const char* rootFormatString()const=0;
     void get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
     void set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
 
 public:
-    //virtual void SetMemoryBack( DEC_OUT_PD(SingleData)* pMemory );
-    virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork();
-
-protected:
-    virtual void CleanEntryNoFreeInheritable();
+    virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork() = 0;
+    virtual void FreeUsedMemory(DEC_OUT_PD(SingleData)* usedMemory);
 
 public:
     bool  markEntryForDeleteAndReturnIfPossibleNow();
     bool  lockEntryForRoot();
+    bool  lockEntryForCurrentFile();
     bool  lockEntryForNetwork();
     bool  resetRootLockAndReturnIfDeletable();
+    bool  resetCurrentFileLockAndReturnIfDeletable();
     bool  resetNetworkLockAndReturnIfDeletable();
     bool  isLockedByRootOrNetwork()const;
-    SNetworkStruct* CleanEntryNoFree();
 
 public:
     void Fill(DEC_OUT_PD(SingleData)* pNewMemory, int a_second, int a_eventNumber);
@@ -206,14 +161,10 @@ public:
     int lastEventNumber()const{return m_lastEventNumber;}
     uint64_t isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
     void WriteContentToTheFile(FILE* fpFile)const;
-    void MaskErrors(const char* maskResetTime);
-    void UnmaskErrors();
-    void MaskCollection(const char* maskResetTime);
-    void UnmaskCollection();
     // APIs for DOOCS property
     //void ValueStringByKey2(const char* request, char* buffer, int bufferLength)const;
     //void SetProperty(const char* propertyAndAttributes);
-    void RemoveDoocsProperty2();
+    //void RemoveDoocsProperty();
     void SetError(int a_error);
 
     // This API will be used only by

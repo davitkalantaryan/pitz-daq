@@ -36,31 +36,45 @@
 
 namespace pitz{namespace daq{
 
-class EntryLock
-#ifdef USE_SHARED_LOCK
-        : public ::STDN::shared_mutex
-#endif
+template <typename QueueType>
+class ProtectedQueue : private ::std::queue<QueueType>
 {
 public:
-    EntryLock();
-    void WriteLockWillBeCalled();
-    void lock( ) OVERRIDE3;
-    void unlock() OVERRIDE3;
-#ifndef USE_SHARED_LOCK
-    void lock_shared();
-    void unlock_shared();
-#endif
+    bool  frontAndPop(QueueType* a_pBuffer);
+
 private:
-    pthread_t   m_writerThread;
-    uint32_t    m_nLocksCount;
-    uint32_t    m_isGoingToWriteLock : 1;
-    uint32_t    m_bitwiseReserved : 31;
+    ::std::mutex    m_mutexForQueue;
+};
+
+template< typename TypeMutex >
+class NewLockGuard
+{
+public:
+    NewLockGuard(TypeMutex* aMutex=nullptr);
+    ~NewLockGuard();
+    void Lock(TypeMutex*   aMutex);
+    void Unlock();
+private:
+    TypeMutex*   m_pMutex;
+};
+
+template< typename TypeSharedMutex >
+class NewSharedLockGuard
+{
+public:
+    NewSharedLockGuard(TypeSharedMutex* aMutex=nullptr);
+    ~NewSharedLockGuard();
+    void LockShared(TypeSharedMutex*   aMutex);
+    void UnlockShared();
+private:
+    TypeSharedMutex*   m_pMutex;
 };
 
 struct SStructForFill{
     SingleEntry*            entry;
     DEC_OUT_PD(SingleData)* data;
 };
+
 
 class EqFctCollector : public EqFct
 {
@@ -96,9 +110,9 @@ private:
 
     // API for internal usage
 private:
-    SStructForFill  GetAndDeleteFirstData();
+    //SStructForFill  GetAndDeleteFirstData();
     void AddNewEntryNotLocked(entryCreationType::Type type, const char* entryLine);
-    void TryToRemoveEntryNotLocked(SingleEntry* pEntry);
+    //void TryToRemoveEntryNotLocked(SingleEntry* pEntry);
     pitz::daq::SingleEntry* FindEntry(const char* entryName);
     bool FindEntryInAdding(const char* entryName);
     bool FindEntryInDeleting(const char* entryName);
@@ -115,14 +129,9 @@ private:
 
 public:
     // API public, for DOOCS properties usage
-    int  parse_old_config2(const std::string& daqConfFilePath);
+    int  parse_old_config(const std::string& daqConfFilePath);
     void IncrementErrors(const char* entryName);
     void DecrementErrors(const char* entryName);
-
-    void WriteLockEntries2();
-    void WriteUnlockEntries2();
-    void ReadLockEntries2();
-    void ReadUnlockEntries2();
 
     bool AddNewEntryByUser(const char* entryLine);
     bool RemoveEntryByUser(const char* entryName);
@@ -151,22 +160,22 @@ private:
     ::STDN::thread                      m_threadLocalFileDeleter;
     ::std::list< SNetworkStruct* >      m_networsList;
     ::std::mutex                        m_mutexForEntriesInError;
-    ::std::queue< SStructForFill >      m_fifoToFill;
-    ::std::queue< ::std::string >       m_entriesToAdd;
-    ::std::queue< ::std::string >       m_fifoForLocalFileDeleter;
+    ProtectedQueue< SStructForFill >    m_fifoToFill;
+    ProtectedQueue< ::std::string >     m_fifoForLocalFileDeleter;
     common::UnnamedSemaphoreLite        m_semaForRootThread;
-    common::UnnamedSemaphoreLite        m_semaForEntryAdder;
     common::UnnamedSemaphoreLite        m_semaForLocalFileDeleter;
-    EntryLock                           m_lockForEntries2;
+    ::STDN::shared_mutex                m_lockForEntries;
     SNetworkStruct*                     m_pNextNetworkToAdd;
     uint64_t                            m_unErrorUnableToWriteToDcacheNum : 16;
     uint64_t                            m_shouldWork : 1;
     uint64_t                            m_bitwise64Reserved : 47;
-    int                                 m_nNumberOfEntries;
-    int                                 m_nNumberOfFillThreadsFinal;
 
 };
 
 }} // namespace pitz{ namespace daq{
+
+#ifndef PITZ_DAQ_EQFCTCOLLECTOR_IMPL_HPP
+#include "pitz_daq_eqfctcollector.impl.hpp"
+#endif
 
 #endif // PITZ_DAQ_EQFCTCOLLECTOR_HPP
