@@ -75,6 +75,7 @@ HEADERS += \
     $${PWD}/../../../contrib/cpp-raft/include/common/impl.lists.hpp                         \
     $${PWD}/../../../contrib/cpp-raft/include/cpp11+/shared_mutex_cpp14.hpp                 \
     $${PWD}/../../../src/server/pitz_daq_singleentry.hpp                                    \
+    $${PWD}/../../../src/server/pitz_daq_singleentry.impl.hpp                               \
     $${PWD}/../../../src/server/pitz_daq_eqfctcollector.hpp                                 \
     $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
     $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp                             \

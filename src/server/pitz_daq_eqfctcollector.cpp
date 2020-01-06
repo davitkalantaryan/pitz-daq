@@ -34,7 +34,7 @@ pitz::daq::EqFctCollector::EqFctCollector()
         :
           EqFct("Name = location"),
           m_genEvent("GEN_EVENT value",this),
-          m_fileMaxSize("FILE_SIZE_MAXIMUM approximate size of final file", this),
+          m_fileMaxSize("FILE_SIZE_DESIGNED approximate size of final file", this),
           m_numberOfEntries("NUMBER.OF.ENTRIES",this),
           m_logLevel("LOG.LEVEL log level of server", this),
           m_rootDirPathBaseRemote("ROOT.DIR.PATH.REMOTE",this),

@@ -48,15 +48,39 @@ static ::std::string GetPropertyName(const char* a_entryLine, TypeConstCharPtr* 
 
 pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
-        D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2)
+        D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2),
+        m_numberInCurrentFile(NUM_IN_CUR_FL_KEY_STR,&m_allParams),
+        m_numberInAllFiles(NUM_OF_FILES_IN_KEY_STR,&m_allParams),
+        m_expirationTime(EXPIRATION_STR,&m_allParams),
+        m_creationTime(CREATION_STR,&m_allParams),
+        m_collectionMask(MASK_COLLECTION_KEY_STR,&m_allParams),
+        m_errorMask(MASK_ERRORS_KEY_STR,&m_allParams),
+        m_error(ERROR_KEY_STR,&m_allParams)
 {
+    time_t tmCurrentTime;
     TypeConstCharPtr& pLine = *a_pHelper;
-    const char* pcNext ;
     size_t strStart;
     int nError(errorsFromConstructor::noError);
 
     if(!pLine){throw errorsFromConstructor::syntax;}
     m_bitwise64Reserved = 0;
+
+    m_permanentParams.push_back(&m_numberInAllFiles);
+    m_permanentParams.push_back(&m_expirationTime);
+    m_permanentParams.push_back(&m_creationTime);
+    m_permanentParams.push_back(&m_collectionMask);
+    m_permanentParams.push_back(&m_errorMask);
+    //
+    m_userSetableParams.push_back(&m_expirationTime);
+    m_userSetableParams.push_back(&m_collectionMask);
+    m_userSetableParams.push_back(&m_errorMask);
+
+    m_errorMask.SetParentAndClbk(this,[](EntryParams::Base* a_pErrMask, void* a_pThis){
+        EntryParams::Mask* pErrorMask = static_cast<EntryParams::Mask*>(a_pErrMask);
+        if(pErrorMask->isMasked()){
+            static_cast<SingleEntry*>(a_pThis)->m_error = (0);
+        }
+    });
 
     // the story is following
     // everihhing, that is not nullable is set before the member m_nReserved
@@ -67,94 +91,29 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     if(pLine[strStart]==0){nError = errorsFromConstructor::syntax;goto reurnPoint;}
     pLine += strStart;
 
+    m_creationTime=time(&tmCurrentTime);
+    m_numberInCurrentFile=(0);
+
     switch (a_creationType)
     {
     case entryCreationType::fromOldFile:
-        m_pp.numOfFilesIn = 0;
-        m_pp.numberInAllFiles = 0;
-        m_pp.creationTime = time(&m_pp.creationTime);
-        m_pp.expirationTime = NON_EXPIRE_TIME;
-        m_pp.masked = false;
-        m_pp.errorMaskParam.expirationTime = NON_EXPIRE_TIME;
-        m_pp.collectingMaskParam.expirationTime = NON_EXPIRE_TIME;
         break;
     case entryCreationType::fromConfigFile:
 
-        //#define CREATION_STR    "creation"
-        //#define EXPIRATION_STR    "expiration"
-        //#define ERROR_KEY_STR   "error"
-        //#define NUM_IN_CUR_FL_KEY_STR "entries"
-        //#define NUM_OF_FILES_IN_KEY_STR "files"
-        //#define NUM_OF_ALL_ENTRIES_KEY_STR "allentries"
-        //#define NUM_OF_ERRORS_KEY_STR   "errors"
-
-        pcNext = strstr(pLine,CREATION_STR "=");
-        if(!pcNext){nError = errorsFromConstructor::syntax;goto reurnPoint; }
-        pcNext += strlen(CREATION_STR "=");
-        m_pp.creationTime = STRING_TO_EPOCH(pcNext,"");
-        if((m_pp.creationTime<0)&&(m_pp.creationTime!=NON_EXPIRE_TIME)){nError = -1;goto reurnPoint;}
-
-        pcNext = strstr(pLine,EXPIRATION_STR "=");
-        if(!pcNext){nError = errorsFromConstructor::syntax;goto reurnPoint; }
-        pcNext += strlen(EXPIRATION_STR "=");
-        m_pp.expirationTime = STRING_TO_EPOCH(pcNext,NON_EXPIRE_STRING);
-        if((m_pp.expirationTime<0)&&(m_pp.expirationTime!=NON_EXPIRE_TIME)){nError = -2;goto reurnPoint;}
-
-        pcNext = strstr(pLine,NUM_OF_FILES_IN_KEY_STR "=");
-        if(!pcNext){nError = errorsFromConstructor::syntax;goto reurnPoint; }
-        pcNext += strlen(NUM_OF_FILES_IN_KEY_STR "=");
-        m_pp.numOfFilesIn = atoi(pcNext);
-
-
-        pcNext = strstr(pLine,NUM_OF_ALL_ENTRIES_KEY_STR "=");
-        if(!pcNext){nError = errorsFromConstructor::syntax;goto reurnPoint; }
-        pcNext += strlen(NUM_OF_ALL_ENTRIES_KEY_STR "=");
-        m_pp.numberInAllFiles = atoi(pcNext);
-
-        m_pp.masked = false;
-        pcNext = strstr(pLine,MASK_KEY_STR "=");
-        if(pcNext){
-            pcNext += strlen(MASK_KEY_STR "=");
-            pcNext = strstr(pcNext,"true");
-            if(pcNext){  // not false
-                //char vcBuf[32];
-                m_pp.masked = true;
-                pcNext += (strlen("true")+1);
-                m_pp.mp.unmaskTime = STRING_TO_EPOCH(pcNext,MASK_NO_EXPIRE_STRING);
-                if(m_pp.mp.unmaskTime<0){m_pp.mp.unmaskTime=NON_EXPIRE_TIME;}
-            }
+        for( auto pParam : m_permanentParams){
+            pParam->FindAndGetFromLine(pLine);
         }
 
         break;
 
     case entryCreationType::fromUser:
-        m_pp.numOfFilesIn = 0;
-        m_pp.numberInAllFiles = 0;
-        m_pp.creationTime = time(&m_pp.creationTime);
 
-        m_pp.expirationTime = NON_EXPIRE_TIME;
-        pcNext = strstr(pLine,EXPIRATION_STR "=");
-        if(pcNext){
-            pcNext += strlen(EXPIRATION_STR "=");
-            m_pp.expirationTime = STRING_TO_EPOCH(pcNext,NON_EXPIRE_STRING);
-            if((m_pp.expirationTime<0)&&(m_pp.expirationTime!=NON_EXPIRE_TIME)){m_pp.expirationTime = NON_EXPIRE_TIME;}
+        for( auto pParam : m_allParams){
+            pParam->FindAndGetFromLine(pLine);
         }
-
-
-        m_pp.masked = false;
-        m_pp.mp.unmaskTime = NON_EXPIRE_TIME;
-        pcNext = strstr(pLine,MASK_KEY_STR "=");
-        if(pcNext){
-            pcNext += strlen(NUM_OF_ALL_ENTRIES_KEY_STR "=");
-            pcNext = strstr(pcNext,"true");
-            if(pcNext){  // not false
-                //char vcBuf[32];
-                m_pp.masked = true;
-                pcNext += (strlen(NUM_OF_ALL_ENTRIES_KEY_STR "=")+1);
-                m_pp.mp.unmaskTime = STRING_TO_EPOCH(pcNext,MASK_NO_EXPIRE_STRING);
-                if(m_pp.mp.unmaskTime<0){m_pp.mp.unmaskTime=NON_EXPIRE_TIME;}
-            }
-        }
+        m_numberInCurrentFile=(0);
+        m_numberInAllFiles=(0);
+        m_creationTime=(tmCurrentTime);
 
         break;
 
@@ -162,29 +121,23 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
         break;
     }
 
-    m_nNumOfErrors = 0;
-
     return;
 
 reurnPoint:
 
     if(nError != errorsFromConstructor::noError){
         // some common stuff
-        m_pp.collect=false;
-
         if(a_creationType == entryCreationType::fromUser){
             free(m_daqName);
             throw nError;
         }
     }
-    else{m_pp.collect=true;}
 
 }
 
 
 pitz::daq::SingleEntry::~SingleEntry()
 {
-    SetError(0);
     free(this->m_daqName);
 }
 
@@ -319,53 +272,35 @@ void pitz::daq::SingleEntry::SetNetworkParent(SNetworkStruct* a_pNetworkParent)
 //}
 
 
-void pitz::daq::SingleEntry::MaskErrors(const char* a_maskResetTime)
+//void pitz::daq::SingleEntry::MaskErrors(const char* a_maskResetTime)
+//{
+//    m_pp.errorMaskParam.expirationTime = STRING_TO_EPOCH(a_maskResetTime,MASK_NO_EXPIRE_STRING);
+//    if(m_pp.errorMaskParam.expirationTime<0){m_pp.errorMaskParam.expirationTime=NON_EXPIRE_TIME;}
+//    m_pp.errorsMasked = true;
+//
+//    SetError(0);
+//}
+//
+//
+//void pitz::daq::SingleEntry::UnmaskErrors()
+//{
+//    m_pp.errorsMasked = false;
+//    m_pp.errorMaskParam.expirationTime=NON_EXPIRE_TIME;
+//}
+//
+
+void pitz::daq::SingleEntry::set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc)
+//void pitz::daq::SingleEntry::SetProperty(const char* a_propertyAndAttributes)
 {
-    m_pp.errorMaskParam.expirationTime = STRING_TO_EPOCH(a_maskResetTime,MASK_NO_EXPIRE_STRING);
-    if(m_pp.errorMaskParam.expirationTime<0){m_pp.errorMaskParam.expirationTime=NON_EXPIRE_TIME;}
-    m_pp.errorsMasked = true;
+    char vcBuffer[1024];
 
-    SetError(0);
-}
+    a_dataFromUser->get_string(vcBuffer,1023);
 
-
-void pitz::daq::SingleEntry::UnmaskErrors()
-{
-    m_pp.errorsMasked = false;
-    m_pp.errorMaskParam.expirationTime=NON_EXPIRE_TIME;
-}
-
-
-void pitz::daq::SingleEntry::SetProperty(const char* a_propertyAndAttributes)
-{
-    const char* pcNext = strstr(a_propertyAndAttributes,MASK_KEY_STR);
-    if(pcNext){
-        pcNext += strlen(MASK_KEY_STR);
-
-        if(strncmp(pcNext,"=false",strlen("=false"))==0){
-            UnmaskErrors();
-        }
-        else{
-            size_t unStrLen(strlen("=true("));
-            if(strncmp(pcNext,"=true(",unStrLen)==0){
-                MaskErrors(pcNext+unStrLen);
-            }
-            else{
-                MaskErrors(MASK_NO_EXPIRE_STRING);
-            }
-        } // else{ of if(strcmp(pcNext,"=false")){
-
-    }  // if(pcNext){
-
-    pcNext = strstr(a_propertyAndAttributes,"unmask");
-    if(pcNext){UnmaskErrors();}
-
-    pcNext = strstr(a_propertyAndAttributes,EXPIRATION_STR "=");
-
-    if(pcNext){
-        pcNext += strlen(EXPIRATION_STR "=");
-        m_pp.expirationTime = STRING_TO_EPOCH(pcNext,NON_EXPIRE_STRING);
+    for( auto pParam : m_userSetableParams){
+        pParam->FindAndGetFromLine(vcBuffer);
     }
+
+    D_BASE_FOR_STR::set(a_dcsAddr, a_dataFromUser, a_dataToUser,a_loc);
 }
 
 
@@ -446,8 +381,10 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory, int a_s
         m_isPresentInCurrentFile = 1;
     }
 
-    ++m_nNumberInCurrentFile;
-    ++m_pp.numberInAllFiles;
+    ++m_numberInCurrentFile;
+    ++m_numberInAllFiles;
+
+    // todo: set only root part to null
     SetError(0);
 
     m_lastSecond = a_second;
@@ -474,7 +411,24 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory, int a_s
 
 void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
 {
-    char vcBufForCrt[32],vcBufForExp[32],vcBufForMask[32];
+    //char vcBufForCrt[32],vcBufForExp[32],vcBufForMask[32];
+    char vcBuffer[4096];
+    char* pcBufToWrite(vcBuffer);
+    size_t nBufLen(4096);
+    size_t nWritten;
+
+    fprintf(a_fpFile,"%s ",m_daqName);
+
+    for( auto pParam : m_permanentParams){
+        unWritten=pParam->WriteToLineBuffer(vcBuffer,1024);
+    }
+
+    for( auto pParam : m_userSetableParams){
+        nWritten=pParam->WriteToLineBuffer(pcBufToWrite,nBufLen);
+        if(nBufLen<=(nWritten+1)){return;}
+        nBufLen -= nWritten;
+        pcBufToWrite += nWritten;
+    }
 
     fprintf(a_fpFile,
             "%s "
@@ -504,98 +458,55 @@ void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
 //#define NUM_OF_ALL_ENTRIES_KEY_STR "numOfAllEntries"
 //#define NUM_OF_ERRORS_KEY_STR   "numOfErrors"
 
-void pitz::daq::SingleEntry::ValueStringByKey2(const char* a_request, char* a_buffer, int a_bufferLength)const
+void pitz::daq::SingleEntry::get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/)
 {
-    char* pcBufToWrite(a_buffer);
-    int nWritten,nBufLen(a_bufferLength);
+    char vcBuffer[4096];
+    char vcFromUser[1024];
+    char* pcBufToWrite(vcBuffer);
+    size_t nWritten,nBufLen(4096);
+    bool bReadAll;
 
-    bool bReadAll(false);
+    a_dataFromUser->get_string(vcFromUser,1023);
+    if(vcFromUser[0]==0){bReadAll=true;}
+    else{ bReadAll=true; }
 
-    if((!a_request)||(a_request[0]==0)){bReadAll=true;}
-
-    if(bReadAll ||strstr(ERROR_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),ERROR_KEY_STR "=%d; ",m_nError2);
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
+    if(bReadAll){
+        for( auto pParam : m_allParams){
+            nWritten=pParam->WriteToLineBuffer(pcBufToWrite,nBufLen);
+            if(nBufLen<=nWritten){goto returnPoint;}
+            nBufLen -= nWritten;
+            pcBufToWrite += nWritten;
+        }
+    }
+    else{
+        for( auto pParam : m_allParams){
+            if(strstr(vcFromUser,pParam->paramName())){
+                nWritten=pParam->WriteToLineBuffer(pcBufToWrite,nBufLen);
+                if(nBufLen<=nWritten){goto returnPoint;}
+                nBufLen -= nWritten;
+                pcBufToWrite += nWritten;
+            }
+        }
     }
 
-    if(bReadAll || strstr(NUM_IN_CUR_FL_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),NUM_IN_CUR_FL_KEY_STR "=%d; ",m_nNumberInCurrentFile);
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
-    }
-
-    if(bReadAll || strstr(NUM_OF_FILES_IN_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),NUM_OF_FILES_IN_KEY_STR "=%d; ",m_pp.numOfFilesIn);
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
-    }
-
-    if(bReadAll || strstr(NUM_OF_ALL_ENTRIES_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),NUM_OF_ALL_ENTRIES_KEY_STR "=%d; ",m_pp.numberInAllFiles);
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
-    }
-
-    if(bReadAll || strstr(NUM_OF_ERRORS_KEY_STR,a_request)){
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),NUM_OF_ERRORS_KEY_STR "=%d; ",m_nNumOfErrors);
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
-    }
-
-    if( bReadAll || strstr(CREATION_STR,a_request)){
-        char vcBufForTime[32];
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),CREATION_STR "=%s; ",EPOCH_TO_STRING2(m_pp.creationTime,"",vcBufForTime,31));
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
-    }
-
-    if(bReadAll || strstr(EXPIRATION_STR,a_request)){
-        char vcBufForTime[32];
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),EXPIRATION_STR "=%s; ",EPOCH_TO_STRING2(m_pp.expirationTime,NON_EXPIRE_STRING,vcBufForTime,31));
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
-    }
-
-    if(bReadAll || strstr(MASK_KEY_STR,a_request)){
-        char vcBufForTime[32];
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),MASK_KEY_STR "=%s(%s); ",m_pp.masked?"true":"false",EPOCH_TO_STRING2(m_pp.mp.unmaskTime,MASK_NO_EXPIRE_STRING, vcBufForTime, 31));
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
-    }
-
-    ValueStringByKeyInherited(bReadAll,a_request,pcBufToWrite,nBufLen);
+returnPoint:
+    a_dataToUser->set(vcBuffer);
     return;
-
 }
 
 
 void pitz::daq::SingleEntry::SetError(int a_error)
 {
-    //if((!a_error)&&(!m_nError2)){return;}
-    //if(a_error && m_pp.masked){return;}
-
     EqFctCollector* pClc = m_pNetworkParent?m_pNetworkParent->parent():NEWNULLPTR2;
 
-
-
-    if(a_error&&(!m_nError2)){
-        ++m_nNumOfErrors;        
+    if(a_error&&(!m_error.value())){
         if(pClc){pClc->IncrementErrors(m_daqName);}
     }
-    else if((a_error==0)&&m_nError2){
+    else if((a_error==0)&&(m_error.value())){
         if(pClc){pClc->DecrementErrors(m_daqName);}
     }
 
-    m_nError2=a_error;
+    m_error.setValue(a_error);
 }
 
 
@@ -739,27 +650,10 @@ bool pitz::daq::SNetworkStruct::AddNewEntry(SingleEntry *a_newEntry)
 //{
 //
 //    char vcBuffer[1024];
-//
 //    a_dataFromUser->get_string(vcBuffer,1023);
-//
 //    m_pParent->SetProperty(vcBuffer);
-//
 //    D_BASE_FOR_STR::set(a_dcsAddr, a_dataFromUser, a_dataToUser,a_loc);
 //
-//#if 0
-//    std::string dataFromUser = a_dataFromUser->get_string();
-//    char vcBuffer[512];
-//    bool bFound = m_pParent->ValueStringByKey(dataFromUser,vcBuffer,511);
-//
-//    CalculateAndSetString();
-//
-//    if(bFound){
-//        a_dataToUser->set(vcBuffer);
-//    }
-//    else{
-//        D_BASE_FOR_STR::get(a_dcsAddr, a_dataFromUser, a_dataToUser,a_loc);
-//    }
-//#endif
 //
 //}
 
@@ -785,6 +679,160 @@ pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
         }
     }
 }
+
+/*////////////////////////////////////////////////////////////////////////////////////////*/
+
+static void DefaultClbk(pitz::daq::EntryParams::Base*,void*){}
+
+pitz::daq::EntryParams::Base::Base( const char* a_entryParamName, ::std::list<EntryParams::Base*>* a_pContainer )
+    :
+      m_paramName(a_entryParamName),
+      m_fpClbk(&DefaultClbk),
+      m_pParent(nullptr)
+{
+    a_pContainer->push_back(this);
+}
+
+
+pitz::daq::EntryParams::Base::~Base()
+{
+}
+
+
+const char* pitz::daq::EntryParams::Base::paramName()const
+{
+    return m_paramName;
+}
+
+
+size_t pitz::daq::EntryParams::Base::WriteToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+{
+    size_t unStrLen = strlen(m_paramName);
+
+    if(LIKELY2(a_unBufferSize>(unStrLen+1))){
+        size_t unDataStrLen;
+        memcpy(a_entryLineBuffer,m_paramName,unStrLen);
+        a_entryLineBuffer[unStrLen]='=';
+        a_unBufferSize -= (unStrLen+1);
+        a_entryLineBuffer += (unStrLen+1);
+        unDataStrLen=this->WriteDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
+        if(a_unBufferSize>unDataStrLen){
+            a_entryLineBuffer[unDataStrLen]=';';
+        }
+    }
+    else{
+        unStrLen = a_unBufferSize;
+        memcpy(a_entryLineBuffer,m_paramName,unStrLen);
+    }
+
+    return unStrLen;
+}
+
+
+bool pitz::daq::EntryParams::Base::FindAndGetFromLine(const char* a_entryLine)
+{
+    bool bReturn(false);
+    const char* pcNext = strstr(a_entryLine,m_paramName);
+    if(pcNext){
+        pcNext = strchr(pcNext+1,'=');
+        if(pcNext){
+            bReturn=this->GetDataFromLine(++pcNext);
+            if(bReturn){
+                (*m_fpClbk)(this,m_pParent);
+            }
+        }
+    }
+    return bReturn;
+}
+
+
+void pitz::daq::EntryParams::Base::SetParentAndClbk(void* a_pParent, TypeClbk a_fpClbk)
+{
+    m_pParent = a_pParent;
+    m_fpClbk = a_fpClbk;
+}
+
+/*////////////////////////////////////////////////////////////////////////////////////////*/
+
+pitz::daq::EntryParams::Mask::Mask(const char* a_entryParamName, ::std::list<EntryParams::Base*>* a_pContainer)
+    :
+      Base(a_entryParamName,a_pContainer)
+{
+    m_expirationTime = NOT_MASKED_TO_TIME;
+}
+
+
+pitz::daq::EntryParams::Mask::~Mask()
+{
+}
+
+
+bool pitz::daq::EntryParams::Mask::GetDataFromLine(const char* a_entryLine)
+{
+    m_expirationTime = NOT_MASKED_TO_TIME;
+
+    if(strncmp(a_entryLine,"true",4)==0){
+        const char* cpcDataLine = a_entryLine+4;
+        m_expirationTime = NON_EXPIRE_TIME;
+        if(cpcDataLine[0]=='('){
+            m_expirationTime = STRING_TO_EPOCH2(cpcDataLine+1);
+        }
+    }
+
+    return true;
+}
+
+static const size_t s_cunNonExpireStrLen = strlen(NON_EXPIRE_STRING);
+
+
+size_t pitz::daq::EntryParams::Mask::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+{
+    size_t unReturn(0);
+    switch(m_expirationTime){
+    case NOT_MASKED_TO_TIME:
+        if(a_unBufferSize<5){
+            return 0;
+        }
+        memcpy(a_entryLineBuffer,"false",5);
+        return 5;
+    case NON_EXPIRE_TIME:
+        if(a_unBufferSize<(6+s_cunNonExpireStrLen)){
+            return 0;
+        }
+        memcpy(a_entryLineBuffer,"true",4);
+        unReturn = 4;
+        a_entryLineBuffer[unReturn++]='(';
+        memcpy(a_entryLineBuffer+unReturn,NON_EXPIRE_STRING,s_cunNonExpireStrLen);
+        unReturn += s_cunNonExpireStrLen;
+        a_entryLineBuffer[unReturn++]=')';
+        break;
+    default:
+        if(a_unBufferSize<(16+s_cunNonExpireStrLen)){
+            return 0;
+        }
+        memcpy(a_entryLineBuffer,"true",4);
+        unReturn = 4;
+        a_entryLineBuffer[unReturn++]='(';
+        unReturn += EPOCH_TO_STRING3(m_expirationTime,a_entryLineBuffer+unReturn,a_unBufferSize-unReturn-1);
+        a_entryLineBuffer[unReturn++]=')';
+        break;
+    }
+
+    return unReturn;
+}
+
+
+time_t pitz::daq::EntryParams::Mask::expirationTime() const
+{
+    return m_expirationTime;
+}
+
+
+bool pitz::daq::EntryParams::Mask::isMasked()const
+{
+    return m_expirationTime != NOT_MASKED_TO_TIME;
+}
+
 
 /*////////////////////////////////////////////////////////////////////////////////////////*/
 
@@ -825,6 +873,41 @@ time_t STRING_TO_EPOCH(const char* _a_string,const char* a_cpcInf)
 }
 
 
+time_t STRING_TO_EPOCH2(const char* a_string)
+{
+    char *pcNext;
+    const char *pcTmp;
+    struct tm aTm;
+
+    if(strncmp(a_string,NON_EXPIRE_STRING,s_cunNonExpireStrLen)==0){return NON_EXPIRE_TIME;}
+
+    aTm.tm_year = static_cast<decltype (aTm.tm_year)>(strtol(a_string,&pcNext,10) - 1900);
+    if((pcNext++)==a_string){return -errorsFromConstructor::syntax;}
+
+    pcTmp = pcNext;
+    aTm.tm_mon = static_cast<decltype (aTm.tm_mon)>(strtol(pcTmp,&pcNext,10) - 1);
+    if((pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
+
+    pcTmp = pcNext;
+    aTm.tm_mday = static_cast<decltype (aTm.tm_mday)>(strtol(pcTmp,&pcNext,10));
+    if((pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
+
+    pcTmp = pcNext;
+    aTm.tm_hour = static_cast<decltype (aTm.tm_hour)>(strtol(pcTmp,&pcNext,10) );
+    if((pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
+
+    pcTmp = pcNext;
+    aTm.tm_min = static_cast<decltype (aTm.tm_min)>(strtol(pcTmp,&pcNext,10));
+    if((pcNext++)==pcTmp){return -errorsFromConstructor::syntax;}
+
+    aTm.tm_sec = 0;
+    aTm.tm_isdst = -1;
+
+    return mktime(&aTm);
+
+}
+
+
 const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* a_buffer, int a_bufferLength)
 {
 
@@ -838,6 +921,28 @@ const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* 
     }
 
     return a_buffer;
+
+}
+
+
+size_t EPOCH_TO_STRING3(const time_t& a_epoch, char* a_buffer, size_t a_bufferLength)
+{
+    struct tm aTm;
+    localtime_r(&a_epoch,&aTm);
+    return static_cast<size_t>(snprintf(a_buffer,a_bufferLength,"%d.%.2d.%.2d-%.2d:%.2d",aTm.tm_year+1900,aTm.tm_mon+1,aTm.tm_mday,aTm.tm_hour,aTm.tm_min));
+
+    size_t unReturn;
+    if(a_epoch!=NON_EXPIRE_TIME){
+        struct tm aTm;
+        localtime_r(&a_epoch,&aTm);
+        unReturn = static_cast<size_t>(snprintf(a_buffer,a_bufferLength,"%d.%.2d.%.2d-%.2d:%.2d",aTm.tm_year+1900,aTm.tm_mon+1,aTm.tm_mday,aTm.tm_hour,aTm.tm_min));
+    }
+    else{
+        memcpy(a_buffer,NON_EXPIRE_STRING,s_cunNonExpireStrLen);
+        return s_cunNonExpireStrLen;
+    }
+
+    return unReturn;
 
 }
 

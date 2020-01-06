@@ -25,6 +25,7 @@ public:
 
     bool LoadOrValidateData(void* a_pContext);
     DEC_OUT_PD(SingleData)* ReadData();
+    void SetMemoryBack( DEC_OUT_PD(SingleData)* );
 
 private:
     ::std::string   m_hostName;
