@@ -30,6 +30,8 @@
 
 static const char*      s_LN = "#_QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890";
 
+static void SignalHandler(int){}
+
 pitz::daq::EqFctCollector::EqFctCollector()
         :
           EqFct("Name = location"),
@@ -77,7 +79,7 @@ pitz::daq::EqFctCollector::~EqFctCollector()
 }
 
 
-void pitz::daq::EqFctCollector::CalcLocalDir2(std::string* a_localDirName)STUPID_NON_CONST
+void pitz::daq::EqFctCollector::CalcLocalDir(std::string* a_localDirName)STUPID_NON_CONST
 {
     *a_localDirName = m_rootDirPathBaseLocal.value() + std::string("/") + m_folderName.value();
 }
@@ -168,7 +170,7 @@ void pitz::daq::EqFctCollector::init(void)
         //if(  data[0] == '#'  ) continue;
         pn = strpbrk(data,s_LN);
         if( ( !pn ) || ( pn[0] == '#' ) ) continue;
-        if(IsAllowedToAdd2(pn)){
+        if(IsAllowedToAdd(pn)){
             AddNewEntryNotLocked(entryCreationType::fromConfigFile, data);
         }
     }
@@ -178,13 +180,12 @@ finalizeStuffPoint:
     aSharedGuard.UnlockShared();
     DEBUG_APP_INFO(1," ");
 
-    m_threadForEntryAdding = ::STDN::thread(&EqFctCollector::EntryAdderDeleter,this);
     m_threadRoot = ::STDN::thread(&EqFctCollector::RootThreadFunction,this);
     m_threadLocalFileDeleter = ::STDN::thread(&EqFctCollector::LocalFileDeleterThread,this);
 }
 
 
-bool pitz::daq::EqFctCollector::IsAllowedToAdd2(const char* a_newEntryLine)
+bool pitz::daq::EqFctCollector::IsAllowedToAdd(const char* a_newEntryLine)
 {
     // should be more general search
     ::std::string aEntryName(a_newEntryLine);
@@ -195,14 +196,69 @@ bool pitz::daq::EqFctCollector::IsAllowedToAdd2(const char* a_newEntryLine)
     if( FindEntry(pcEntryName) ){
         return false;
     }
-    if(FindEntryInAdding(pcEntryName)){
-        return false;
-    }
-    if(FindEntryInDeleting(pcEntryName)){
-        return false;
-    }
 
     return true;
+}
+
+
+void pitz::daq::EqFctCollector::DataGetterThread2(SNetworkStruct* a_pNet)
+{
+    NewSharedLockGuard< ::STDN::shared_mutex > lockGuard;
+    ::std::vector<SingleEntry*> vectForEntries;
+
+    struct sigaction sigAction;
+
+    //sigAction.sa_handler = SignalHandler;
+#ifdef sa_handler
+#pragma push_macro("sa_handler")
+#undef sa_handler
+    sigAction.__sigaction_handler.sa_handler = SignalHandler;
+#pragma pop_macro("sa_handler")
+#else
+    sigAction.sa_handler = SignalHandler;
+#endif
+    sigfillset(&sigAction.sa_mask);
+    sigdelset(&sigAction.sa_mask,SIGNAL_FOR_CANCELATION);
+    sigAction.sa_flags = 0;
+    sigAction.sa_restorer = NEWNULLPTR2; // not used
+
+    // we have to init sig handle, because in some cases, we will stop by interrupt
+    sigaction(SIGNAL_FOR_CANCELATION,&sigAction,NEWNULLPTR2);
+
+enteTryPoint:
+    try {
+        while(shouldWork() && a_pNet->m_shouldRun){
+            lockGuard.LockShared(&m_lockForEntries);
+            for(auto pEntry : a_pNet->daqEntries()){
+                if(pEntry->lockEntryForNetwork()){
+                    vectForEntries.push_back(pEntry);
+                }
+            }
+            lockGuard.UnlockShared();
+
+            if(vectForEntries.size()>0){
+                if(!this->DataGetterFunctionWithWait(a_pNet,vectForEntries)){
+                    sleep(2);
+                }
+            }
+            else{
+                sleep(2);
+            }
+
+            lockGuard.LockShared(&m_lockForEntries);
+            for(auto pEntry : a_pNet->daqEntries()){
+                pEntry->resetNetworkLockAndReturnIfDeletable();
+            }
+            lockGuard.UnlockShared();
+        }
+
+    } catch (...) {
+        lockGuard.UnlockShared();
+        sleep(5);
+        goto enteTryPoint;
+    }
+
+
 }
 
 
@@ -228,17 +284,6 @@ pitz::daq::SingleEntry* pitz::daq::EqFctCollector::FindEntry(const char* a_entry
     }
 
     return NEWNULLPTR2;
-}
-
-
-bool pitz::daq::EqFctCollector::FindEntryInAdding(const char* )
-{
-    return false;
-}
-
-bool pitz::daq::EqFctCollector::FindEntryInDeleting(const char *)
-{
-    return false;
 }
 
 
@@ -335,7 +380,7 @@ int pitz::daq::EqFctCollector::parse_old_config(const std::string& a_daqConfFile
     while ( fgets(data, data_length, fpConfig) ){
         pn = strpbrk(data,s_LN);
         if( ( !pn ) || ( pn[0] == '#' ) ) continue;
-        if(IsAllowedToAdd2(pn)){
+        if(IsAllowedToAdd(pn)){
             AddNewEntryNotLocked(entryCreationType::fromOldFile, data);
         }
     }
@@ -390,11 +435,9 @@ CLEAR_RET_TYPE pitz::daq::EqFctCollector::CLEAR_FUNC_NAME(void)
 
     m_threadRoot.join();
     m_threadLocalFileDeleter.join();
-    m_threadForEntryAdding.join();
 
     for( auto netStruct : m_networsList){
-        DEBUG_APP_INFO(0,"!!!!!! stopping network\n");
-        netStruct->StopThreadAndClear();
+        DEBUG_APP_INFO(0,"!!!!!! stopping and deleting network\n");
         delete netStruct;
     }
 
@@ -442,9 +485,7 @@ void pitz::daq::EqFctCollector::LocalFileDeleterThread()
 
     while( shouldWork()  ){
         m_semaForLocalFileDeleter.wait(-1);
-        while(m_fifoForLocalFileDeleter.size()>0){
-            filePathLocal = m_fifoForLocalFileDeleter.front();
-            m_fifoForLocalFileDeleter.pop();
+        while(m_fifoForLocalFileDeleter.frontAndPop(&filePathLocal)){
             DEBUG_APP_INFO(1," deleting file %s",filePathLocal.c_str());
             remove(filePathLocal.c_str());
         }
@@ -452,39 +493,19 @@ void pitz::daq::EqFctCollector::LocalFileDeleterThread()
 }
 
 
-void pitz::daq::EqFctCollector::EntryAdderDeleter()
-{
-    while( m_shouldWork  ){
-        m_semaForEntryAdder.wait(-1);
-
-        if(m_entriesToAdd.size()){
-            WriteLockEntries2();
-
-            while(m_entriesToAdd.size()){
-                //AddNewEntryPrivate(entryCreationType::fromUser, ::std::move(m_entriesToAdd.front()));
-                AddNewEntryNotLocked(entryCreationType::fromUser, m_entriesToAdd.front().c_str());
-                m_entriesToAdd.pop();
-            }
-
-            WriteUnlockEntries2();
-        }  // if(bAction){
-
-    }  // while( m_nWork2  ){
-}
-
-
 bool pitz::daq::EqFctCollector::AddNewEntryByUser(const char* a_entryLine)
 {
+    NewSharedLockGuard< ::STDN::shared_mutex > aGuard;
     bool bRet(false);
-    ReadLockEntries2();
 
-    if(IsAllowedToAdd2(a_entryLine)){
+    aGuard.LockShared(&m_lockForEntries);
+
+    if(IsAllowedToAdd(a_entryLine)){
         bRet=true;
-        m_entriesToAdd.push(a_entryLine);
-        m_semaForEntryAdder.post();
+        AddNewEntryNotLocked(entryCreationType::fromUser, a_entryLine);
     }
 
-    ReadUnlockEntries2();
+    aGuard.UnlockShared();
 
     return bRet;
 }
@@ -494,50 +515,44 @@ bool pitz::daq::EqFctCollector::RemoveEntryByUser(const char* a_entryName)
 {
     bool bRet(false);
     SingleEntry* pEntry;
+    NewLockGuard< ::STDN::shared_mutex> lockGuard;
 
-    this->WriteLockEntries2();
-
-    if(FindEntryInAdding(a_entryName)){
-        //bRet = true;
-        // todo: remove from adding entries list
-        return true;
-    }
+    lockGuard.Lock(&m_lockForEntries);
 
     if( (pEntry=FindEntry(a_entryName))){
         bRet=true;
         TryToRemoveEntryNotLocked(pEntry);
     }
 
-
-    this->WriteUnlockEntries2();
+    lockGuard.Unlock();
 
     return bRet;
 }
 
 
-//void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
-//{
-//    bool bIsAllowedToDelete;
-//    SNetworkStruct* pNetworkParent;
-//
-//    if(!a_pEntry){
-//        return;
-//    }
-//
-//    bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnIfPossibleNow();
-//
-//    //WriteLockEntries2();
-//    pNetworkParent = a_pEntry->CleanEntryNoFree();
-//    m_pNextNetworkToAdd = pNetworkParent;
-//    m_numberOfEntries.set_value(--m_nNumberOfEntries);
-//    //WriteUnlockEntries2();
-//
-//    DEBUG_APP_INFO(0,"Number of entries remained is: %d",m_nNumberOfEntries);
-//
-//    if(bIsAllowedToDelete){
-//        delete a_pEntry;
-//    }
-//}
+void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
+{
+    bool bIsAllowedToDelete;
+    int nNumberOfEntries(m_numberOfEntries.value());
+
+    if(!a_pEntry){
+        return;
+    }
+
+    bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnIfPossibleNow();
+
+    if(bIsAllowedToDelete){
+    }
+
+    m_pNextNetworkToAdd = a_pEntry->networkParent();
+    m_numberOfEntries.set_value(--nNumberOfEntries);
+
+    DEBUG_APP_INFO(0,"Number of entries remained is: %d",nNumberOfEntries);
+
+    if(bIsAllowedToDelete){
+        delete a_pEntry;
+    }
+}
 
 
 
@@ -586,7 +601,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
     while( this->shouldWork()  ){
 
         CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
-        CalcLocalDir2(&localDirPath);
+        CalcLocalDir(&localDirPath);
         filePathLocal = localDirPath+"/"+fileName;
         filePathRemote = remoteDirPath+"/"+fileName;
         std::cout<<"locDirPath="<<localDirPath<<std::endl;
@@ -680,7 +695,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
 
     //m_mutexForEntries.unlock_shared();
 
-    m_fifoForLocalFileDeleter.push(a_fileLocal);
+    m_fifoForLocalFileDeleter.pushBack(a_fileLocal);
     m_semaForLocalFileDeleter.post();
 }
 
@@ -700,7 +715,7 @@ bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_da
     bool bPossibleToAdd = a_pEntry->lockEntryForRoot();
 
     if(bPossibleToAdd){
-        m_fifoToFill.push({a_pEntry,a_data});
+        m_fifoToFill.pushBack({a_pEntry,a_data});
         //if(CHECK_QUEUE_ADD(m_fifoToFill.push({a_pEntry,a_data}))){
         //    m_semaForRootThread.post();
         //    return true;
@@ -716,107 +731,3 @@ bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_da
 
 
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
-
-#ifndef USE_SHARED_LOCK
-#define MAX_READ_LOCK_COUNT       0xffff
-#define WRITE_LOCK_ADD_VALUE      ((1<<16)|1)
-#define WRITE_LOCK_COUNT(_value)  ((_value)>>16)
-#define READ_LOCK_COUNT(_value)   static_cast<uint16_t>(_value)
-#endif
-
-pitz::daq::EntryLock::EntryLock()
-{
-    m_writerThread = NULL_THREAD_HANDLE;
-    m_nLocksCount = 0;
-
-    m_isGoingToWriteLock = 0;
-    m_bitwiseReserved = 0;
-}
-
-
-void pitz::daq::EntryLock::WriteLockWillBeCalled()
-{
-    m_isGoingToWriteLock = 1;
-}
-
-
-void pitz::daq::EntryLock::lock()
-{
-    pthread_t thisThread = pthread_self();
-
-#ifdef USE_SHARED_LOCK
-
-    if(thisThread!=m_lockerThread){
-        ::STDN::shared_mutex::lock();
-        m_lockerThread = thisThread;
-    }
-    ++m_nLocksCount; // __atomic_fetch_add(&m_nRootStopCount,1,__ATOMIC_RELAXED);
-
-#else   // #ifdef USE_SHARED_LOCK
-    uint32_t nReturn = __atomic_fetch_add(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED);
-
-    if(!nReturn){
-        m_writerThread=thisThread;
-        m_isGoingToWriteLock = 0;
-        return;
-    }
-
-    if(m_writerThread==thisThread){
-        m_isGoingToWriteLock = 0;
-        return;
-    }
-
-    while(nReturn){
-        SleepMs(1);
-        __atomic_fetch_sub(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED);
-        nReturn = __atomic_fetch_add(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED);
-    }
-
-    m_writerThread=thisThread;
-    m_isGoingToWriteLock = 0;
-
-#endif  // #ifdef USE_SHARED_LOCK
-}
-
-
-void pitz::daq::EntryLock::unlock()
-{
-    if(__atomic_fetch_sub(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED) == WRITE_LOCK_ADD_VALUE){
-#ifdef USE_SHARED_LOCK
-        ::STDN::shared_mutex::unlock();
-#endif
-        m_writerThread = NULL_THREAD_HANDLE;
-    }
-}
-
-
-#ifndef USE_SHARED_LOCK
-
-void pitz::daq::EntryLock::lock_shared()
-{
-    pthread_t thisThread = pthread_self();
-
-    while(m_isGoingToWriteLock){
-        SleepMs(1);
-    }
-
-    uint32_t nReturn = __atomic_fetch_add(&m_nLocksCount,1,__ATOMIC_RELAXED);
-
-    while(nReturn>MAX_READ_LOCK_COUNT){
-        if(m_writerThread==thisThread){
-            return;
-        }
-        __atomic_fetch_sub(&m_nLocksCount,1,__ATOMIC_RELAXED);
-        SleepMs(1);
-        nReturn = __atomic_fetch_add(&m_nLocksCount,1,__ATOMIC_RELAXED);
-    }
-}
-
-
-void pitz::daq::EntryLock::unlock_shared()
-{
-    __atomic_fetch_sub(&m_nLocksCount,1,__ATOMIC_RELAXED);
-}
-
-#endif   // #ifndef USE_SHARED_LOCK
-

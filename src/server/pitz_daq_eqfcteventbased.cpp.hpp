@@ -32,9 +32,8 @@ private:
     void*           m_pSocket;
     size_t          m_expectedReadHeader2;
     int             m_nPort;
-    uint64_t        m_isValid : 1;
     uint64_t        m_isDataLoaded : 1;
-    uint64_t        m_reserved : 62;
+    uint64_t        m_reserved : 63;
     char            *m_pBufferForHeader2;
 };
 
@@ -48,9 +47,10 @@ public:
     void ResizeItemsCount();
 
 public:
-    void*           m_pContext;
-    zmq_pollitem_t* m_pItems;
-    size_t          m_unCreatedItemsCount;
+    void*                   m_pContext;
+    mutable zmq_pollitem_t* m_pItems;
+    mutable size_t          m_unCreatedItemsCount;
+    mutable time_t          m_lastUpdateTime;
 };
 
 }}

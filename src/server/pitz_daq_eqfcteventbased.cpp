@@ -71,105 +71,75 @@ pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreation
 }
 
 
-void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
+bool pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct* a_pNet, const ::std::vector<SingleEntry*>& a_entries)
 {
-    SNetworkStructZmqDoocs* pNetZmq = static_cast< SNetworkStructZmqDoocs* >(a_pNet);
+    const SNetworkStructZmqDoocs* pNetZmq = static_cast< const SNetworkStructZmqDoocs* >(a_pNet);
     DEC_OUT_PD(SingleData)* dataFromNetwork;
     SingleEntryZmqDoocs* pEntry;
-    time_t  lastUpdateTime = 0, currentTime;
-    size_t unNumbeOfEntries(0);
-    int i;
+    time_t  currentTime;
+    int nHandled(0);
     int nReturn;
-    const ::std::list< SingleEntry* >& entriesList = a_pNet->daqEntries();
-    ::std::list< SingleEntry* >::const_iterator pIter, pIterEnd;
+    size_t unIndex;
+    size_t unValidEntriesCount;
+    const size_t cunEntriesCount(a_entries.size());
     // which one is the best container
     //::common::IntHash< SingleEntryZmqDoocs* >  validEntries(entriesList.size() * 2);
     //::std::vector< SingleEntryZmqDoocs* > validEntries;
-    ::std::list< SingleEntryZmqDoocs* > validEntries;
-    ::std::list< SingleEntryZmqDoocs* >::iterator listIter, listIterTmp, listIterEnd;
+    ::std::vector< SingleEntryZmqDoocs* > validEntries;
 
-    while(shouldWork() && a_pNet->shouldRun() ){
-
-        time(&currentTime);
-
-        if(currentTime-lastUpdateTime>PITZ_DAQ_LIST_UPDATE_DEFAULT_TIME){
-
-            validEntries.clear();
-
-            this->ReadLockEntries2();
-
-            pNetZmq->ResizeItemsCount();
-            pIterEnd = entriesList.end();
-            for(pIter=entriesList.begin();pIter!=pIterEnd;++pIter){
-                pEntry = static_cast< SingleEntryZmqDoocs* >( *pIter );
-                if(pEntry->LoadOrValidateData(pNetZmq->m_pContext)){
-                    if(pEntry->lockEntryForNetwork()){
-                        validEntries.push_back(pEntry);
-                        //validEntries.AddNewElement(pEntryCheck->socket(),pEntryCheck);
-                    }
-                }
+    time(&currentTime);
+    if(currentTime-pNetZmq->m_lastUpdateTime>PITZ_DAQ_LIST_UPDATE_DEFAULT_TIME){
+        for(unIndex=0;unIndex<cunEntriesCount;++unIndex){
+            pEntry = static_cast< SingleEntryZmqDoocs* >( a_entries[unIndex] );
+            if(pEntry->LoadOrValidateData(pNetZmq->m_pContext)){
+                validEntries.push_back(pEntry);
             }
-
-            this->ReadUnlockEntries2();
-
-            unNumbeOfEntries = validEntries.size();
-            if(unNumbeOfEntries<1){
-                SleepMs(1);
-                return;
+        }
+    }
+    else{
+        for(unIndex=0;unIndex<cunEntriesCount;++unIndex){
+            pEntry = static_cast< SingleEntryZmqDoocs* >( a_entries[unIndex] );
+            if(pEntry->isValid()){
+                validEntries.push_back(pEntry);
             }
-
-            lastUpdateTime = currentTime;
-
-        }  // if(currentTime-lastUpdateTime>PITZ_DAQ_LIST_UPDATE_DEFAULT_TIME){
-
-        unNumbeOfEntries = validEntries.size();
-        if(unNumbeOfEntries<1){
-            SleepMs(1);
-            return;
         }
+    }
 
-        i = 0;
-        //for(auto pEntry : validEntries){
-        for(listIter=validEntries.begin(),listIterEnd=validEntries.end(),pEntry=validEntries.front();listIter!=listIterEnd;++listIter,pEntry=*listIter){
-            pNetZmq->m_pItems[i].revents = 0;
-            pNetZmq->m_pItems[i].socket = pEntry->socket();
-            pNetZmq->m_pItems[i].events = ZMQ_POLLIN;
-            ++i;
+    unValidEntriesCount = validEntries.size();
+    if(unValidEntriesCount<1){return false;}
+    if(unValidEntriesCount>pNetZmq->m_unCreatedItemsCount){
+        zmq_pollitem_t* pItemsNew = static_cast<zmq_pollitem_t*>(realloc(pNetZmq->m_pItems,unValidEntriesCount));
+        if(!pItemsNew){
+            return false;
         }
+    }
 
-        nReturn=zmq_poll(pNetZmq->m_pItems,static_cast<int>(unNumbeOfEntries),-1);
+    for(unIndex=0;unIndex<unValidEntriesCount;++unIndex){
+        pNetZmq->m_pItems[unIndex].revents = 0;
+        pNetZmq->m_pItems[unIndex].socket = validEntries[unIndex]->socket();
+        pNetZmq->m_pItems[unIndex].events = ZMQ_POLLIN;
+    }
 
-        if(nReturn<=0){
-            continue;
-        }
+    nReturn=zmq_poll(pNetZmq->m_pItems,static_cast<int>(unValidEntriesCount),-1);
+    if(nReturn<=0){return false;}
 
-        i = 0;
-        listIterEnd=validEntries.end();
-        for(listIter=validEntries.begin();listIter!=listIterEnd;){
-            pEntry=*listIter;
-            if(pNetZmq->m_pItems[i].revents & ZMQ_POLLIN){
-                if( (dataFromNetwork=pEntry->ReadData())){
-                    AddJobForRootThread(dataFromNetwork,pEntry);
-                }
-                else{
-                    // set network error
-                }
-            }
-
-            if(pEntry->resetNetworkLockAndReturnIfDeletable()){
-                listIterTmp = listIter;
-                ++listIterTmp;
-                validEntries.erase(listIter);
-                delete pEntry;
-                listIter = listIterTmp;
+    for(unIndex=0;unIndex<unValidEntriesCount;++unIndex){
+        pEntry=validEntries[unIndex];
+        if(pNetZmq->m_pItems[unIndex].revents & ZMQ_POLLIN){
+            if( (dataFromNetwork=pEntry->ReadData())){
+                AddJobForRootThread(dataFromNetwork,pEntry);
+                ++nHandled;
             }
             else{
-                ++listIter;
+                // set network error
+                pEntry->SetError(1);
             }
-            ++i;
-        }
-    }  // while(shouldWork() && a_pNet->shouldRun()){
 
+        }
+
+    }
+
+    return nHandled?true:false;
 }
 
 
@@ -182,6 +152,7 @@ pitz::daq::SNetworkStructZmqDoocs::SNetworkStructZmqDoocs( EqFctCollector* a_pPa
     HANDLE_LOW_MEMORY(m_pContext, "Unable to create ZMQ context");
     m_pItems = NEWNULLPTR2;
     m_unCreatedItemsCount = 0;
+    m_lastUpdateTime = 0;
 }
 
 

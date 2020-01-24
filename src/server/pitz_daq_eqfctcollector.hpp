@@ -10,6 +10,7 @@
 #include <pitz_daq_internal.h>
 #include <queue>
 #include <string>
+#include <vector>
 
 #define     CODE_EVENT_BASED_DAQ  301	// eq_fct_type number for the .conf file
 
@@ -40,6 +41,7 @@ template <typename QueueType>
 class ProtectedQueue : private ::std::queue<QueueType>
 {
 public:
+    void  pushBack(const QueueType& newElem);
     bool  frontAndPop(QueueType* a_pBuffer);
 
 private:
@@ -90,11 +92,12 @@ protected:
     // API to be inherited
 private:
     virtual pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type type,const char* entryLine)=0;
-    virtual void DataGetterThread(SNetworkStruct* pNet)=0;
+    virtual bool DataGetterFunctionWithWait(const SNetworkStruct* pNet, const ::std::vector<SingleEntry*>& pEntries)=0;
+    void DataGetterThread2(SNetworkStruct* pNet);
 
     // API can be used, as well inherited by child
 protected:
-    virtual bool IsAllowedToAdd2(const char* newEntryName);
+    virtual bool IsAllowedToAdd(const char* newEntryName);
     virtual SNetworkStruct* CreateNewNetworkStruct();
 
     // API should be used by childs
@@ -112,12 +115,10 @@ private:
 private:
     //SStructForFill  GetAndDeleteFirstData();
     void AddNewEntryNotLocked(entryCreationType::Type type, const char* entryLine);
-    //void TryToRemoveEntryNotLocked(SingleEntry* pEntry);
+    void TryToRemoveEntryNotLocked(SingleEntry* pEntry);
     pitz::daq::SingleEntry* FindEntry(const char* entryName);
-    bool FindEntryInAdding(const char* entryName);
-    bool FindEntryInDeleting(const char* entryName);
     void CalculateRemoteDirPathAndFileName(std::string* fileName,std::string* remoteDirPath)STUPID_NON_CONST;
-    void CalcLocalDir2(std::string* localDirPath)STUPID_NON_CONST;
+    void CalcLocalDir(std::string* localDirPath)STUPID_NON_CONST;
 
     void CopyFileToRemoteAndMakeIndexing(const std::string& localFilePath, const std::string& remoteFilePath);
     void WriteEntriesToConfig()const;
@@ -125,7 +126,6 @@ private:
 
     void RootThreadFunction() ;
     void LocalFileDeleterThread();
-    void EntryAdderDeleter();
 
 public:
     // API public, for DOOCS properties usage
@@ -155,7 +155,6 @@ private:
     D_loadOldConfig                     m_loadOldConfig;
     D_int                               m_numberOfEntriesInError;
     D_text                              m_entriesInError;
-    ::STDN::thread                      m_threadForEntryAdding;
     ::STDN::thread                      m_threadRoot; // +
     ::STDN::thread                      m_threadLocalFileDeleter;
     ::std::list< SNetworkStruct* >      m_networsList;

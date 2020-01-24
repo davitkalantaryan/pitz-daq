@@ -132,6 +132,11 @@ public:
     SingleEntry( /*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     virtual ~SingleEntry() OVERRIDE2;
 
+    SNetworkStruct*  networkParent();
+    uint64_t  isValid()const;
+    void SetValid();
+    void SetInvalid();
+
 private:
     virtual const char* rootFormatString()const=0;
     void get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
@@ -146,10 +151,11 @@ public:
     bool  lockEntryForRoot();
     bool  lockEntryForCurrentFile();
     bool  lockEntryForNetwork();
+    bool  lockEntryForRootFile();
     bool  resetRootLockAndReturnIfDeletable();
-    bool  resetCurrentFileLockAndReturnIfDeletable();
     bool  resetNetworkLockAndReturnIfDeletable();
-    bool  isLockedByRootOrNetwork()const;
+    bool  resetRooFileLockAndReturnIfDeletable();
+    bool  isLocked()const;
 
 public:
     void Fill(DEC_OUT_PD(SingleData)* pNewMemory, int a_second, int a_eventNumber);
@@ -170,7 +176,7 @@ public:
     // This API will be used only by
 protected:
     //int  SetEntryInfo(uint32_t a_unOffset, const DEC_OUT_PD(BranchDataRaw)& a_branchInfo);
-    char*  ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString );
+    //char*  ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString );
     void   SetNetworkParent(SNetworkStruct* a_pNetworkParent);
         
 private:
@@ -181,7 +187,7 @@ protected:
     ::std::list<EntryParams::Base*>         m_userSetableParams;
     ::std::list<EntryParams::Base*>         m_permanentParams;
 
-    DEC_OUT_PD(BranchDataRaw)               m_branchInfo;
+    //DEC_OUT_PD(BranchDataRaw)               m_branchInfo;
 
 private:
 #if 0
@@ -211,8 +217,6 @@ private:
     // everihhing, that is not nullable is set before the member m_nReserved
     // everything that should not be set to 0, should be declared before this line
 private:
-    int                                     m_nReserved;
-    int                                     m_nReserved2;
     int                                     m_firstEventNumber,m_lastEventNumber;
     int                                     m_firstSecond,m_lastSecond;
 
@@ -222,17 +226,16 @@ private:
     TBranch*                                m_pBranchOnTree;
     //SPermanentParams2                       m_pp;
 
-
-
 protected:
-    uint32_t                                m_totalRootBufferSize;
-    uint32_t                                m_onlyNetDataBufferSize;
-    uint32_t                                m_unOffset;
-    mutable uint32_t                        m_willBeDeletedOrAddedToRootAtomic ;
+    mutable uint64_t                        m_willBeDeletedOrAddedToRootAtomic64 ;
 
     uint64_t                                m_isPresentInCurrentFile : 1;
     uint64_t                                m_isCleanEntryInheritableCalled : 1;
-    uint64_t                                m_bitwise64Reserved : 62;
+    uint64_t                                m_isValid : 1;
+    uint64_t                                m_bitwise64Reserved : 61;
+
+    int                                     m_nReserved1;
+    int                                     m_nReserved2;
 
 protected:
     SingleEntry(const SingleEntry&) = delete ;
@@ -247,15 +250,12 @@ public:
     SNetworkStruct(EqFctCollector* parent);
     virtual ~SNetworkStruct();
 
-    virtual void StopThreadAndClear();
-
     EqFctCollector*  parent();
     bool AddNewEntry(SingleEntry *newEntry);
-    const ::std::list< SingleEntry* >& daqEntries()const;
-    uint64_t shouldRun()const;
+    const ::std::list< SingleEntry* >& daqEntries()/*const*/;
 
 private:
-    void DataGetterThread();
+    //void DataGetterThread();
     //void RemoveEntryNoDeletePrivate(SingleEntry *entry);
 
 private:
@@ -263,7 +263,7 @@ private:
 
 protected:
     EqFctCollector*                             m_pParent;
-    STDN::thread*                               m_pThread;
+    STDN::thread                                m_thread;
     uint64_t                                    m_shouldRun : 1;
     uint64_t                                    m_bitwise64Reserved : 63 ;
     ::std::list< SingleEntry* >                 m_daqEntries;

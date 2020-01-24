@@ -12,13 +12,10 @@
 #include "pitz_daq_collectorproperties.hpp"
 #include "pitz_daq_eqfctcollector.hpp"
 #include <signal.h>
-#include <pitz_daq_data_handling_types.h>
 #include "pitz_daq_singleentry.cpp.hpp"
 
 #define DATA_SIZE_TO_SAVE   50000  // 40 kB
 #define MIN_NUMBER_OF_FILLS 20
-
-static void SignalHandler(int){}
 
 
 namespace pitz{ namespace daq{
@@ -87,8 +84,8 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
 
     // the story is following
     // everihhing, that is not nullable is set before the member m_nReserved
-    memset(&m_nReserved,0,sizeof(SingleEntry)-static_cast<size_t>(reinterpret_cast<char*>(&m_nReserved)-reinterpret_cast<char*>(this)));
-    m_branchInfo = {PITZ_DAQ_UNSPECIFIED_DATA_TYPE,PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES};
+    memset(&m_firstEventNumber,0,static_cast<size_t>(reinterpret_cast<char*>(&m_nReserved2)-reinterpret_cast<char*>(&m_firstEventNumber)));
+    //m_branchInfo = {PITZ_DAQ_UNSPECIFIED_DATA_TYPE,PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES};
 
     strStart = strspn (pLine,POSIIBLE_TERM_SYMBOLS);
     if(pLine[strStart]==0){nError = errorsFromConstructor::syntax;goto reurnPoint;}
@@ -144,48 +141,71 @@ pitz::daq::SingleEntry::~SingleEntry()
     free(this->m_daqName);
 }
 
-#define VALUE_FOR_DELETE            1u
-#define VALUE_FOR_ADD_TO_ROOT       static_cast<uint32_t>(1<<4)
-#define VALUE_FOR_ADD_TO_NETW       static_cast<uint32_t>(1<<8)
-#define VALUE_FOR_UNKNOWN_STATE     static_cast<uint32_t>(1<<12)
-#define NON_DELETABLE_BITS          (VALUE_FOR_ADD_TO_ROOT | VALUE_FOR_ADD_TO_NETW)
+#define VALUE_FOR_DELETE            1llu
+#define ACTUAL_DELETER              static_cast<uint64_t>(1<<4)
+#define VALUE_FOR_ADD_TO_ROOT       static_cast<uint64_t>(1<<8)
+#define VALUE_FOR_ADD_TO_NETW       static_cast<uint64_t>(1<<12)
+#define VALUE_FOR_ADD_TO_FILE       static_cast<uint64_t>(1<<16)
+#define VALUE_FOR_UNKNOWN_STATE     static_cast<uint64_t>(1<<20)
+#define NON_DELETABLE_BITS          (VALUE_FOR_ADD_TO_ROOT | VALUE_FOR_ADD_TO_NETW | VALUE_FOR_ADD_TO_FILE)
+#define DELETER_ALL                 (VALUE_FOR_DELETE | ACTUAL_DELETER)
 
 bool pitz::daq::SingleEntry::markEntryForDeleteAndReturnIfPossibleNow()
 {
-    uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_DELETE,__ATOMIC_RELAXED);
-    return nReturn ? false : true;
+    uint64_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic64,DELETER_ALL,__ATOMIC_RELAXED);
+
+    if(!nReturn){
+        return true;
+    }
+
+    // let's remove actual deleter flag
+    __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic64,~ACTUAL_DELETER,__ATOMIC_RELAXED);
+    return false;
 }
 
 
 bool pitz::daq::SingleEntry::lockEntryForRoot()
 {
-    uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    uint64_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic64,VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
 
     if(!(nReturn&VALUE_FOR_DELETE)){
         return true;
     }
 
-    __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic64,~VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
     return false;
 }
 
 
 bool pitz::daq::SingleEntry::lockEntryForNetwork()
 {
-    uint32_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    uint64_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic64,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
 
     if(!(nReturn&VALUE_FOR_DELETE)){
         return true;
     }
 
-    __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic64,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    return false;
+}
+
+
+bool pitz::daq::SingleEntry::lockEntryForRootFile()
+{
+    uint64_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrAddedToRootAtomic64,VALUE_FOR_ADD_TO_FILE,__ATOMIC_RELAXED);
+
+    if(!(nReturn&VALUE_FOR_DELETE)){
+        return true;
+    }
+
+    __atomic_fetch_and (&m_willBeDeletedOrAddedToRootAtomic64,~VALUE_FOR_ADD_TO_FILE,__ATOMIC_RELAXED);
     return false;
 }
 
 
 bool pitz::daq::SingleEntry::resetRootLockAndReturnIfDeletable()
 {
-    uint32_t nReturn = __atomic_and_fetch (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
+    uint64_t nReturn = __atomic_and_fetch (&m_willBeDeletedOrAddedToRootAtomic64,~VALUE_FOR_ADD_TO_ROOT,__ATOMIC_RELAXED);
 
     if(nReturn == VALUE_FOR_DELETE){ return true; }
 
@@ -195,14 +215,21 @@ bool pitz::daq::SingleEntry::resetRootLockAndReturnIfDeletable()
 
 bool pitz::daq::SingleEntry::resetNetworkLockAndReturnIfDeletable()
 {
-    uint32_t nReturn = __atomic_and_fetch (&m_willBeDeletedOrAddedToRootAtomic,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    uint64_t nReturn = __atomic_and_fetch (&m_willBeDeletedOrAddedToRootAtomic64,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
     return nReturn == VALUE_FOR_DELETE ? true : false;
 }
 
 
-bool pitz::daq::SingleEntry::isLockedByRootOrNetwork()const
+bool pitz::daq::SingleEntry::resetRooFileLockAndReturnIfDeletable()
 {
-    uint32_t nReturn = __atomic_load_n (&m_willBeDeletedOrAddedToRootAtomic,__ATOMIC_RELAXED);
+    uint64_t nReturn = __atomic_and_fetch (&m_willBeDeletedOrAddedToRootAtomic64,~VALUE_FOR_ADD_TO_FILE,__ATOMIC_RELAXED);
+    return nReturn == VALUE_FOR_DELETE ? true : false;
+}
+
+
+bool pitz::daq::SingleEntry::isLocked()const
+{
+    uint64_t nReturn = __atomic_load_n (&m_willBeDeletedOrAddedToRootAtomic64,__ATOMIC_RELAXED);
 
     if(nReturn&NON_DELETABLE_BITS){ return true; }
 
@@ -210,7 +237,7 @@ bool pitz::daq::SingleEntry::isLockedByRootOrNetwork()const
 }
 
 
-
+#if 0
 char* pitz::daq::SingleEntry::ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString )
 {
     char* pcRootFormatString;
@@ -228,6 +255,7 @@ char* pitz::daq::SingleEntry::ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString
 
     return pcRootFormatString;
 }
+#endif
 
 
 //void pitz::daq::SingleEntry::RemoveDoocsProperty()
@@ -507,67 +535,22 @@ pitz::daq::SNetworkStruct::SNetworkStruct(EqFctCollector* a_parent)
     m_shouldRun = 1;
     m_bitwise64Reserved =0;
 
-    m_pThread = new STDN::thread(&SNetworkStruct::DataGetterThread,this);
+    m_thread = STDN::thread(&EqFctCollector::DataGetterThread2,m_pParent,this);
 }
 
 
 pitz::daq::SNetworkStruct::~SNetworkStruct()
 {
-    StopThreadAndClear();
-}
+    pthread_t handleToThread = static_cast<pthread_t>(m_thread.native_handle());
 
+    m_shouldRun = 0;
+    pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
+    m_thread.join();
 
-void pitz::daq::SNetworkStruct::StopThreadAndClear()
-{
-    if(m_pThread){
-        pthread_t handleToThread = static_cast<pthread_t>(m_pThread->native_handle());
-
-        m_shouldRun = 0;
-        pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
-        m_pThread->join();
-        delete m_pThread;
-        m_pThread = NEWNULLPTR2;
-
-        for(auto pEntry : m_daqEntries){
-            delete pEntry;
-        }
-        m_daqEntries.clear();
+    for(auto pEntry : m_daqEntries){
+        delete pEntry;
     }
-}
-
-
-void pitz::daq::SNetworkStruct::DataGetterThread()
-{
-    struct sigaction sigAction;
-
-    //sigAction.sa_handler = SignalHandler;
-#ifdef sa_handler
-#pragma push_macro("sa_handler")
-#undef sa_handler
-    sigAction.__sigaction_handler.sa_handler = SignalHandler;
-#pragma pop_macro("sa_handler")
-#else
-    sigAction.sa_handler = SignalHandler;
-#endif
-    sigfillset(&sigAction.sa_mask);
-    sigdelset(&sigAction.sa_mask,SIGNAL_FOR_CANCELATION);
-    sigAction.sa_flags = 0;
-    sigAction.sa_restorer = NEWNULLPTR2; // not used
-
-    // we have to init sig handle, because in some cases, we will stop by interrupt
-    sigaction(SIGNAL_FOR_CANCELATION,&sigAction,NEWNULLPTR2);
-
-
-    while(m_shouldRun && m_pParent->shouldWork()){
-        //if((m_daqEntries.size()>0)&&(!m_pParent2->m_nDataStopCount)){
-        if((m_daqEntries.size()>0)){
-            m_pParent->DataGetterThread(this);
-        }
-        else{
-            SleepMs(2);
-        }
-    }
-
+    m_daqEntries.clear();
 }
 
 
@@ -577,16 +560,16 @@ pitz::daq::EqFctCollector* pitz::daq::SNetworkStruct::parent()
 }
 
 
-const ::std::list< pitz::daq::SingleEntry* >& pitz::daq::SNetworkStruct::daqEntries()const
+const ::std::list< pitz::daq::SingleEntry* >& pitz::daq::SNetworkStruct::daqEntries()/*const*/
 {
     return m_daqEntries;
 }
 
 
-uint64_t pitz::daq::SNetworkStruct::shouldRun()const
-{
-    return m_shouldRun;
-}
+//uint64_t pitz::daq::SNetworkStruct::shouldRun()const
+//{
+//    return m_shouldRun;
+//}
 
 
 //void pitz::daq::SNetworkStruct::RemoveEntryNoDeletePrivate(SingleEntry *a_newEntry)

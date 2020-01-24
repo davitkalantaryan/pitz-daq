@@ -6,6 +6,7 @@
 #include "pitz_daq_singleentrydoocs.hpp"
 #include <eq_client.h>
 #include <new>
+#include <pitz_daq_data_handling_types.h>
 
 #define DOOCS_URI_MAX_LEN           256
 #define SPECIAL_KEY_DOOCS           "doocs"
@@ -126,7 +127,14 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
         throw errorsFromConstructor::type;
     }
 
-    m_rootFormatStr = this->ApplyEntryInfo(1);
+    uint32_t unOnlyDataBufferSize,unTotalRootBufferSize;
+
+    if( (m_branchInfo.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(m_branchInfo.itemsCountPerEntry<1) ){
+        throw ::std::bad_alloc();
+    }
+
+    m_rootFormatStr = PrepareDaqEntryBasedOnType(1,&m_branchInfo,&unOnlyDataBufferSize,&unTotalRootBufferSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+
     if(!m_rootFormatStr){
         throw ::std::bad_alloc();
     }
@@ -253,6 +261,13 @@ const char* pitz::daq::SingleEntryDoocs::rootFormatString()const
 }
 
 
+DEC_OUT_PD(SingleData)* pitz::daq::SingleEntryDoocs::GetNewMemoryForNetwork()
+{
+    return malloc(1000);
+}
+
+
+#if 0
 void pitz::daq::SingleEntryDoocs::ValueStringByKeyInherited(bool a_bReadAll, const char* a_request, char* a_buffer, int a_bufferLength)const
 {
     //#define SPECIAL_KEY_DOOCS "doocs"
@@ -297,3 +312,4 @@ void pitz::daq::SingleEntryDoocs::PermanentDataIntoFile(FILE* a_fpFile)const
             m_branchInfo.dataType,
             m_branchInfo.itemsCountPerEntry);
 }
+#endif
