@@ -282,10 +282,28 @@ void pitz::daq::SingleEntry::SetNetworkParent(SNetworkStruct* a_pNetworkParent)
 
 
 
-//pitz::daq::SNetworkStruct* pitz::daq::SingleEntry::networkParent()
-//{
-//    return m_pNetworkParent;
-//}
+pitz::daq::SNetworkStruct* pitz::daq::SingleEntry::networkParent()
+{
+    return m_pNetworkParent;
+}
+
+
+uint64_t pitz::daq::SingleEntry::isValid()const
+{
+    return m_isValid ;
+}
+
+
+void pitz::daq::SingleEntry::SetValid()
+{
+    m_isValid = 1;
+}
+
+
+void pitz::daq::SingleEntry::SetInvalid()
+{
+    m_isValid = 0;
+}
 
 
 //bool pitz::daq::SingleEntry::KeepEntry2()const

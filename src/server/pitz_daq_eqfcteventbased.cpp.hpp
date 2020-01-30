@@ -30,11 +30,13 @@ public:
 private:
     ::std::string   m_hostName;
     void*           m_pSocket;
-    size_t          m_expectedReadHeader2;
+    //size_t          m_expectedReadHeader2;
+    size_t          m_expectedRead1;
+    size_t          m_expectedRead2;
     int             m_nPort;
     uint64_t        m_isDataLoaded : 1;
     uint64_t        m_reserved : 63;
-    char            *m_pBufferForHeader2;
+    char            *m_pBufferForHeader;
 };
 
 

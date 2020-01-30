@@ -710,6 +710,12 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
 //}
 
 
+uint64_t pitz::daq::EqFctCollector::shouldWork()const
+{
+    return m_shouldWork;
+}
+
+
 bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_data, SingleEntry* a_pEntry)
 {
     bool bPossibleToAdd = a_pEntry->lockEntryForRoot();

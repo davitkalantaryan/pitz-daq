@@ -23,7 +23,7 @@ public:
     SingleEntryDoocs(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     virtual ~SingleEntryDoocs() OVERRIDE2;
 
-    DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork() OVERRIDE2;
+    DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork2() ;
 
     //virtual void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const OVERRIDE2;
     const char* rootFormatString()const OVERRIDE2;
@@ -40,6 +40,7 @@ protected:
     char* m_doocsUrl;
     char* m_rootFormatStr;
     DEC_OUT_PD(BranchDataRaw)    m_branchInfo;
+    uint32_t m_unOnlyDataBufferSize,m_unTotalRootBufferSize;
 };
 }}
 

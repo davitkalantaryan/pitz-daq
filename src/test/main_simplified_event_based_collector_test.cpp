@@ -47,6 +47,14 @@
 #define HANDLE_LOW_MEMORY(_memory) do{if(!(_memory)){exit(1);}}while(0)
 #endif
 
+#ifndef PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES
+#define PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES -1
+#endif
+
+#ifndef PITZ_DAQ_UNSPECIFIED_DATA_TYPE
+#define PITZ_DAQ_UNSPECIFIED_DATA_TYPE -1
+#endif
+
 //#define CENTRAL_TIMING_DETAILS  "tcp://mtcapitzcpu4:5566"
 
 static void TineThreadFunction(void);
@@ -100,7 +108,7 @@ private:
     uint64_t        m_isValid : 1;
     uint64_t        m_isDataLoaded : 1;
     uint64_t        m_reserved : 62;
-    char            *m_pBuffer1,*m_pBuffer2;
+    char            *m_pBufferForHeader,*m_pBufferForData;
 };
 
 class DaqCollectorDZ
@@ -159,7 +167,7 @@ SingleEntryZmqDoocs::SingleEntryZmqDoocs()
     m_isValid = 0;
     m_isDataLoaded = 0;
     m_reserved = 0;
-    m_pBuffer1 = m_pBuffer2 = nullptr;
+    m_pBufferForData = m_pBufferForHeader = nullptr;
 }
 
 
@@ -343,7 +351,7 @@ int SingleEntryZmqDoocs::ReadData()
             return -1;
         }
 
-        nReturn=zmq_recv(this->m_pSocket,m_pBuffer1,m_expectedRead1,0);
+        nReturn=zmq_recv(this->m_pSocket,m_pBufferForHeader,m_expectedRead1,0);
         if(nReturn!=static_cast<int>(m_expectedRead1)){
             return -1;
         }
@@ -357,7 +365,7 @@ int SingleEntryZmqDoocs::ReadData()
             return -1;
         }
 
-        nReturn=zmq_recv(this->m_pSocket,m_pBuffer2,m_expectedRead2,0);
+        nReturn=zmq_recv(this->m_pSocket,m_pBufferForData,m_expectedRead2,0);
         if(nReturn!=static_cast<int>(m_expectedRead2)){
             return -1;
         }
@@ -509,9 +517,9 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
     }
 
     if(expectedRead1>m_buffer1Size){
-        char* pBufferTmp = static_cast<char*>(realloc(m_pBuffer1,expectedRead1));
+        char* pBufferTmp = static_cast<char*>(realloc(m_pBufferForHeader,expectedRead1));
         if(pBufferTmp){
-            m_pBuffer1 = pBufferTmp;
+            m_pBufferForHeader = pBufferTmp;
             m_buffer1Size=m_expectedRead1 = expectedRead1;
         }
     }
@@ -520,9 +528,9 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
     }
 
     if(expectedRead2>m_buffer2Size){
-        char* pBufferTmp = static_cast<char*>(realloc(m_pBuffer2,expectedRead2));
+        char* pBufferTmp = static_cast<char*>(realloc(m_pBufferForData,expectedRead2));
         if(pBufferTmp){
-            m_pBuffer2 = pBufferTmp;
+            m_pBufferForData = pBufferTmp;
             m_buffer2Size=m_expectedRead2 = expectedRead2;
         }
     }

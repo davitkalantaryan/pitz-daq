@@ -11,6 +11,7 @@
 #include "pitz_daq_eqfcteventbased.cpp.hpp"
 #include <thread>
 #include <common/inthash.hpp>
+#include <pitz_daq_data_handling_types.h>
 
 #ifndef HANDLE_LOW_MEMORY
 #define HANDLE_LOW_MEMORY(_memory,...) do{if(!(_memory)){exit(1);}}while(0)
@@ -185,12 +186,14 @@ pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_cr
 {
     m_hostName = "";
     m_pSocket = NEWNULLPTR;
-    m_expectedReadHeader2 = 0;
+    //m_expectedReadHeader2 = 0;
+    m_expectedRead1 = 0;
+    m_expectedRead2 = 0;
     m_nPort = PITZ_DAQ_UNKNOWN_ZMQ_PORT;
     m_isDataLoaded = 0;
     m_isValid = 0;
     m_reserved = 0;
-    m_pBufferForHeader2 = NEWNULLPTR;
+    m_pBufferForHeader = NEWNULLPTR;
 }
 
 
@@ -212,6 +215,84 @@ void* SingleEntryZmqDoocs::socket()const
 
 DEC_OUT_PD(SingleData)* SingleEntryZmqDoocs::ReadData()
 {
+#if 1
+
+    int nReturn;
+    int nDataType;
+    dmsg_hdr_t aDcsHeader;
+    struct dmsg_header_v1* pHeaderV1;
+    DEC_OUT_PD(SingleData)* pMemory=nullptr;
+    size_t     more_size;
+    int        more;
+
+#ifdef USE_ZMQ_MESSAGES
+    zmq_msg_t  aMsg;
+    zmq_msg_init (&aMsg);
+    nReturn=zmq_msg_recv(&aMsg,pItems[0].socket,0);
+    // ...
+#endif
+
+    m_isValid = 0;
+
+    nReturn=zmq_recv(this->m_pSocket,&aDcsHeader,sizeof(dmsg_hdr_t),0);
+    if(nReturn<4){
+        return NEWNULLPTR2;
+    }
+
+    if(nReturn != aDcsHeader.size){
+        // this is not header give chance for header
+        return NEWNULLPTR2;
+    }
+
+    switch(aDcsHeader.vers){
+    case 1:
+        pHeaderV1 = reinterpret_cast<struct dmsg_header_v1*>(&aDcsHeader);
+        nDataType = pHeaderV1->type;
+        break;
+    default:
+        return NEWNULLPTR2;
+    }
+
+    if(nDataType != m_branchInfo.dataType){
+        return NEWNULLPTR;
+    }
+
+    if(m_expectedRead1){
+        more_size = sizeof(more);
+        nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
+
+        if(!more){
+            return nullptr;
+        }
+
+        nReturn=zmq_recv(this->m_pSocket,m_pBufferForHeader,m_expectedRead1,0);
+        if(nReturn!=static_cast<int>(m_expectedRead1)){
+            return nullptr;
+        }
+    }
+
+    if(m_expectedRead2){
+        pMemory = CreateDataWithOffset(0,m_expectedRead2);
+        more_size = sizeof(more);
+        nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
+
+        if(!more){
+            this->FreeUsedMemory(pMemory);
+            return nullptr;
+        }
+
+        nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromEntry(pMemory),m_expectedRead2,0);
+        if(nReturn!=static_cast<int>(m_expectedRead2)){
+            this->FreeUsedMemory(pMemory);
+            return nullptr;
+        }
+    }
+
+    m_isValid = 1;
+
+    return pMemory;
+
+#else
     int nReturn;
     int nDataType;
     dmsg_hdr_t aDcsHeader;
@@ -306,6 +387,7 @@ DEC_OUT_PD(SingleData)* SingleEntryZmqDoocs::ReadData()
     m_isValid = 1;
 
     return pMemory;
+#endif
 }
 
 
@@ -384,10 +466,11 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
     }
 
     if(m_rootFormatStr){
-        if(!this->ApplyEntryInfo(0)){return false;}
+        //if(!this->ApplyEntryInfo(0)){return false;}
+        if(!PrepareDaqEntryBasedOnType(0,&m_branchInfo,&m_unOnlyDataBufferSize,&m_unTotalRootBufferSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2)){return false;}
     }
     else{
-        m_rootFormatStr = this->ApplyEntryInfo(0);
+        m_rootFormatStr = PrepareDaqEntryBasedOnType(1,&m_branchInfo,&m_unOnlyDataBufferSize,&m_unTotalRootBufferSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
         if(!m_rootFormatStr){return false;}
     }
 

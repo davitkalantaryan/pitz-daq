@@ -143,7 +143,7 @@ private:
     void set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
 
 public:
-    virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork() = 0;
+    //virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork() = 0;
     virtual void FreeUsedMemory(DEC_OUT_PD(SingleData)* usedMemory);
 
 public:
