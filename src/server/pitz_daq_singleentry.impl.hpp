@@ -14,9 +14,9 @@
 #include <stdlib.h>
 
 template <typename IntType>
-pitz::daq::EntryParams::IntParam<IntType>::IntParam(const char* a_entryParamName, ::std::list<EntryParams::Base*>* a_pContainer)
+pitz::daq::EntryParams::IntParam<IntType>::IntParam(const char* a_entryParamName)
     :
-      Base(a_entryParamName,a_pContainer)
+      Base(a_entryParamName)
 {
     m_value = 0;
 }

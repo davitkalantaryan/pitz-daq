@@ -30,11 +30,11 @@ LIBS += -L/afs/ifh.de/group/pitz/doocs/data/ers/sys/$$CODENAME/lib
 # LIBS += -lMCclass
 SOURCES += \
     $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp \
-    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.cpp
+    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.cpp
 
 
 HEADERS += \
-    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.hpp \
+    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.hpp \
     $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp.hpp \
     $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.hpp
 

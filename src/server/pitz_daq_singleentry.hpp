@@ -57,8 +57,6 @@ typedef const char* TypeConstCharPtr;
 namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknownCreation};}
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
-//time_t STRING_TO_EPOCH(const char* _a_string,const char* a_cpcInf);
-//const char* EPOCH_TO_STRING2(const time_t& a_epoch, const char* a_cpcInf, char* a_buffer, int a_bufferLength);
 
 #define D_BASE_FOR_STR  D_text
 
@@ -71,7 +69,7 @@ typedef void (*TypeClbk)(Base*,void*);
 class Base
 {
 public:
-    Base(const char* entryParamName, ::std::list<EntryParams::Base*>* pContainer);
+    Base(const char* entryParamName);
     virtual ~Base();
 
     const char* paramName()const;
@@ -93,7 +91,7 @@ template <typename IntType>
 class IntParam : public Base
 {
 public:
-    IntParam(const char* entryParamName, ::std::list<EntryParams::Base*>* pContainer);
+    IntParam(const char* entryParamName);
     virtual ~IntParam() OVERRIDE2 ;
     virtual bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
     virtual size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
@@ -108,7 +106,7 @@ protected:
 class Mask : public Base
 {
 public:
-    Mask(const char* entryParamName, ::std::list<EntryParams::Base*>* pContainer);
+    Mask(const char* entryParamName);
     ~Mask() OVERRIDE2 ;
 
     bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
@@ -120,6 +118,21 @@ private:
     time_t m_expirationTime;
 };
 
+class String : public Base
+{
+public:
+    String(const char* entryParamName);
+    ~String() OVERRIDE2 ;
+
+    bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
+    size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
+    const ::std::string& value()const;
+    void setValue(const ::std::string& newValue);
+
+private:
+    ::std::string m_string;
+};
+
 } // namespace EntryParams{
 
 
@@ -129,89 +142,56 @@ class SingleEntry : protected D_BASE_FOR_STR
     friend class SNetworkStruct;
     friend class TreeForSingleEntry;
 public:
-    SingleEntry( /*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
+    SingleEntry( entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     virtual ~SingleEntry() OVERRIDE2;
 
-    SNetworkStruct*  networkParent();
-    uint64_t  isValid()const;
-    void SetValid();
-    void SetInvalid();
+    virtual const char* rootFormatString()const=0;
+    virtual void        FreeUsedMemory(DEC_OUT_PD(SingleData)* usedMemory);
+    SNetworkStruct*     networkParent();
+    uint64_t            isValid()const;
+    void                SetValid();
+    void                SetInvalid();
+    bool                markEntryForDeleteAndReturnIfPossibleNow();
+    bool                lockEntryForRoot();
+    bool                lockEntryForCurrentFile();
+    bool                lockEntryForNetwork();
+    bool                lockEntryForRootFile();
+    bool                resetRootLockAndReturnIfDeletable();
+    bool                resetNetworkLockAndReturnIfDeletable();
+    bool                resetRooFileLockAndReturnIfDeletable();
+    bool                isLockedForAnyAction()const;
+    void                Fill(DEC_OUT_PD(SingleData)* pNewMemory, int a_second, int a_eventNumber);
+    const char*         daqName()const{return m_daqName;}
+    int                 firstSecond()const{return m_firstSecond;}
+    int                 firstEventNumber()const{return m_firstEventNumber;}
+    int                 lastSecond()const{return m_lastSecond;}
+    int                 lastEventNumber()const{return m_lastEventNumber;}
+    uint64_t            isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
+    void                WriteContentToTheFile(FILE* fpFile)const;
+    void                SetError(int a_error);
+
+    // This API will be used only by inheritors (childs, grandchilds etc.)
+protected:
+    void                LoadFromLine(const char* a_entryLine, bool isIniting, bool isInitingByUserSet);
+    void                AddNewParameter(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
 
 private:
-    virtual const char* rootFormatString()const=0;
-    void get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
-    void set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
-
-public:
-    //virtual DEC_OUT_PD(SingleData)* GetNewMemoryForNetwork() = 0;
-    virtual void FreeUsedMemory(DEC_OUT_PD(SingleData)* usedMemory);
-
-public:
-    bool  markEntryForDeleteAndReturnIfPossibleNow();
-    bool  lockEntryForRoot();
-    bool  lockEntryForCurrentFile();
-    bool  lockEntryForNetwork();
-    bool  lockEntryForRootFile();
-    bool  resetRootLockAndReturnIfDeletable();
-    bool  resetNetworkLockAndReturnIfDeletable();
-    bool  resetRooFileLockAndReturnIfDeletable();
-    bool  isLocked()const;
-
-public:
-    void Fill(DEC_OUT_PD(SingleData)* pNewMemory, int a_second, int a_eventNumber);
-    const char* daqName()const{return m_daqName;}
-    //void AddExistanceInRootFile(int second, int eventNumber);
-    int firstSecond()const{return m_firstSecond;}
-    int firstEventNumber()const{return m_firstEventNumber;}
-    int lastSecond()const{return m_lastSecond;}
-    int lastEventNumber()const{return m_lastEventNumber;}
-    uint64_t isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
-    void WriteContentToTheFile(FILE* fpFile)const;
-    // APIs for DOOCS property
-    //void ValueStringByKey2(const char* request, char* buffer, int bufferLength)const;
-    //void SetProperty(const char* propertyAndAttributes);
-    //void RemoveDoocsProperty();
-    void SetError(int a_error);
-
-    // This API will be used only by
-protected:
-    //int  SetEntryInfo(uint32_t a_unOffset, const DEC_OUT_PD(BranchDataRaw)& a_branchInfo);
-    //char*  ApplyEntryInfo( DEC_OUT_PD(BOOL2) a_bDubRootString );
-    void   SetNetworkParent(SNetworkStruct* a_pNetworkParent);
+    // DOOCS callbacks
+    void                get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
+    void                set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
         
 private:
     ::std::list< SingleEntry* >::iterator   m_thisIter;
-
-protected:
     ::std::list<EntryParams::Base*>         m_allParams;
     ::std::list<EntryParams::Base*>         m_userSetableParams;
     ::std::list<EntryParams::Base*>         m_permanentParams;
-
-    //DEC_OUT_PD(BranchDataRaw)               m_branchInfo;
-
-private:
-#if 0
-    //struct SPermanentParams2
-    //{
-    //    int         numOfFilesIn;
-    //    int         numberInAllFiles;
-    //    time_t      expirationTime;
-    //    time_t      creationTime;
-    //    uint64_t    errorsMasked : 1;
-    //    uint64_t    collectionMasked : 1;
-    //    uint64_t    collect : 1;
-    //    uint64_t    reserved64bit : 61;
-    //    SMaskParam  collectingMaskParam;
-    //    SMaskParam  errorMaskParam;
-    //};
-#endif
-    EntryParams::IntParam<int>      m_numberInCurrentFile;
-    EntryParams::IntParam<int>      m_numberInAllFiles;
-    EntryParams::IntParam<time_t>   m_expirationTime;
-    EntryParams::IntParam<time_t>   m_creationTime;
-    EntryParams::Mask               m_collectionMask;
-    EntryParams::Mask               m_errorMask;
-    EntryParams::IntParam<int>      m_error;
+    EntryParams::IntParam<int>              m_numberInCurrentFile;
+    EntryParams::IntParam<int>              m_numberInAllFiles;
+    EntryParams::IntParam<time_t>           m_expirationTime;
+    EntryParams::IntParam<time_t>           m_creationTime;
+    EntryParams::Mask                       m_collectionMask;
+    EntryParams::Mask                       m_errorMask;
+    EntryParams::IntParam<int>              m_error;
 
     // the story is following
     // everihhing, that is not nullable is set before the member m_nReserved
@@ -224,20 +204,18 @@ private:
     SNetworkStruct*                         m_pNetworkParent;
     TTree*                                  m_pTreeOnRoot2;
     TBranch*                                m_pBranchOnTree;
-    //SPermanentParams2                       m_pp;
 
-protected:
-    mutable uint64_t                        m_willBeDeletedOrAddedToRootAtomic64 ;
+    mutable uint64_t                        m_willBeDeletedOrIsUsedAtomic64 ;
 
     uint64_t                                m_isPresentInCurrentFile : 1;
-    uint64_t                                m_isCleanEntryInheritableCalled : 1;
+    //uint64_t                                m_isCleanEntryInheritableCalled : 1;
     uint64_t                                m_isValid : 1;
     uint64_t                                m_bitwise64Reserved : 61;
 
     int                                     m_nReserved1;
     int                                     m_nReserved2;
 
-protected:
+private:
     SingleEntry(const SingleEntry&) = delete ;
 };
 
@@ -250,24 +228,18 @@ public:
     SNetworkStruct(EqFctCollector* parent);
     virtual ~SNetworkStruct();
 
-    EqFctCollector*  parent();
     bool AddNewEntry(SingleEntry *newEntry);
     const ::std::list< SingleEntry* >& daqEntries()/*const*/;
 
 private:
-    //void DataGetterThread();
-    //void RemoveEntryNoDeletePrivate(SingleEntry *entry);
-
-private:
-    SNetworkStruct(const SNetworkStruct&){}
-
-protected:
     EqFctCollector*                             m_pParent;
     STDN::thread                                m_thread;
     uint64_t                                    m_shouldRun : 1;
     uint64_t                                    m_bitwise64Reserved : 63 ;
     ::std::list< SingleEntry* >                 m_daqEntries;
     ::std::list< SNetworkStruct* >::iterator    m_thisIter;
+private:
+    SNetworkStruct(const SNetworkStruct&){}
 
 };
 
