@@ -16,7 +16,8 @@
 
 #define MINIMUM_ROOT_FILE_SIZE_HARD     1000
 
-#define SEMA_WAIT_TIME_MS       10000
+//#define SEMA_WAIT_TIME_MS       10000
+#define WAIT_INFINITE  -1
 #define BUF_LEN_FOR_STRFTIME    64
 #define data_length             1024
 #define NUMER_OF_WAITING_FOR_ERR_REP    36000
@@ -35,6 +36,7 @@ static void SignalHandler(int){}
 pitz::daq::EqFctCollector::EqFctCollector()
         :
           EqFct("Name = location"),
+          //m_testProp("TEST_VOID",this),
           m_genEvent("GEN_EVENT value",this),
           m_fileMaxSize("FILE_SIZE_DESIGNED approximate size of final file", this),
           m_numberOfEntries("NUMBER.OF.ENTRIES",this),
@@ -228,6 +230,7 @@ void pitz::daq::EqFctCollector::DataGetterThread2(SNetworkStruct* a_pNet)
 enteTryPoint:
     try {
         while(shouldWork() && a_pNet->m_shouldRun){
+            vectForEntries.clear();
             lockGuard.LockShared(&m_lockForEntries);
             for(auto pEntry : a_pNet->daqEntries()){
                 if(pEntry->lockEntryForNetwork()){
@@ -566,33 +569,61 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 //}
 
 
-void pitz::daq::EqFctCollector::CheckGenEventError(int* a_pnPreviousTime, int* a_pnPreviousGenEvent)
+//void pitz::daq::EqFctCollector::CheckGenEventError(int* a_pnPreviousTime, int* a_pnPreviousGenEvent)
+//{
+//    struct timeb currentTime;
+//    int nGenEvent;
+//
+//    ftime(&currentTime);
+//    if((currentTime.time-(*a_pnPreviousTime))>=10){
+//        nGenEvent = m_genEvent.value();
+//        if(nGenEvent==(*a_pnPreviousGenEvent)){
+//            set_error(2018,"Gen event error");
+//        }
+//        else{
+//            set_error(0,"ok");
+//            (*a_pnPreviousGenEvent) = nGenEvent;
+//        }
+//
+//        (*a_pnPreviousTime) = static_cast<int>(currentTime.time);
+//    }
+//}
+
+
+void* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
-    struct timeb currentTime;
-    int nGenEvent;
+    int64_t llnCurFileSize;
+    TFile *pRootFile;
+    std::string localDirPath, remoteDirPath, fileName;
 
-    ftime(&currentTime);
-    if((currentTime.time-(*a_pnPreviousTime))>=(SEMA_WAIT_TIME_MS/1000)){
-        nGenEvent = m_genEvent.value();
-        if(nGenEvent==(*a_pnPreviousGenEvent)){
-            set_error(2018,"Gen event error");
-        }
-        else{
-            set_error(0,"ok");
-            (*a_pnPreviousGenEvent) = nGenEvent;
-        }
+    CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
+    CalcLocalDir(&localDirPath);
+    *a_pFilePathLocal = localDirPath+"/"+fileName;
+    *a_pFilePathRemote = remoteDirPath+"/"+fileName;
+    std::cout<<"locDirPath="<<localDirPath<<std::endl;
+    std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
+    mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+    mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
 
-        (*a_pnPreviousTime) = static_cast<int>(currentTime.time);
+    pRootFile = new TFile(a_pFilePathLocal->c_str(),"UPDATE","DATA",1);// SetCompressionLevel(1)
+    if ((!pRootFile) || pRootFile->IsZombie()){
+        fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
+        exit(-1);
     }
+    pRootFile->cd(); gFile = pRootFile;
+    llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(llnCurFileSize);
+    DEBUG_APP_INFO(2," ");
+
+    return pRootFile;
 }
 
 
 void pitz::daq::EqFctCollector::RootThreadFunction()
 {
-    TFile *pGlobalRootFileInitial,*pRootFile = NEWNULLPTR2;
-    std::string filePathLocal, filePathRemote, localDirPath, remoteDirPath, fileName;
+    std::string filePathLocal, filePathRemote;
+    TFile *pGlobalRootFileInitial=gFile, *pRootFile = NEWNULLPTR2;
     int nSeconds, nEventNumber;
-    int nPreviousGenEvent(0),nPreviousTime(0);
+    //int nPreviousGenEvent(0),nPreviousTime(0);
     SStructForFill strToFill;
     SingleEntry* pCurEntry;
     DEC_OUT_PD(SingleData)* pCurrentData;
@@ -600,52 +631,50 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 
     while( this->shouldWork()  ){
 
-        CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
-        CalcLocalDir(&localDirPath);
-        filePathLocal = localDirPath+"/"+fileName;
-        filePathRemote = remoteDirPath+"/"+fileName;
-        std::cout<<"locDirPath="<<localDirPath<<std::endl;
-        std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
-        mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
-        mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+        m_semaForRootThread.wait(WAIT_INFINITE);
 
-        pRootFile = new TFile(filePathLocal.c_str(),"UPDATE","DATA",1);// SetCompressionLevel(1)
-        if ((!pRootFile) || pRootFile->IsZombie()){
-            fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
-            exit(-1);
-        }
-        pGlobalRootFileInitial = gFile;
-        pRootFile->cd(); gFile = pRootFile;
-        llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(llnCurFileSize);
-        DEBUG_APP_INFO(2," ");
+        while( m_fifoToFill.frontAndPop(&strToFill) ){
 
-        // the while below corresponds to file filling
-        for( ;this->shouldWork()&&(pRootFile->GetSize()<m_fileMaxSize.value());llnCurFileSize=pRootFile->GetSize(),m_currentFileSize.set_value(llnCurFileSize)  ){
+            if(!pRootFile){  // open root file
+                pGlobalRootFileInitial=gFile;
+                pRootFile=static_cast<TFile*>(RootFileCreator(&filePathLocal,&filePathRemote));
+            }
 
-            m_semaForRootThread.wait(SEMA_WAIT_TIME_MS);
-            CheckGenEventError(&nPreviousTime,&nPreviousGenEvent);
-            while( this->shouldWork() && m_fifoToFill.frontAndPop(&strToFill) ){
-                pCurEntry = strToFill.entry;
-                pCurrentData = strToFill.data;
-                nSeconds = pCurrentData->timestampSeconds;
-                nEventNumber=pCurrentData->eventNumber;
+            //CheckGenEventError(&nPreviousTime,&nPreviousGenEvent);
+            pCurEntry = strToFill.entry;
+            pCurrentData = strToFill.data;
+            nSeconds = pCurrentData->timestampSeconds;
+            nEventNumber=pCurrentData->eventNumber;
 
-                pCurEntry->Fill(strToFill.data,nSeconds,nEventNumber);
+            pCurEntry->Fill(strToFill.data,nSeconds,nEventNumber);
 
-            } // while( this->shouldWork() && (m_fifoToFill.size()>0) ){
-        }// while( this->shouldWork() && nContinueFill  ){
+            llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(llnCurFileSize);
+            //::std::cout << "!!!!!! GetSize="<< llnCurFileSize << ", GetEND="<<pRootFile->GetEND()<< ::std::endl;
 
-        pRootFile->cd();
-        gFile = pRootFile;
+            if(llnCurFileSize>=m_fileMaxSize.value()){ // close root file
+                pRootFile->TDirectory::DeleteAll();
+                pRootFile->TDirectory::Close();
+                delete pRootFile;
+                gFile = pGlobalRootFileInitial;
+                pRootFile = NEWNULLPTR2;
+                m_currentFileSize.set_value(-1);
+                CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
+            }
+
+        } // while( m_fifoToFill.frontAndPop(&strToFill) ){
+
+    } // while( this->shouldWork() )
+
+
+    if(pRootFile){
         pRootFile->TDirectory::DeleteAll();
         pRootFile->TDirectory::Close();
         delete pRootFile;
-        pRootFile = NEWNULLPTR2;
         gFile = pGlobalRootFileInitial;
-
+        pRootFile = NEWNULLPTR2;
+        m_currentFileSize.set_value(-1);
         CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
-
-    } // while( m_nWork && (m_threadStatus.value() == 1) )
+    }
 
 }
 
@@ -722,14 +751,7 @@ bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_da
 
     if(bPossibleToAdd){
         m_fifoToFill.pushBack({a_pEntry,a_data});
-        //if(CHECK_QUEUE_ADD(m_fifoToFill.push({a_pEntry,a_data}))){
-        //    m_semaForRootThread.post();
-        //    return true;
-        //}
-        //else{
-        //    DEBUG_APP_INFO(0,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! No place in the fifo!\n");
-        //    return false;
-        //}
+        m_semaForRootThread.post();
     }
 
     return bPossibleToAdd;

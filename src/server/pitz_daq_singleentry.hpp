@@ -29,6 +29,8 @@
 #define NON_EXPIRE_STRING           "never"
 #define MASK_NO_EXPIRE_STRING       "never"
 
+#define SPECIAL_KEY_DATA_TYPE       "type"
+#define SPECIAL_KEY_DATA_SAMPLES    "samples"
 #define CREATION_STR                "creation"
 #define EXPIRATION_STR              "expiration"
 #define ERROR_KEY_STR               "error"
@@ -43,6 +45,11 @@
 #define STACK_SIZE                  32
 #define SIGNAL_FOR_CANCELATION      SIGTSTP
 #define NUMBER_OF_PENDING_PACKS     4
+
+
+#define ROOT_ERROR                  1
+#define NETWORK_READ_ERROR          (1<<1)
+#define DATA_TYPE_MISMATCH_ERROR    (1<<2)
 
 
 namespace pitz{ namespace daq{
@@ -103,7 +110,70 @@ protected:
     IntType    m_value;
 };
 
-class Mask : public Base
+
+class SomeInts : protected IntParam<int32_t>
+{
+public:
+    SomeInts(const char* entryParamName);
+    virtual ~SomeInts() OVERRIDE2 ;
+
+    int value()const;
+    Base* thisPtr();
+    size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
+
+private:
+    virtual ::std::string additionalString()const=0;
+
+};
+
+
+class Error : public SomeInts
+{
+public:
+    Error(const char* entryParamName);
+    ~Error() OVERRIDE2 ;
+
+    void setError(int error, const ::std::string& errorString);
+
+private:
+    ::std::string additionalString()const OVERRIDE2;
+
+private:
+    std::string m_errorString;
+};
+
+
+class DataType : public SomeInts
+{
+public:
+    DataType(const char* entryParamName);
+    ~DataType() OVERRIDE2 ;
+
+    void set(int32_t type);
+
+private:
+    ::std::string additionalString()const OVERRIDE2;
+
+};
+
+
+class Date : public Base
+{
+public:
+    Date(const char* entryParamName);
+    virtual ~Date() OVERRIDE2 ;
+
+    virtual bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
+    virtual size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
+    time_t dateSeconds()const;
+    void setDateSeconds(time_t a_dateSeconds);
+
+protected:
+    time_t m_epochSeconds;
+};
+
+
+class Mask : public Date
 {
 public:
     Mask(const char* entryParamName);
@@ -111,11 +181,8 @@ public:
 
     bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
     size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
-    time_t expirationTime()const;
     bool   isMasked()const;
 
-private:
-    time_t m_expirationTime;
 };
 
 class String : public Base
@@ -168,12 +235,13 @@ public:
     int                 lastEventNumber()const{return m_lastEventNumber;}
     uint64_t            isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
     void                WriteContentToTheFile(FILE* fpFile)const;
-    void                SetError(int a_error);
+    void                SetError(int a_error, const ::std::string& a_errorString);
 
     // This API will be used only by inheritors (childs, grandchilds etc.)
 protected:
     void                LoadFromLine(const char* a_entryLine, bool isIniting, bool isInitingByUserSet);
-    void                AddNewParameter(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
+    void                AddNewParameterToEnd(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
+    void                AddNewParameterToBeg(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
 
 private:
     // DOOCS callbacks
@@ -187,20 +255,24 @@ private:
     ::std::list<EntryParams::Base*>         m_permanentParams;
     EntryParams::IntParam<int>              m_numberInCurrentFile;
     EntryParams::IntParam<int>              m_numberInAllFiles;
-    EntryParams::IntParam<time_t>           m_expirationTime;
-    EntryParams::IntParam<time_t>           m_creationTime;
+    EntryParams::Date                       m_expirationTime;
+    EntryParams::Date                       m_creationTime;
     EntryParams::Mask                       m_collectionMask;
     EntryParams::Mask                       m_errorMask;
-    EntryParams::IntParam<int>              m_error;
+    EntryParams::Error                      m_errorWithString;
+
+protected:
+    EntryParams::DataType                   m_dataType;
+    EntryParams::IntParam<int32_t>          m_itemsCountPerEntry;
 
     // the story is following
     // everihhing, that is not nullable is set before the member m_nReserved
     // everything that should not be set to 0, should be declared before this line
 private:
+    char*                                   m_daqName;
     int                                     m_firstEventNumber,m_lastEventNumber;
     int                                     m_firstSecond,m_lastSecond;
 
-    char*                                   m_daqName;
     SNetworkStruct*                         m_pNetworkParent;
     TTree*                                  m_pTreeOnRoot2;
     TBranch*                                m_pBranchOnTree;
@@ -230,6 +302,9 @@ public:
 
     bool AddNewEntry(SingleEntry *newEntry);
     const ::std::list< SingleEntry* >& daqEntries()/*const*/;
+
+protected:
+    void StopThreadThenDeleteAndClearEntries();
 
 private:
     EqFctCollector*                             m_pParent;

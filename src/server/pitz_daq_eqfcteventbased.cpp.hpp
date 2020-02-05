@@ -19,8 +19,6 @@ public:
     SingleEntryZmqDoocs(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     ~SingleEntryZmqDoocs() OVERRIDE2;
 
-    int zmqPort()const{return m_nPort;}
-    const ::std::string& host()const{return m_hostName.value();}
     void* socket()const;
 
     bool LoadOrValidateData(void* a_pContext);
@@ -29,14 +27,12 @@ public:
 
 private:
     void*                           m_pSocket;
-    EntryParams::String             m_hostName;
-    EntryParams::IntParam<size_t>   m_expectedRead1;
-    EntryParams::IntParam<size_t>   m_expectedRead2;
-    int                             m_nPort;
-    int                             m_nReserved;
+    EntryParams::String             m_zmqEndpoint;
+    uint32_t                        m_secondHeaderLength;
+    uint32_t                        m_expectedDataLength;
     uint64_t                        m_isDataLoaded : 1;
-    uint64_t                        m_reserved : 63;
-    char                            *m_pBufferForHeader;
+    uint64_t                        m_reserved64bit : 63;
+    char                            *m_pBufferForSecondHeader;
 };
 
 
@@ -52,7 +48,6 @@ public:
     void*                   m_pContext;
     mutable zmq_pollitem_t* m_pItems;
     mutable size_t          m_unCreatedItemsCount;
-    mutable time_t          m_lastUpdateTime;
 };
 
 }}

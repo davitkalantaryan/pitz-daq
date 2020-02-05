@@ -10,8 +10,7 @@
 
 #define DOOCS_URI_MAX_LEN           256
 #define SPECIAL_KEY_DOOCS           "doocs"
-#define SPECIAL_KEY_DATA_TYPE       "type"
-#define SPECIAL_KEY_DATA_SAMPLES    "samples"
+
 
 #ifndef PITZ_DAQ_UNSPECIFIED_DATA_TYPE
 #define PITZ_DAQ_UNSPECIFIED_DATA_TYPE  DATA_TYPE_TAKE_FR_DOOCS
@@ -23,17 +22,13 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
         :
         SingleEntry(a_creationType, a_entryLine, a_pHelper),
         m_doocsUrl(SPECIAL_KEY_DOOCS),
-        m_rootFormatStr(NEWNULLPTR2),
-        m_dataType(SPECIAL_KEY_DATA_TYPE),
-        m_itemsCountPerEntry(SPECIAL_KEY_DATA_SAMPLES)
+        m_rootFormatStr(NEWNULLPTR2)
 {
     bool bCallIniter = false, bIsAddedByUser = false;
-    uint32_t unOnlyDataBufferSize, unTotalRootBufferSize;
+    uint32_t singleEntrySize;
     DEC_OUT_PD(BranchDataRaw)      branchInfo;
 
-    AddNewParameter(&m_doocsUrl,false,true);
-    AddNewParameter(&m_dataType,false,true);
-    AddNewParameter(&m_itemsCountPerEntry,false,true);
+    AddNewParameterToBeg(&m_doocsUrl,false,true);
 
     GetEntryInfoFromServer(&branchInfo);
 
@@ -50,7 +45,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
             if(branchInfo.itemsCountPerEntry<1){branchInfo.itemsCountPerEntry=1;}
 
             m_doocsUrl.setValue(doocs_url);
-            m_dataType=branchInfo.dataType;
+            m_dataType.set(branchInfo.dataType);
             m_itemsCountPerEntry=branchInfo.itemsCountPerEntry;
         }
         break;
@@ -70,7 +65,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
         throw ::std::bad_alloc();
     }
 
-    m_rootFormatStr = PrepareDaqEntryBasedOnType(1,&branchInfo,&unOnlyDataBufferSize,&unTotalRootBufferSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+    m_rootFormatStr = PrepareDaqEntryBasedOnType(1,&branchInfo,&singleEntrySize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
 
     if(!m_rootFormatStr){
         throw ::std::bad_alloc();

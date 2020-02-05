@@ -58,8 +58,7 @@ INCLUDEPATH += ../../../contrib/data_handling/src/include_p
 SOURCES += \
     $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling.cpp              \
     $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling_types.cpp        \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_indexing.cpp              \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp
+    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_indexing.cpp
 
 HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_collectorproperties.hpp                            \
@@ -102,4 +101,5 @@ OTHER_FILES += \
     $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
     $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp                             \
     $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp                \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_getter.h
+    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_getter.h                   \
+    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp

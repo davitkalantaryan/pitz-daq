@@ -11,6 +11,7 @@
 #include "pitz_daq_eqfctcollector.hpp"
 #include <signal.h>
 #include "pitz_daq_singleentry.cpp.hpp"
+#include <eq_data.h>
 
 #define DATA_SIZE_TO_SAVE   50000  // 40 kB
 #define MIN_NUMBER_OF_FILLS 20
@@ -53,7 +54,9 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
         m_creationTime(CREATION_STR),
         m_collectionMask(MASK_COLLECTION_KEY_STR),
         m_errorMask(MASK_ERRORS_KEY_STR),
-        m_error(ERROR_KEY_STR)
+        m_errorWithString(ERROR_KEY_STR),
+        m_dataType(SPECIAL_KEY_DATA_TYPE),
+        m_itemsCountPerEntry(SPECIAL_KEY_DATA_SAMPLES)
 {
     bool bCallIniter = false, bIsAddedByUser = false;
     time_t tmCurrentTime;
@@ -64,18 +67,20 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     if(!pLine){throw errorsFromConstructor::syntax;}
     m_bitwise64Reserved = 0;
 
-    AddNewParameter(&m_numberInCurrentFile,false,false);
-    AddNewParameter(&m_numberInAllFiles,false,true);
-    AddNewParameter(&m_expirationTime,true,true);
-    AddNewParameter(&m_creationTime,false,true);
-    AddNewParameter(&m_collectionMask,true,true);
-    AddNewParameter(&m_errorMask,true,true);
-    AddNewParameter(&m_error,false,false);
+    AddNewParameterToEnd(m_dataType.thisPtr(),false,true);
+    AddNewParameterToEnd(&m_itemsCountPerEntry,false,true);
+    AddNewParameterToEnd(&m_numberInCurrentFile,false,false);
+    AddNewParameterToEnd(&m_numberInAllFiles,false,true);
+    AddNewParameterToEnd(&m_expirationTime,true,true);
+    AddNewParameterToEnd(&m_creationTime,false,true);
+    AddNewParameterToEnd(&m_collectionMask,true,true);
+    AddNewParameterToEnd(&m_errorMask,true,true);
+    AddNewParameterToEnd(m_errorWithString.thisPtr(),false,false);
 
     m_errorMask.SetParentAndClbk(this,[](EntryParams::Base* a_pErrMask, void* a_pThis){
         EntryParams::Mask* pErrorMask = static_cast<EntryParams::Mask*>(a_pErrMask);
         if(pErrorMask->isMasked()){
-            static_cast<SingleEntry*>(a_pThis)->m_error = (0);
+            static_cast<SingleEntry*>(a_pThis)->m_errorWithString.setError(0,"No error");
         }
     });
 
@@ -84,11 +89,13 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     memset(&m_firstEventNumber,0,static_cast<size_t>(reinterpret_cast<char*>(&m_nReserved2)-reinterpret_cast<char*>(&m_firstEventNumber)));
     //m_branchInfo = {PITZ_DAQ_UNSPECIFIED_DATA_TYPE,PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES};
 
+    m_expirationTime.setDateSeconds(NON_EXPIRE_TIME);
+
     strStart = strspn (pLine,POSIIBLE_TERM_SYMBOLS);
     if(pLine[strStart]==0){nError = errorsFromConstructor::syntax;goto reurnPoint;}
     pLine += strStart;
 
-    m_creationTime=time(&tmCurrentTime);
+    m_creationTime.setDateSeconds(time(&tmCurrentTime));
     m_numberInCurrentFile=(0);
 
     switch (a_creationType)
@@ -133,13 +140,13 @@ pitz::daq::SingleEntry::~SingleEntry()
 
 void pitz::daq::SingleEntry::LoadFromLine(const char* a_entryLine, bool a_isIniting, bool a_isInitingByUserSet)
 {
-    if(a_isIniting && (!a_isInitingByUserSet)){
+    if(a_isIniting){
         for( auto pParam : m_allParams){
             pParam->FindAndGetFromLine(a_entryLine);
         }
         if(a_isInitingByUserSet){
             time_t tmCurrentTime;
-            m_creationTime=time(&tmCurrentTime);
+            m_creationTime.setDateSeconds(time(&tmCurrentTime));
             m_numberInCurrentFile=(0);
             m_numberInAllFiles=(0);
         }
@@ -153,7 +160,7 @@ void pitz::daq::SingleEntry::LoadFromLine(const char* a_entryLine, bool a_isInit
 }
 
 
-void pitz::daq::SingleEntry::AddNewParameter(EntryParams::Base* a_newParam, bool a_isUserSetable, bool a_isPermanent)
+void pitz::daq::SingleEntry::AddNewParameterToEnd(EntryParams::Base *a_newParam, bool a_isUserSetable, bool a_isPermanent)
 {
     m_allParams.push_back(a_newParam);
     if(a_isUserSetable){
@@ -161,6 +168,18 @@ void pitz::daq::SingleEntry::AddNewParameter(EntryParams::Base* a_newParam, bool
     }
     if(a_isPermanent){
         m_permanentParams.push_back(a_newParam);
+    }
+}
+
+
+void pitz::daq::SingleEntry::AddNewParameterToBeg(EntryParams::Base* a_newParam, bool a_isUserSetable, bool a_isPermanent)
+{
+    m_allParams.push_front(a_newParam);
+    if(a_isUserSetable){
+        m_userSetableParams.push_front(a_newParam);
+    }
+    if(a_isPermanent){
+        m_permanentParams.push_front(a_newParam);
     }
 }
 
@@ -307,6 +326,7 @@ void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData)* a_usedMemory
 
 void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory, int a_second, int a_eventNumber)
 {
+    static Int_t snSize=0;
     if(!m_pTreeOnRoot2){
         m_pTreeOnRoot2 = new TreeForSingleEntry(this);
         m_pBranchOnTree = m_pTreeOnRoot2->Branch(m_daqName,nullptr,this->rootFormatString());
@@ -314,13 +334,14 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory, int a_s
         if(!m_pBranchOnTree){
             delete m_pTreeOnRoot2;
             m_pTreeOnRoot2 = nullptr;
-            SetError(1);
+            SetError(ROOT_ERROR,"Unable to create root branch");
             return ;
         }
     }
 
     m_pBranchOnTree->SetAddress(a_pNewMemory);
-    m_pTreeOnRoot2->Fill();
+    snSize += m_pTreeOnRoot2->Fill();
+    ::std::cout<< "rootFormatString="<<this->rootFormatString()<<"snSize = "<<snSize<<::std::endl;;
 
     if(!m_isPresentInCurrentFile){
         m_firstSecond = a_second;
@@ -332,7 +353,7 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory, int a_s
     ++m_numberInAllFiles;
 
     // todo: set only root part to null
-    SetError(0);
+    SetError(0, "No error");
 
     m_lastSecond = a_second;
     m_lastEventNumber = a_eventNumber;
@@ -345,7 +366,7 @@ void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
     //char vcBufForCrt[32],vcBufForExp[32],vcBufForMask[32];
     char vcBuffer[4096];
     char* pcBufToWrite(vcBuffer);
-    size_t nBufLen(4096);
+    size_t nBufLen(4093);
     size_t nWritten;
 
     for( auto pParam : m_permanentParams){
@@ -354,7 +375,9 @@ void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
         nBufLen -= nWritten;
         pcBufToWrite += nWritten;
     }
-    pcBufToWrite[0]=0;
+    pcBufToWrite[0]='\n';
+    pcBufToWrite[1]=0;
+    pcBufToWrite[2]=0;
 
     fprintf(a_fpFile,"%s %s",m_daqName,vcBuffer);
 }
@@ -397,18 +420,18 @@ returnPoint:
 }
 
 
-void pitz::daq::SingleEntry::SetError(int a_error)
+void pitz::daq::SingleEntry::SetError(int a_error, const ::std::string& a_errorString)
 {
     EqFctCollector* pClc = m_pNetworkParent?m_pNetworkParent->m_pParent:NEWNULLPTR2;
 
-    if(a_error&&(!m_error)){
+    if(a_error&&(!m_errorWithString.value())){
         if(pClc){pClc->IncrementErrors(m_daqName);}
     }
-    else if((a_error==0)&&(m_error)){
+    else if((a_error==0)&&(m_errorWithString.value())){
         if(pClc){pClc->DecrementErrors(m_daqName);}
     }
 
-    m_error=(a_error);
+    m_errorWithString.setError(a_error,a_errorString);
 }
 
 
@@ -428,16 +451,24 @@ pitz::daq::SNetworkStruct::SNetworkStruct(EqFctCollector* a_parent)
 
 pitz::daq::SNetworkStruct::~SNetworkStruct()
 {
-    pthread_t handleToThread = static_cast<pthread_t>(m_thread.native_handle());
+    StopThreadThenDeleteAndClearEntries();
+}
 
-    m_shouldRun = 0;
-    pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
-    m_thread.join();
 
-    for(auto pEntry : m_daqEntries){
-        delete pEntry;
+void pitz::daq::SNetworkStruct::StopThreadThenDeleteAndClearEntries()
+{
+    if(m_shouldRun){
+        pthread_t handleToThread = static_cast<pthread_t>(m_thread.native_handle());
+
+        m_shouldRun = 0;
+        pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
+        m_thread.join();
+
+        for(auto pEntry : m_daqEntries){
+            delete pEntry;
+        }
+        m_daqEntries.clear();
     }
-    m_daqEntries.clear();
 }
 
 
@@ -517,13 +548,14 @@ size_t pitz::daq::EntryParams::Base::WriteToLineBuffer(char* a_entryLineBuffer, 
     if(LIKELY2(a_unBufferSize>(unStrLen+1))){
         size_t unDataStrLen;
         memcpy(a_entryLineBuffer,m_paramName,unStrLen);
-        a_entryLineBuffer[unStrLen]='=';
-        a_unBufferSize -= (unStrLen+1);
-        a_entryLineBuffer += (unStrLen+1);
+        a_entryLineBuffer[unStrLen++]='=';
+        a_unBufferSize -= unStrLen;
+        a_entryLineBuffer += unStrLen;
         unDataStrLen=this->WriteDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
         if(a_unBufferSize>unDataStrLen){
-            a_entryLineBuffer[unDataStrLen]=';';
+            a_entryLineBuffer[unDataStrLen++]=';';
         }
+        unStrLen += unDataStrLen;
     }
     else{
         unStrLen = a_unBufferSize;
@@ -558,14 +590,188 @@ void pitz::daq::EntryParams::Base::SetParentAndClbk(void* a_pParent, TypeClbk a_
 }
 
 
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+pitz::daq::EntryParams::SomeInts::SomeInts(const char* a_entryParamName)
+    :
+      IntParam<int>(a_entryParamName)
+{
+    m_value = 0;
+}
+
+
+pitz::daq::EntryParams::SomeInts::~SomeInts()
+{
+    //
+}
+
+
+int pitz::daq::EntryParams::SomeInts::value()const
+{
+    return m_value;
+}
+
+
+pitz::daq::EntryParams::Base* pitz::daq::EntryParams::SomeInts::thisPtr()
+{
+    return this;
+}
+
+
+size_t pitz::daq::EntryParams::SomeInts::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+{
+    ::std::string strAdditionalString = this->additionalString();
+    size_t unReturn = IntParam<int32_t>::WriteDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
+    size_t unStrLen = strAdditionalString.length();
+
+    if(unStrLen){
+        if((unReturn+unStrLen+2)<=a_unBufferSize){
+            a_entryLineBuffer[unReturn++]='(';
+            memcpy(a_entryLineBuffer+unReturn,strAdditionalString.c_str(),unStrLen);
+            unReturn += unStrLen;
+            a_entryLineBuffer[unReturn++]=')';
+        }
+    }
+
+    return unReturn;
+
+}
+
+
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+pitz::daq::EntryParams::Error::Error(const char* a_entryParamName)
+    :
+      SomeInts(a_entryParamName)
+{
+}
+
+
+pitz::daq::EntryParams::Error::~Error()
+{
+    //
+}
+
+
+void pitz::daq::EntryParams::Error::setError(int a_error, const ::std::string& a_errorString)
+{
+    switch(a_error){
+    case 0:
+        m_errorString = "";
+        break;
+    default:
+        if(!(a_error & value())){
+            m_errorString += ";";
+            m_errorString += a_errorString;
+        }
+        break;
+    }
+}
+
+
+::std::string pitz::daq::EntryParams::Error::additionalString() const
+{
+    return m_errorString;
+}
+
+
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+pitz::daq::EntryParams::DataType::DataType(const char* a_entryParamName)
+    :
+      SomeInts(a_entryParamName)
+{
+}
+
+
+pitz::daq::EntryParams::DataType::~DataType()
+{
+    //
+}
+
+
+void pitz::daq::EntryParams::DataType::set(int32_t a_type)
+{
+    m_value = a_type;
+}
+
+
+::std::string pitz::daq::EntryParams::DataType::additionalString() const
+{
+    EqData eqData;
+    //std::string strForReturn = eqData.type_string(value());
+    return eqData.type_string(value());
+}
+
+
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+pitz::daq::EntryParams::Date::Date(const char* a_entryParamName)
+    :
+      Base(a_entryParamName)
+{
+    m_epochSeconds = time(&m_epochSeconds);
+}
+
+
+pitz::daq::EntryParams::Date::~Date()
+{
+}
+
+
+bool pitz::daq::EntryParams::Date::GetDataFromLine(const char* a_entryLine)
+{
+    m_epochSeconds = STRING_TO_EPOCH(a_entryLine+1);
+    return true;
+}
+
+static const size_t s_cunNonExpireStrLen = strlen(NON_EXPIRE_STRING);
+
+
+size_t pitz::daq::EntryParams::Date::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+{
+    size_t unReturn(0);
+    switch(m_epochSeconds){
+    case NOT_MASKED_TO_TIME:
+        return 0;
+    case NON_EXPIRE_TIME:
+        if(a_unBufferSize<5){
+            return 0;
+        }
+        memcpy(a_entryLineBuffer,"never",5);
+        unReturn = 5;
+        break;
+    default:
+        if(a_unBufferSize<(16+s_cunNonExpireStrLen)){
+            return 0;
+        }
+        unReturn = EPOCH_TO_STRING(m_epochSeconds,a_entryLineBuffer+unReturn,a_unBufferSize-1);
+        break;
+    }
+
+    return unReturn;
+}
+
+
+time_t pitz::daq::EntryParams::Date::dateSeconds() const
+{
+    return m_epochSeconds;
+}
+
+
+void pitz::daq::EntryParams::Date::setDateSeconds(time_t a_dateSeconds)
+{
+    m_epochSeconds = a_dateSeconds;
+}
+
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 pitz::daq::EntryParams::Mask::Mask(const char* a_entryParamName)
     :
-      Base(a_entryParamName)
+      Date(a_entryParamName)
 {
-    m_expirationTime = NOT_MASKED_TO_TIME;
+    m_epochSeconds = NOT_MASKED_TO_TIME;
 }
 
 
@@ -576,26 +782,20 @@ pitz::daq::EntryParams::Mask::~Mask()
 
 bool pitz::daq::EntryParams::Mask::GetDataFromLine(const char* a_entryLine)
 {
-    m_expirationTime = NOT_MASKED_TO_TIME;
+    m_epochSeconds = NOT_MASKED_TO_TIME;
 
-    if(strncmp(a_entryLine,"true",4)==0){
-        const char* cpcDataLine = a_entryLine+4;
-        m_expirationTime = NON_EXPIRE_TIME;
-        if(cpcDataLine[0]=='('){
-            m_expirationTime = STRING_TO_EPOCH(cpcDataLine+1);
-        }
+    if(strncmp(a_entryLine,"true(",5)==0){
+        Date::GetDataFromLine(a_entryLine+5);
     }
 
     return true;
 }
 
-static const size_t s_cunNonExpireStrLen = strlen(NON_EXPIRE_STRING);
-
 
 size_t pitz::daq::EntryParams::Mask::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
 {
     size_t unReturn(0);
-    switch(m_expirationTime){
+    switch(m_epochSeconds){
     case NOT_MASKED_TO_TIME:
         if(a_unBufferSize<5){
             return 0;
@@ -603,24 +803,20 @@ size_t pitz::daq::EntryParams::Mask::WriteDataToLineBuffer(char* a_entryLineBuff
         memcpy(a_entryLineBuffer,"false",5);
         return 5;
     case NON_EXPIRE_TIME:
-        if(a_unBufferSize<(6+s_cunNonExpireStrLen)){
+        if(a_unBufferSize<11){
             return 0;
         }
-        memcpy(a_entryLineBuffer,"true",4);
-        unReturn = 4;
-        a_entryLineBuffer[unReturn++]='(';
-        memcpy(a_entryLineBuffer+unReturn,NON_EXPIRE_STRING,s_cunNonExpireStrLen);
-        unReturn += s_cunNonExpireStrLen;
-        a_entryLineBuffer[unReturn++]=')';
+        memcpy(a_entryLineBuffer,"true(never)",11);
+        unReturn = 11;
         break;
     default:
-        if(a_unBufferSize<(16+s_cunNonExpireStrLen)){
+        if(a_unBufferSize<(20+s_cunNonExpireStrLen)){
             return 0;
         }
-        memcpy(a_entryLineBuffer,"true",4);
-        unReturn = 4;
-        a_entryLineBuffer[unReturn++]='(';
-        unReturn += EPOCH_TO_STRING(m_expirationTime,a_entryLineBuffer+unReturn,a_unBufferSize-unReturn-1);
+        memcpy(a_entryLineBuffer,"true(",5);
+        a_entryLineBuffer += 5;
+        a_unBufferSize -= 5;
+        unReturn = 5 + Date::WriteDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
         a_entryLineBuffer[unReturn++]=')';
         break;
     }
@@ -629,15 +825,9 @@ size_t pitz::daq::EntryParams::Mask::WriteDataToLineBuffer(char* a_entryLineBuff
 }
 
 
-time_t pitz::daq::EntryParams::Mask::expirationTime() const
-{
-    return m_expirationTime;
-}
-
-
 bool pitz::daq::EntryParams::Mask::isMasked()const
 {
-    return m_expirationTime != NOT_MASKED_TO_TIME;
+    return m_epochSeconds != NOT_MASKED_TO_TIME;
 }
 
 

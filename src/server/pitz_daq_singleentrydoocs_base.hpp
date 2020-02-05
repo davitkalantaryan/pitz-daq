@@ -32,8 +32,6 @@ protected:
 protected:
     EntryParams::String             m_doocsUrl;
     char*                           m_rootFormatStr;
-    EntryParams::IntParam<int32_t>  m_dataType;
-    EntryParams::IntParam<int32_t>  m_itemsCountPerEntry;
 };
 }}
 

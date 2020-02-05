@@ -113,7 +113,6 @@ private:
 
     // API for internal usage
 private:
-    //SStructForFill  GetAndDeleteFirstData();
     void AddNewEntryNotLocked(entryCreationType::Type type, const char* entryLine);
     void TryToRemoveEntryNotLocked(SingleEntry* pEntry);
     pitz::daq::SingleEntry* FindEntry(const char* entryName);
@@ -122,10 +121,11 @@ private:
 
     void CopyFileToRemoteAndMakeIndexing(const std::string& localFilePath, const std::string& remoteFilePath);
     void WriteEntriesToConfig()const;
-    void CheckGenEventError(int* a_nPreviousTime, int* a_nPreviousGenEvent);
+    //void CheckGenEventError(int* a_nPreviousTime, int* a_nPreviousGenEvent);
 
-    void RootThreadFunction() ;
-    void LocalFileDeleterThread();
+    void* RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
+    void  RootThreadFunction() ;
+    void  LocalFileDeleterThread();
 
 public:
     // API public, for DOOCS properties usage
@@ -138,6 +138,7 @@ public:
 
 
 private:
+    //D_fct                               m_testProp;
     D_int                               m_genEvent; // +
     D_long                              m_fileMaxSize; //+
     D_int                               m_numberOfEntries; // +
