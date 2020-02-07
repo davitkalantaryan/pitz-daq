@@ -346,9 +346,9 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a
     m_additionalData.checkIfFillTimeAndFillIfYes();
     m_pTreeOnRoot->Fill();
 
-    if(!m_isPresentInCurrentFile){
+    if(!m_isPresentInLastFile){
+        m_isPresentInLastFile = 1;
         m_firstHeader = *a_pNewMemory;
-        m_isPresentInCurrentFile = 1;
         m_numberInCurrentFile = (0);
     }
 
@@ -501,6 +501,9 @@ pitz::daq::TreeForSingleEntry::TreeForSingleEntry( pitz::daq::SingleEntry* a_pPa
       ::TTree(a_pParentEntry->m_daqName, "DATA"),
       m_pParentEntry(a_pParentEntry)
 {
+    if(m_pParentEntry ){
+        m_pParentEntry->m_isPresentInLastFile = 0;
+    }
 }
 
 
@@ -512,8 +515,6 @@ pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
         m_pParentEntry->m_pDataBranch = NEWNULLPTR2;
         m_pParentEntry->m_additionalData.initTimeAndRoot();
         m_pParentEntry->m_pTreeOnRoot = NEWNULLPTR2;
-        m_pParentEntry->m_isPresentInCurrentFile = 0;
-        m_pParentEntry->m_numberInCurrentFile = 0;
         if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
             SingleEntry* pParentEntry( m_pParentEntry );
             m_pParentEntry=NEWNULLPTR2;

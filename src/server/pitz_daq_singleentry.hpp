@@ -285,7 +285,7 @@ public:
     int                 firstEventNumber()const{return m_firstHeader.eventNumber;}
     int                 lastSecond()const{return m_lastHeader.timestampSeconds;}
     int                 lastEventNumber()const{return m_lastHeader.eventNumber;}
-    uint64_t            isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
+    uint64_t            isPresentInLastFile()const{return m_isPresentInLastFile;}
     void                WriteContentToTheFile(FILE* fpFile)const;
     void                SetError(int a_error, const ::std::string& a_errorString);
 
@@ -333,7 +333,7 @@ private:
 
     mutable uint64_t                        m_willBeDeletedOrIsUsedAtomic64 ;
 
-    uint64_t                                m_isPresentInCurrentFile : 1;
+    uint64_t                                m_isPresentInLastFile : 1;
     //uint64_t                                m_isCleanEntryInheritableCalled : 1;
     uint64_t                                m_isValid : 1;
     //uint64_t                                m_doesAdditionalDataExist : 1;

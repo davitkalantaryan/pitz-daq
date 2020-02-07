@@ -700,7 +700,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
         pIterEnd = pList->end();
         for(pIter=pList->begin();pIter!=pIterEnd;++pIter){
             pCurEntry = *pIter;
-            if(pCurEntry->isPresentInCurrentFile()){
+            if(pCurEntry->isPresentInLastFile()){
                 sprintf(vcBuffer,"/doocs/data/DAQdata/INDEX/%s.idx",pCurEntry->daqName());
                 index_fl.open(vcBuffer,ios_base::out | ios_base::app);
                 if(index_fl.is_open()){
