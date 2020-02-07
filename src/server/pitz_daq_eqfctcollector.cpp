@@ -675,12 +675,13 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 
 void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::string& a_fileLocal, const std::string& a_fileRemote)
 {
+    NewLockGuard< ::STDN::shared_mutex > aGuard;
     SingleEntry* pCurEntry;
     fstream index_fl;
     char vcBuffer[1024];
 
-    ::std::list< SingleEntry* >::const_iterator pIter, pIterEnd;
-    const ::std::list< SingleEntry* >* pList;
+    ::std::list< SingleEntry* >::iterator pIter, pIterEnd, pIterToRemove;
+    ::std::list< SingleEntry* >* pList;
 
     snprintf(vcBuffer,1023,"dccp -d 0 %s %s", a_fileLocal.c_str(), a_fileRemote.c_str());
     DEBUG_APP_INFO(2,"executing \"%s\"\n",vcBuffer);
@@ -693,12 +694,12 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
         return;
     }
 
-    //m_mutexForEntries.lock_shared();
+    aGuard.Lock(&m_lockForEntries);
 
     for( auto netStruct : m_networsList){
         pList = &netStruct->daqEntries();
         pIterEnd = pList->end();
-        for(pIter=pList->begin();pIter!=pIterEnd;++pIter){
+        for(pIter=pList->begin();pIter!=pIterEnd;){
             pCurEntry = *pIter;
             if(pCurEntry->isPresentInLastFile()){
                 sprintf(vcBuffer,"/doocs/data/DAQdata/INDEX/%s.idx",pCurEntry->daqName());
@@ -712,11 +713,18 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
                     index_fl.close();
                 } // if(index_fl.open(vcBuffer)){
                 //pCurEntry->isPresent = false; // This is done automatically with SetTree(...) function
-            } // if(pCurEntry->isPresent){
+                if(pCurEntry->resetRootLockAndReturnIfDeletable()){
+                    pIterToRemove = pIter++;
+                    TryToRemoveEntryNotLocked(pCurEntry);
+                    pList->erase(pIterToRemove);
+                }
+                else{++pIter;}
+            } // if(pCurEntry->isPresentInLastFile){
+            else{++pIter;}
         }
     }
 
-    //m_mutexForEntries.unlock_shared();
+    aGuard.Unlock();
 
     m_fifoForLocalFileDeleter.pushBack(a_fileLocal);
     m_semaForLocalFileDeleter.post();

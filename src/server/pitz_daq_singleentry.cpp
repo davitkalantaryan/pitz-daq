@@ -201,7 +201,7 @@ bool pitz::daq::SingleEntry::markEntryForDeleteAndReturnIfPossibleNow()
 {
     uint64_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrIsUsedAtomic64,DELETER_ALL,__ATOMIC_RELAXED);
 
-    if(!nReturn){
+    if((!nReturn)||(nReturn==VALUE_FOR_DELETE)){
         return true;
     }
 
@@ -330,6 +330,7 @@ void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData)* a_usedMemory
 
 void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
+    if(!lockEntryForRoot()){return;}
     if(!m_pTreeOnRoot){
         m_pTreeOnRoot = new TreeForSingleEntry(this);
 
@@ -474,7 +475,7 @@ void pitz::daq::SNetworkStruct::StopThreadThenDeleteAndClearEntries()
 }
 
 
-const ::std::list< pitz::daq::SingleEntry* >& pitz::daq::SNetworkStruct::daqEntries()/*const*/
+::std::list< pitz::daq::SingleEntry* >& pitz::daq::SNetworkStruct::daqEntries()/*const*/
 {
     return m_daqEntries;
 }

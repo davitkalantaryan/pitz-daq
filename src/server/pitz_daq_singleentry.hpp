@@ -356,7 +356,7 @@ public:
     virtual ~SNetworkStruct();
 
     bool AddNewEntry(SingleEntry *newEntry);
-    const ::std::list< SingleEntry* >& daqEntries()/*const*/;
+    ::std::list< SingleEntry* >& daqEntries()/*const*/;
 
 protected:
     void StopThreadThenDeleteAndClearEntries();
