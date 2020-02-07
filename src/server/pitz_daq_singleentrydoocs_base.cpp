@@ -24,13 +24,13 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
         m_doocsUrl(SPECIAL_KEY_DOOCS),
         m_rootFormatStr(NEWNULLPTR2)
 {
-    bool bCallIniter = false, bIsAddedByUser = false;
+    //bool bCallIniter = false, bIsAddedByUser = false;
+    bool bCallIniter = false;
     uint32_t singleEntrySize;
-    DEC_OUT_PD(BranchDataRaw)      branchInfo;
+    DEC_OUT_PD(BranchDataRaw)      branchInfo={-1,-1};
+    EqData dataOut;
 
     AddNewParameterToBeg(&m_doocsUrl,false,true);
-
-    GetEntryInfoFromServer(&branchInfo);
 
     switch(a_creationType)
     {
@@ -54,15 +54,24 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
         break;
     case entryCreationType::fromUser:
         bCallIniter = true;
-        bIsAddedByUser = true;
+        //bIsAddedByUser = true;
         break;
     default:
         throw errorsFromConstructor::type;
     }
 
+    if(bCallIniter){
+        //LoadFromLine(a_entryLine,true,bIsAddedByUser);
+        m_doocsUrl.FindAndGetFromLine(a_entryLine);
+        m_additionalData.setParentDoocsUrl(m_doocsUrl.value());
+        branchInfo.dataType = m_dataType.value();
+        branchInfo.itemsCountPerEntry = (m_itemsCountPerEntry);
+    }
 
-    if( (branchInfo.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(branchInfo.itemsCountPerEntry<1) ){
-        throw ::std::bad_alloc();
+    if((branchInfo.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(branchInfo.itemsCountPerEntry<1)){
+        if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&branchInfo)){
+            throw ::std::bad_alloc();
+        }
     }
 
     m_rootFormatStr = PrepareDaqEntryBasedOnType(1,&branchInfo,&singleEntrySize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
@@ -71,9 +80,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
         throw ::std::bad_alloc();
     }
 
-    if(bCallIniter){
-        LoadFromLine(a_entryLine,true,bIsAddedByUser);
-    }
+    m_itemsCountPerEntry = (branchInfo.itemsCountPerEntry);
 
 }
 
@@ -81,29 +88,6 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
 pitz::daq::SingleEntryDoocsBase::~SingleEntryDoocsBase()
 {
     free(m_rootFormatStr);
-}
-
-
-bool pitz::daq::SingleEntryDoocsBase::GetEntryInfoFromServer( DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo )const
-{
-    int nReturn;
-    EqCall eqCall;
-    EqData dataIn, dataOut;
-    EqAdr eqAddr;
-
-    eqAddr.adr(m_doocsUrl.value());
-    nReturn = eqCall.get(&eqAddr,&dataIn,&dataOut);
-
-    if(nReturn){
-        a_pEntryInfo->dataType = DATA_INT;
-        a_pEntryInfo->itemsCountPerEntry = 1;
-        return false;
-    }
-
-    a_pEntryInfo->dataType = dataOut.type();
-    a_pEntryInfo->itemsCountPerEntry = dataOut.length();
-
-    return true;
 }
 
 

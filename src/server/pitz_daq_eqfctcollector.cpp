@@ -7,7 +7,7 @@
 #define strtoull    strtoul
 #include "pitz_daq_eqfctcollector.hpp"
 #include <signal.h>
-#include <TFile.h>
+#include "pitz_daq_eqfctcollector.cpp.hpp"
 #include <dirent.h>
 #include "mailsender.h"
 #include <sys/timeb.h>
@@ -593,7 +593,7 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 void* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
     int64_t llnCurFileSize;
-    TFile *pRootFile;
+    NewTFile *pRootFile;
     std::string localDirPath, remoteDirPath, fileName;
 
     CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
@@ -605,13 +605,13 @@ void* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, 
     mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
     mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
 
-    pRootFile = new TFile(a_pFilePathLocal->c_str(),"UPDATE","DATA",1);// SetCompressionLevel(1)
+    pRootFile = new NewTFile(a_pFilePathLocal->c_str());// SetCompressionLevel(1)
     if ((!pRootFile) || pRootFile->IsZombie()){
         fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
         exit(-1);
     }
     pRootFile->cd(); gFile = pRootFile;
-    llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(llnCurFileSize);
+    llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
     DEBUG_APP_INFO(2," ");
 
     return pRootFile;
@@ -621,13 +621,10 @@ void* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, 
 void pitz::daq::EqFctCollector::RootThreadFunction()
 {
     std::string filePathLocal, filePathRemote;
-    TFile *pGlobalRootFileInitial=gFile, *pRootFile = NEWNULLPTR2;
-    int nSeconds, nEventNumber;
-    //int nPreviousGenEvent(0),nPreviousTime(0);
+    TFile* pGlobalRootFileInitial=gFile;
+    NewTFile* pRootFile = NEWNULLPTR2;
     SStructForFill strToFill;
-    SingleEntry* pCurEntry;
-    DEC_OUT_PD(SingleData)* pCurrentData;
-    int64_t llnCurFileSize;
+    int64_t llnCurFileSize, llnCurFileSizeMean, llnMaxFileSize;
 
     while( this->shouldWork()  ){
 
@@ -637,21 +634,18 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 
             if(!pRootFile){  // open root file
                 pGlobalRootFileInitial=gFile;
-                pRootFile=static_cast<TFile*>(RootFileCreator(&filePathLocal,&filePathRemote));
+                pRootFile=static_cast<NewTFile*>(RootFileCreator(&filePathLocal,&filePathRemote));
             }
 
             //CheckGenEventError(&nPreviousTime,&nPreviousGenEvent);
-            pCurEntry = strToFill.entry;
-            pCurrentData = strToFill.data;
-            nSeconds = pCurrentData->timestampSeconds;
-            nEventNumber=pCurrentData->eventNumber;
+            strToFill.entry->Fill(strToFill.data);
 
-            pCurEntry->Fill(strToFill.data,nSeconds,nEventNumber);
+            llnCurFileSizeMean = pRootFile->meanDataSize();llnCurFileSize=pRootFile->GetSize();
+            llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());
+            m_currentFileSize.set_value(static_cast<int>(llnCurFileSizeMean));
+            //::std::cout << "!!!!!! GetSize="<< llnCurFileSize << ", meanDataSize=" << llnCurFileSizeMean << ::std::endl;
 
-            llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(llnCurFileSize);
-            //::std::cout << "!!!!!! GetSize="<< llnCurFileSize << ", GetEND="<<pRootFile->GetEND()<< ::std::endl;
-
-            if(llnCurFileSize>=m_fileMaxSize.value()){ // close root file
+            if(llnCurFileSize>=llnMaxFileSize){ // close root file
                 pRootFile->TDirectory::DeleteAll();
                 pRootFile->TDirectory::Close();
                 delete pRootFile;
@@ -660,11 +654,11 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
                 m_currentFileSize.set_value(-1);
                 CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
             }
+            else if(llnCurFileSizeMean>llnMaxFileSize){pRootFile->SaveSelf();}
 
         } // while( m_fifoToFill.frontAndPop(&strToFill) ){
 
     } // while( this->shouldWork() )
-
 
     if(pRootFile){
         pRootFile->TDirectory::DeleteAll();
@@ -759,3 +753,29 @@ bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_da
 
 
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+NewTFile::NewTFile(const char* a_filePath)
+    :
+      TFile(a_filePath,"UPDATE","DATA",1)
+{
+    m_uncompressedDataSize= 0;
+}
+
+
+NewTFile::~NewTFile()
+{
+    //
+}
+
+
+void NewTFile::newDataAdded(Int_t a_newDataSize)
+{
+    m_uncompressedDataSize += static_cast<Long64_t>(a_newDataSize);
+}
+
+
+Long64_t NewTFile::meanDataSize()const
+{
+    Long64_t sizeInTheFile(GetSize());
+    return (m_uncompressedDataSize+sizeInTheFile+sizeInTheFile+sizeInTheFile)/4;
+}

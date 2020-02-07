@@ -140,7 +140,7 @@ public:
 private:
     //D_fct                               m_testProp;
     D_int                               m_genEvent; // +
-    D_long                              m_fileMaxSize; //+
+    D_int                               m_fileMaxSize; //+
     D_int                               m_numberOfEntries; // +
     D_logLevel                          m_logLevel;
     D_string                            m_rootDirPathBaseRemote;       // '/acs/pitz/daq'
@@ -150,7 +150,7 @@ private:
     D_string                            m_expertsMailingList;            // 'davit.kalantaryan@desy.de'
     D_int                               m_numberOfFillThreadsDesigned;
     D_int                               m_numberOfFillThreadsFinal;
-    D_long                              m_currentFileSize;
+    D_int                               m_currentFileSize;
     D_addNewEntry                       m_addNewEntry;
     D_removeEntry                       m_removeEntry;
     D_loadOldConfig                     m_loadOldConfig;

@@ -12,6 +12,8 @@
 #include <signal.h>
 #include "pitz_daq_singleentry.cpp.hpp"
 #include <eq_data.h>
+#include <eq_client.h>
+#include <pitz_daq_data_handling_types.h>
 
 #define DATA_SIZE_TO_SAVE   50000  // 40 kB
 #define MIN_NUMBER_OF_FILLS 20
@@ -55,6 +57,7 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
         m_collectionMask(MASK_COLLECTION_KEY_STR),
         m_errorMask(MASK_ERRORS_KEY_STR),
         m_errorWithString(ERROR_KEY_STR),
+        m_additionalData(SPECIAL_KEY_ADDITIONAL_DATA),
         m_dataType(SPECIAL_KEY_DATA_TYPE),
         m_itemsCountPerEntry(SPECIAL_KEY_DATA_SAMPLES)
 {
@@ -76,6 +79,7 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     AddNewParameterToEnd(&m_collectionMask,true,true);
     AddNewParameterToEnd(&m_errorMask,true,true);
     AddNewParameterToEnd(m_errorWithString.thisPtr(),false,false);
+    AddNewParameterToEnd(m_additionalData.thisPtr(),false,true);
 
     m_errorMask.SetParentAndClbk(this,[](EntryParams::Base* a_pErrMask, void* a_pThis){
         EntryParams::Mask* pErrorMask = static_cast<EntryParams::Mask*>(a_pErrMask);
@@ -86,7 +90,7 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
 
     // the story is following
     // everihhing, that is not nullable is set before the member m_nReserved
-    memset(&m_firstEventNumber,0,static_cast<size_t>(reinterpret_cast<char*>(&m_nReserved2)-reinterpret_cast<char*>(&m_firstEventNumber)));
+    memset(&m_firstHeader,0,static_cast<size_t>(reinterpret_cast<char*>(&m_nReserved2)-reinterpret_cast<char*>(&m_firstHeader)));
     //m_branchInfo = {PITZ_DAQ_UNSPECIFIED_DATA_TYPE,PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES};
 
     m_expirationTime.setDateSeconds(NON_EXPIRE_TIME);
@@ -324,29 +328,28 @@ void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData)* a_usedMemory
 }
 
 
-void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory, int a_second, int a_eventNumber)
+void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
-    static Int_t snSize=0;
-    if(!m_pTreeOnRoot2){
-        m_pTreeOnRoot2 = new TreeForSingleEntry(this);
-        m_pBranchOnTree = m_pTreeOnRoot2->Branch(m_daqName,nullptr,this->rootFormatString());
+    if(!m_pTreeOnRoot){
+        m_pTreeOnRoot = new TreeForSingleEntry(this);
 
-        if(!m_pBranchOnTree){
-            delete m_pTreeOnRoot2;
-            m_pTreeOnRoot2 = nullptr;
-            SetError(ROOT_ERROR,"Unable to create root branch");
-            return ;
-        }
+        //m_pBranchOnTree = m_pTreeOnRoot->Branch(m_daqName,nullptr,this->rootFormatString());
+        m_pHeaderBranch =m_pTreeOnRoot->Branch("header",nullptr,"seconds/I:gen_event/I");
+        if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
+        m_pDataBranch=m_pTreeOnRoot->Branch("data",nullptr,this->rootFormatString());
+        if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
+        m_additionalData.setRootBranchIfEnabled(m_pTreeOnRoot);
     }
 
-    m_pBranchOnTree->SetAddress(a_pNewMemory);
-    snSize += m_pTreeOnRoot2->Fill();
-    ::std::cout<< "rootFormatString="<<this->rootFormatString()<<"snSize = "<<snSize<<::std::endl;;
+    m_pHeaderBranch->SetAddress(a_pNewMemory);
+    m_pDataBranch->SetAddress(reinterpret_cast<char*>(a_pNewMemory)+sizeof(DEC_OUT_PD(SingleData)));
+    m_additionalData.checkIfFillTimeAndFillIfYes();
+    m_pTreeOnRoot->Fill();
 
     if(!m_isPresentInCurrentFile){
-        m_firstSecond = a_second;
-        m_firstEventNumber = a_eventNumber;
+        m_firstHeader = *a_pNewMemory;
         m_isPresentInCurrentFile = 1;
+        m_numberInCurrentFile = (0);
     }
 
     ++m_numberInCurrentFile;
@@ -355,8 +358,7 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory, int a_s
     // todo: set only root part to null
     SetError(0, "No error");
 
-    m_lastSecond = a_second;
-    m_lastEventNumber = a_eventNumber;
+    m_lastHeader = *a_pNewMemory;
     FreeUsedMemory(a_pNewMemory);
 }
 
@@ -505,8 +507,11 @@ pitz::daq::TreeForSingleEntry::TreeForSingleEntry( pitz::daq::SingleEntry* a_pPa
 pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
 {
     if(m_pParentEntry ){
-        m_pParentEntry->m_pBranchOnTree = NEWNULLPTR2;
-        m_pParentEntry->m_pTreeOnRoot2 = NEWNULLPTR2;
+        //m_pParentEntry->m_pBranchOnTree = NEWNULLPTR2;
+        m_pParentEntry->m_pHeaderBranch = NEWNULLPTR2;
+        m_pParentEntry->m_pDataBranch = NEWNULLPTR2;
+        m_pParentEntry->m_additionalData.initTimeAndRoot();
+        m_pParentEntry->m_pTreeOnRoot = NEWNULLPTR2;
         m_pParentEntry->m_isPresentInCurrentFile = 0;
         m_pParentEntry->m_numberInCurrentFile = 0;
         if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
@@ -515,6 +520,18 @@ pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
             delete pParentEntry;
         }
     }
+}
+
+#include "pitz_daq_eqfctcollector.cpp.hpp"
+
+Int_t pitz::daq::TreeForSingleEntry::Fill()
+{
+    Int_t nReturn =  ::TTree::Fill();
+    NewTFile* pFile = dynamic_cast<NewTFile*>(GetCurrentFile());
+    if(pFile){
+        pFile->newDataAdded(nReturn);
+    }
+    return nReturn;
 }
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
@@ -647,12 +664,6 @@ pitz::daq::EntryParams::Error::Error(const char* a_entryParamName)
 }
 
 
-pitz::daq::EntryParams::Error::~Error()
-{
-    //
-}
-
-
 void pitz::daq::EntryParams::Error::setError(int a_error, const ::std::string& a_errorString)
 {
     switch(a_error){
@@ -677,16 +688,164 @@ void pitz::daq::EntryParams::Error::setError(int a_error, const ::std::string& a
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-pitz::daq::EntryParams::DataType::DataType(const char* a_entryParamName)
+pitz::daq::EntryParams::AdditionalData::AdditionalData(const char* a_entryParamName)
     :
-      SomeInts(a_entryParamName)
+      SomeInts(a_entryParamName),
+      m_pCore(nullptr)
 {
 }
 
 
-pitz::daq::EntryParams::DataType::~DataType()
+pitz::daq::EntryParams::AdditionalData::~AdditionalData()
 {
-    //
+    delete m_pCore;
+}
+
+
+void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTreeOnRoot)
+{
+    if(!m_pCore){return ;}
+    if((!m_pCore->isInited)&&(!InitDataStuff())){return;}
+    m_pCore->rootBranch = a_pTreeOnRoot->Branch("data",nullptr,m_pCore->rootFormatString);
+    if(m_pCore->rootBranch){
+        void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData);
+        m_pCore->rootBranch->SetAddress( pAddress );
+    }
+}
+
+
+void pitz::daq::EntryParams::AdditionalData::checkIfFillTimeAndFillIfYes()
+{
+    if((!m_pCore)||(!m_pCore->isInited)||(!m_pCore->rootBranch)){return ;}
+
+    time_t timeNow;
+    const time_t  maxTime = static_cast<time_t>(m_value);
+
+    timeNow = time(&timeNow);
+
+    if((timeNow-m_pCore->lastUpdateTime)>maxTime){
+        EqData dataIn, dataOut;
+        EqAdr doocsAdr;
+        EqCall doocsCaller;
+
+        m_pCore->doocsData.init();
+        doocsAdr.adr(m_pCore->parentAndFinalDoocsUrl);
+
+        if(doocsCaller.get(&doocsAdr,&dataIn,&dataOut)){
+            ::std::string errorString = m_pCore->doocsData.get_string();
+            ::std::cerr << errorString << ::std::endl;
+            return;
+        }
+        m_pCore->doocsData.copy_from(&dataOut);
+
+        void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData);
+        if(pAddress){
+            m_pCore->rootBranch->SetAddress( pAddress );
+            m_pCore->lastUpdateTime = timeNow;
+        }
+    }
+}
+
+
+void pitz::daq::EntryParams::AdditionalData::initTimeAndRoot()
+{
+    if(m_pCore){
+        m_pCore->lastUpdateTime = 0;
+        m_pCore->rootBranch = nullptr;
+    }
+}
+
+
+void pitz::daq::EntryParams::AdditionalData::setParentDoocsUrl( const ::std::string& a_parentDoocsUrl )
+{
+    if(m_pCore){
+        m_pCore->parentAndFinalDoocsUrl = a_parentDoocsUrl;
+        InitDataStuff();
+    }
+}
+
+
+bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
+{
+    if(!m_pCore){return false;}
+    if(m_pCore->isInited){return true;}
+
+    DEC_OUT_PD(BranchDataRaw) entryInfo;
+
+    if( GetEntryInfoFromDoocsServer(&m_pCore->doocsData,m_pCore->doocsUrl2,&entryInfo) ){
+        m_pCore->parentAndFinalDoocsUrl = m_pCore->doocsUrl2;
+    }
+    else{
+        if(m_pCore->parentAndFinalDoocsUrl.length()){
+            EqAdr eqAdr;
+            eqAdr.adr(m_pCore->parentAndFinalDoocsUrl);
+            eqAdr.set_property(m_pCore->doocsUrl2);
+            ::std::string fullAddr = eqAdr.show_adr();
+            if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&entryInfo) ){return false;}
+            m_pCore->parentAndFinalDoocsUrl = fullAddr;
+        }
+        else{return false;}
+    }
+
+    m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(1,&entryInfo,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+    if(!(m_pCore->rootFormatString)){
+        return false;
+    }
+
+    m_pCore->isInited = 1;
+    return true;
+}
+
+
+::std::string pitz::daq::EntryParams::AdditionalData::additionalString()const
+{
+    if((m_value<1)||(!m_pCore)){return "no";}
+
+    return m_pCore->doocsUrl2;
+}
+
+
+bool pitz::daq::EntryParams::AdditionalData::GetDataFromLine(const char* a_entryLine)
+{
+    if(!SomeInts::GetDataFromLine(a_entryLine)){return false;}
+    if(m_value<1){
+        m_value = 0;
+        delete m_pCore;
+        m_pCore = nullptr;
+        return false;
+    }
+    const char* cpcStringStart = strchr(a_entryLine,'(');
+    if(!cpcStringStart){
+        m_value = 0;
+        delete m_pCore;
+        m_pCore = nullptr;
+        return false;
+    }
+
+    const char* cpcStringEnd = strchr(cpcStringStart,')');
+    if((!cpcStringEnd) || ((cpcStringEnd-cpcStringStart)<4)){
+        m_value = 0;
+        delete m_pCore;
+        m_pCore = nullptr;
+        return false;
+    }
+
+    if(!m_pCore){
+        m_pCore = new Core;
+    }
+
+    m_pCore->doocsUrl2 = ::std::string(cpcStringStart+1,static_cast<size_t>((cpcStringEnd-cpcStringStart)-1));
+
+    return InitDataStuff();
+}
+
+
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+pitz::daq::EntryParams::DataType::DataType(const char* a_entryParamName)
+    :
+      SomeInts(a_entryParamName)
+{
 }
 
 
@@ -721,7 +880,7 @@ pitz::daq::EntryParams::Date::~Date()
 
 bool pitz::daq::EntryParams::Date::GetDataFromLine(const char* a_entryLine)
 {
-    m_epochSeconds = STRING_TO_EPOCH(a_entryLine+1);
+    m_epochSeconds = STRING_TO_EPOCH(a_entryLine);
     return true;
 }
 
@@ -738,7 +897,7 @@ size_t pitz::daq::EntryParams::Date::WriteDataToLineBuffer(char* a_entryLineBuff
         if(a_unBufferSize<5){
             return 0;
         }
-        memcpy(a_entryLineBuffer,"never",5);
+        memcpy(a_entryLineBuffer,NON_EXPIRE_STRING,s_cunNonExpireStrLen);
         unReturn = 5;
         break;
     default:
@@ -772,11 +931,6 @@ pitz::daq::EntryParams::Mask::Mask(const char* a_entryParamName)
       Date(a_entryParamName)
 {
     m_epochSeconds = NOT_MASKED_TO_TIME;
-}
-
-
-pitz::daq::EntryParams::Mask::~Mask()
-{
 }
 
 
@@ -922,6 +1076,44 @@ static size_t EPOCH_TO_STRING(const time_t& a_epoch, char* a_buffer, size_t a_bu
     struct tm aTm;
     localtime_r(&a_epoch,&aTm);
     return static_cast<size_t>(snprintf(a_buffer,a_bufferLength,"%d.%.2d.%.2d-%.2d:%.2d",aTm.tm_year+1900,aTm.tm_mon+1,aTm.tm_mday,aTm.tm_hour,aTm.tm_min));
+}
+
+
+bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_doocsUrl, DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo )
+{
+    int nReturn;
+    EqCall eqCall;
+    EqData dataIn;
+    EqAdr eqAddr;
+
+    eqAddr.adr(a_doocsUrl);
+    nReturn = eqCall.get(&eqAddr,&dataIn,a_pEqDataOut);
+
+    if(nReturn){
+        ::std::string errorString = a_pEqDataOut->get_string();
+        ::std::cerr << errorString << ::std::endl;
+        return false;
+    }
+
+    a_pEntryInfo->dataType = a_pEqDataOut->type();
+    a_pEntryInfo->itemsCountPerEntry = a_pEqDataOut->length();
+
+    //return GetDataPointerFromEqData(a_pEqDataOut)?true:false;
+    return true;
+}
+
+
+void* GetDataPointerFromEqData(EqData* a_pData)
+{
+    EqDataBlock* pDataBlock = a_pData->data_block();
+
+    if((!pDataBlock)||(pDataBlock->error)||(!pDataBlock->tm)){return nullptr;}
+
+    int nDataLen = a_pData->length();
+    if(nDataLen<1){return nullptr;}
+    else if((nDataLen<2)||(a_pData->type()==DATA_IIII)||(a_pData->type()==DATA_IFFF)){return &(pDataBlock->data_u.DataUnion_u);}
+
+    return pDataBlock->data_u.DataUnion_u.d_char.d_char_val;
 }
 
 }}

@@ -40,6 +40,7 @@
 #define NUM_OF_ERRORS_KEY_STR       "errorsnumber"
 #define MASK_COLLECTION_KEY_STR     "maskCollection"
 #define MASK_ERRORS_KEY_STR         "maskErrors"
+#define SPECIAL_KEY_ADDITIONAL_DATA "additionalData"
 #define POSIIBLE_TERM_SYMBOLS       " \t\",;\n"
 
 #define STACK_SIZE                  32
@@ -51,6 +52,7 @@
 #define NETWORK_READ_ERROR          (1<<1)
 #define DATA_TYPE_MISMATCH_ERROR    (1<<2)
 
+class EqData;
 
 namespace pitz{ namespace daq{
 
@@ -64,6 +66,8 @@ typedef const char* TypeConstCharPtr;
 namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknownCreation};}
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
+bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo );
+void* GetDataPointerFromEqData(EqData* a_pData);
 
 #define D_BASE_FOR_STR  D_text
 
@@ -120,8 +124,6 @@ public:
     int value()const;
     Base* thisPtr();
     size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
-
-private:
     virtual ::std::string additionalString()const=0;
 
 };
@@ -131,7 +133,7 @@ class Error : public SomeInts
 {
 public:
     Error(const char* entryParamName);
-    ~Error() OVERRIDE2 ;
+    //~Error() OVERRIDE2 ;
 
     void setError(int error, const ::std::string& errorString);
 
@@ -143,11 +145,28 @@ private:
 };
 
 
+//class AdditionalData : public SomeInts
+//{
+//public:
+//    AdditionalData(const char* entryParamName);
+//    ~AdditionalData() OVERRIDE2 ;
+//
+//    void set(const ::std::string& doocsUrlOfAddData);
+//    void unset();
+//
+//private:
+//    ::std::string additionalString()const OVERRIDE2;
+//
+//private:
+//    std::string m_doocsUrlOfAddData;
+//};
+
+
 class DataType : public SomeInts
 {
 public:
     DataType(const char* entryParamName);
-    ~DataType() OVERRIDE2 ;
+    //~DataType() OVERRIDE2 ;
 
     void set(int32_t type);
 
@@ -177,7 +196,7 @@ class Mask : public Date
 {
 public:
     Mask(const char* entryParamName);
-    ~Mask() OVERRIDE2 ;
+    //~Mask() OVERRIDE2 ;
 
     bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
     size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
@@ -185,19 +204,52 @@ public:
 
 };
 
+
 class String : public Base
 {
 public:
     String(const char* entryParamName);
-    ~String() OVERRIDE2 ;
+    virtual ~String() OVERRIDE2 ;
 
-    bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
-    size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
+    virtual bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
+    virtual size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
     const ::std::string& value()const;
     void setValue(const ::std::string& newValue);
 
-private:
+protected:
     ::std::string m_string;
+};
+
+
+class AdditionalData : public SomeInts
+{
+    struct Core{
+        std::string parentAndFinalDoocsUrl;
+        std::string doocsUrl2;
+        EqData      doocsData;
+        char*       rootFormatString;
+        TBranch*    rootBranch;
+        time_t      lastUpdateTime;
+        uint64_t    isInited : 1;
+        uint64_t    reserved64Bit : 63;
+        Core(){rootFormatString=nullptr;rootBranch=nullptr;lastUpdateTime=0;isInited=reserved64Bit=0;}
+    };
+public:
+    AdditionalData(const char* entryParamName);
+    ~AdditionalData() OVERRIDE2;
+
+    void setRootBranchIfEnabled(TTree* a_pTreeOnRoot);
+    void checkIfFillTimeAndFillIfYes();
+    void initTimeAndRoot();
+    void setParentDoocsUrl( const ::std::string& parentDoocsUrl );
+
+private:
+    bool  InitDataStuff();
+    bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
+    ::std::string additionalString()const OVERRIDE2;
+
+private:
+    Core*   m_pCore;
 };
 
 } // namespace EntryParams{
@@ -227,12 +279,12 @@ public:
     bool                resetNetworkLockAndReturnIfDeletable();
     bool                resetRooFileLockAndReturnIfDeletable();
     bool                isLockedForAnyAction()const;
-    void                Fill(DEC_OUT_PD(SingleData)* pNewMemory, int a_second, int a_eventNumber);
+    void                Fill(DEC_OUT_PD(SingleData)* pNewMemory);
     const char*         daqName()const{return m_daqName;}
-    int                 firstSecond()const{return m_firstSecond;}
-    int                 firstEventNumber()const{return m_firstEventNumber;}
-    int                 lastSecond()const{return m_lastSecond;}
-    int                 lastEventNumber()const{return m_lastEventNumber;}
+    int                 firstSecond()const{return m_firstHeader.timestampSeconds;}
+    int                 firstEventNumber()const{return m_firstHeader.eventNumber;}
+    int                 lastSecond()const{return m_lastHeader.timestampSeconds;}
+    int                 lastEventNumber()const{return m_lastHeader.eventNumber;}
     uint64_t            isPresentInCurrentFile()const{return m_isPresentInCurrentFile;}
     void                WriteContentToTheFile(FILE* fpFile)const;
     void                SetError(int a_error, const ::std::string& a_errorString);
@@ -262,6 +314,7 @@ private:
     EntryParams::Error                      m_errorWithString;
 
 protected:
+    EntryParams::AdditionalData             m_additionalData;
     EntryParams::DataType                   m_dataType;
     EntryParams::IntParam<int32_t>          m_itemsCountPerEntry;
 
@@ -270,19 +323,21 @@ protected:
     // everything that should not be set to 0, should be declared before this line
 private:
     char*                                   m_daqName;
-    int                                     m_firstEventNumber,m_lastEventNumber;
-    int                                     m_firstSecond,m_lastSecond;
-
+    DEC_OUT_PD(SingleData)                  m_firstHeader;
+    DEC_OUT_PD(SingleData)                  m_lastHeader;
+    time_t                                  m_lastReadTime;
     SNetworkStruct*                         m_pNetworkParent;
-    TTree*                                  m_pTreeOnRoot2;
-    TBranch*                                m_pBranchOnTree;
+    TTree*                                  m_pTreeOnRoot;
+    TBranch*                                m_pHeaderBranch;
+    TBranch*                                m_pDataBranch;
 
     mutable uint64_t                        m_willBeDeletedOrIsUsedAtomic64 ;
 
     uint64_t                                m_isPresentInCurrentFile : 1;
     //uint64_t                                m_isCleanEntryInheritableCalled : 1;
     uint64_t                                m_isValid : 1;
-    uint64_t                                m_bitwise64Reserved : 61;
+    //uint64_t                                m_doesAdditionalDataExist : 1;
+    uint64_t                                m_bitwise64Reserved : 62;
 
     int                                     m_nReserved1;
     int                                     m_nReserved2;

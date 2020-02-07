@@ -56,4 +56,5 @@ include(../../common/common_qt/sys_common.pri)
 #INCLUDEPATH += $$SYSTEM_LIB/include/doocs
 #INCLUDEPATH += /doocs/develop/bagrat/doocs.git/include
 
-INCLUDEPATH += /afs/ifh.de/group/pitz/doocs/lib/include
+#INCLUDEPATH += /afs/ifh.de/group/pitz/doocs/lib/include
+INCLUDEPATH += /afs/ifh.de/group/pitz/doocs/include/doocs

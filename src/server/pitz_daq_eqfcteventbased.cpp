@@ -184,7 +184,8 @@ pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_cr
       SingleEntryDoocsBase(a_creationType,a_entryLine,a_pHelper),
       m_zmqEndpoint(SPECIAL_KEY_ENDPOINT)
 {
-    bool bCallIniter = false, bIsAddedByUser = false;
+    //bool bCallIniter = false, bIsAddedByUser = false;
+    bool bCallIniter = false;
 
     AddNewParameterToEnd(&m_zmqEndpoint,false,false);
 
@@ -197,14 +198,15 @@ pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_cr
         break;
     case entryCreationType::fromUser:
         bCallIniter = true;
-        bIsAddedByUser = true;
+        //bIsAddedByUser = true;
         break;
     default:
         throw errorsFromConstructor::type;
     }
 
     if(bCallIniter){
-        LoadFromLine(a_entryLine,true,bIsAddedByUser);
+        //LoadFromLine(a_entryLine,true,bIsAddedByUser);
+        m_zmqEndpoint.FindAndGetFromLine(a_entryLine);
     }
 
     m_pSocket = NEWNULLPTR;

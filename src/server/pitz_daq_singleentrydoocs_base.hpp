@@ -27,9 +27,6 @@ public:
     const ::std::string& doocsUrl()const ;
 
 protected:
-    bool GetEntryInfoFromServer( DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo ) const;
-
-protected:
     EntryParams::String             m_doocsUrl;
     char*                           m_rootFormatStr;
 };

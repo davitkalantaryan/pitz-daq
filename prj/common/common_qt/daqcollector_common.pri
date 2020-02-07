@@ -76,7 +76,7 @@ HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_singleentry.hpp                                    \
     $${PWD}/../../../src/server/pitz_daq_singleentry.impl.hpp                               \
     $${PWD}/../../../src/server/pitz_daq_eqfctcollector.hpp                                 \
-    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.impl.hpp                             \
+    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.impl.hpp                            \
     $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
     $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp                             \
     $${PWD}/../../../include/pitz_daq_internal.h                                            \
@@ -85,6 +85,7 @@ HEADERS += \
     $${PWD}/../../../include/common/inthash.impl.hpp                                        \
     $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_types.h           \
     $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling.h                 \
+    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp.hpp                             \
     $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_daqdev.h
 
 OTHER_FILES += \
