@@ -299,6 +299,7 @@ private:
     // DOOCS callbacks
     void                get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
     void                set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
+    void                write (fstream &) OVERRIDE2;
         
 private:
     ::std::list< SingleEntry* >::iterator   m_thisIter;

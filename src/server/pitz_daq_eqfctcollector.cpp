@@ -94,13 +94,14 @@ void pitz::daq::EqFctCollector::CalculateRemoteDirPathAndFileName(std::string* a
     char
             vcYear[BUF_LEN_FOR_STRFTIME], vcMonth[BUF_LEN_FOR_STRFTIME],
             vcDay[BUF_LEN_FOR_STRFTIME], vcHour[BUF_LEN_FOR_STRFTIME],
-            vcMinute[BUF_LEN_FOR_STRFTIME];
+            vcMinute[BUF_LEN_FOR_STRFTIME], vcSeconds[BUF_LEN_FOR_STRFTIME];
 
     strftime (vcYear,BUF_LEN_FOR_STRFTIME,"%Y",timeinfo);
     strftime (vcMonth,BUF_LEN_FOR_STRFTIME,"%m",timeinfo);
     strftime (vcDay,BUF_LEN_FOR_STRFTIME,"%d",timeinfo);
     strftime (vcHour,BUF_LEN_FOR_STRFTIME,"%H",timeinfo);
     strftime (vcMinute,BUF_LEN_FOR_STRFTIME,"%M",timeinfo);
+    strftime (vcSeconds,BUF_LEN_FOR_STRFTIME,"%S",timeinfo);
     DUMMY_ARGS2(aWalltime);
 
     *a_remoteDirPath = m_rootDirPathBaseRemote.value()+std::string("/")+
@@ -110,7 +111,7 @@ void pitz::daq::EqFctCollector::CalculateRemoteDirPathAndFileName(std::string* a
 
     *a_fileName = m_rootFileNameBase.value()+std::string(".")+
             std::string(vcYear)+"-"+std::string(vcMonth)+"-"+
-            std::string(vcDay)+"-"+std::string(vcHour)+vcMinute +
+            std::string(vcDay)+"-"+std::string(vcHour)+std::string(vcMinute) +vcSeconds +
             std::string(".root");
 }
 
@@ -203,7 +204,7 @@ bool pitz::daq::EqFctCollector::IsAllowedToAdd(const char* a_newEntryLine)
 }
 
 
-void pitz::daq::EqFctCollector::DataGetterThread2(SNetworkStruct* a_pNet)
+void pitz::daq::EqFctCollector::DataGetterThread(SNetworkStruct* a_pNet)
 {
     NewSharedLockGuard< ::STDN::shared_mutex > lockGuard;
     ::std::vector<SingleEntry*> vectForEntries;

@@ -93,7 +93,7 @@ protected:
 private:
     virtual pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type type,const char* entryLine)=0;
     virtual bool DataGetterFunctionWithWait(const SNetworkStruct* pNet, const ::std::vector<SingleEntry*>& pEntries)=0;
-    void DataGetterThread2(SNetworkStruct* pNet);
+    void DataGetterThread(SNetworkStruct* pNet);
 
     // API can be used, as well inherited by child
 protected:

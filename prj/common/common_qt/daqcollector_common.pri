@@ -7,7 +7,7 @@ message("!!! daqcollector_common.pri:")
 include(../../common/common_qt/root_no_gui_common.pri)
 DEFINES += ROOT_APP
 
-include($${PWD}/../../../contrib/matlab/prj/common/common_qt/matlab_matrix_without_libs_common.pri)
+include($${PWD}/../../../contrib/data_handling/contrib/matlab/prj/common/common_qt/matlab_matrix_without_libs_common.pri)
 DEFINES += USE_NEW_MATLB_NAMES
 
 DEFINES += R__NULLPTR
