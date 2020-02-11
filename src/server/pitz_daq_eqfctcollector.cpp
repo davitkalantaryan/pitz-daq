@@ -3,8 +3,6 @@
 // 2017 Nov 24
 
 #include <cstdlib>
-#define atoll       atol
-#define strtoull    strtoul
 #include "pitz_daq_eqfctcollector.hpp"
 #include <signal.h>
 #include "pitz_daq_eqfctcollector.cpp.hpp"

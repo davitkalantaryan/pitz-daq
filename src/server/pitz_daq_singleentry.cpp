@@ -14,11 +14,11 @@
 #include <eq_data.h>
 #include <eq_client.h>
 #include <pitz_daq_data_handling_types.h>
+#include <pitz_daq_data_collector_getter_common.h>
+#include <algorithm>
 
 #define DATA_SIZE_TO_SAVE   50000  // 40 kB
 #define MIN_NUMBER_OF_FILLS 20
-
-#define VERSION_NAME_ADD  "_version1"
 
 
 namespace pitz{ namespace daq{
@@ -326,7 +326,9 @@ void pitz::daq::SingleEntry::set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqDat
 
 void pitz::daq::SingleEntry::write (fstream &)
 {
-    //
+#ifdef DEBUG_APP
+    ::std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! fnc:"<< __FUNCTION__ << ::std::endl;
+#endif
 }
 
 
@@ -343,12 +345,11 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a
 
         char vcBufferData[4096];
 
-        snprintf(vcBufferData,4095,"data" VERSION_NAME_ADD "_type_%d",m_dataType.value());
+        snprintf(vcBufferData,4095,DATA_HEADER_START VERSION_NAME_ADDITION DATA_HEADER_TYPE "%d",m_dataType.value());
 
         m_pTreeOnRoot = new TreeForSingleEntry(this);
 
-        //m_pBranchOnTree = m_pTreeOnRoot->Branch(m_daqName,nullptr,this->rootFormatString());
-        m_pHeaderBranch =m_pTreeOnRoot->Branch("header" VERSION_NAME_ADD,nullptr,"seconds/I:gen_event/I");
+        m_pHeaderBranch =m_pTreeOnRoot->Branch(HEADER_HEADER_START VERSION_NAME_ADDITION,nullptr,"seconds/I:gen_event/I");
         if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
         m_pDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
         if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
@@ -721,7 +722,7 @@ void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTr
 {
     if(!m_pCore){return ;}
     if((!m_pCore->isInited)&&(!InitDataStuff())){return;}
-    m_pCore->rootBranch = a_pTreeOnRoot->Branch("additional"  VERSION_NAME_ADD,nullptr,m_pCore->rootFormatString);
+    m_pCore->rootBranch = a_pTreeOnRoot->Branch( ADDITIONAL_HEADER_START  VERSION_NAME_ADDITION,nullptr,m_pCore->rootFormatString);
     if(m_pCore->rootBranch){
         void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData);
         m_pCore->rootBranch->SetAddress( pAddress );
@@ -787,20 +788,30 @@ bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
 
     DEC_OUT_PD(BranchDataRaw) entryInfo;
 
-    if( GetEntryInfoFromDoocsServer(&m_pCore->doocsData,m_pCore->doocsUrl2,&entryInfo) ){
-        m_pCore->parentAndFinalDoocsUrl = m_pCore->doocsUrl2;
+    ptrdiff_t nCount = ::std::count(m_pCore->doocsUrl2.begin(),m_pCore->doocsUrl2.end(),'/');
+
+    if(nCount>3){return false;}
+
+    ::std::string fullAddr;
+
+    if(nCount<3){
+        ptrdiff_t nParentCount = ::std::count(m_pCore->parentAndFinalDoocsUrl.begin(),m_pCore->parentAndFinalDoocsUrl.end(),'/');
+        const ptrdiff_t cnNumberToRecover = (3-nCount);
+        if(nParentCount<cnNumberToRecover){return false;}
+        size_t unIndex=0;
+        for(ptrdiff_t i(0);i<cnNumberToRecover;++i){
+            unIndex = m_pCore->parentAndFinalDoocsUrl.find("/",unIndex+1);
+        }
+
+        fullAddr = ::std::string(m_pCore->parentAndFinalDoocsUrl.c_str(),unIndex+1)+m_pCore->doocsUrl2;
+
     }
     else{
-        if(m_pCore->parentAndFinalDoocsUrl.length()){
-            EqAdr eqAdr;
-            eqAdr.adr(m_pCore->parentAndFinalDoocsUrl);
-            eqAdr.set_property(m_pCore->doocsUrl2);
-            ::std::string fullAddr = eqAdr.show_adr();
-            if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&entryInfo) ){return false;}
-            m_pCore->parentAndFinalDoocsUrl = fullAddr;
-        }
-        else{return false;}
+        fullAddr = m_pCore->doocsUrl2;
     }
+
+    if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&entryInfo) ){return false;}
+    m_pCore->parentAndFinalDoocsUrl = fullAddr;
 
     m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(1,&entryInfo,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
     if(!(m_pCore->rootFormatString)){

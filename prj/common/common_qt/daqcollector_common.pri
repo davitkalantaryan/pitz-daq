@@ -86,7 +86,8 @@ HEADERS += \
     $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_types.h           \
     $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling.h                 \
     $${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp.hpp                             \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_daqdev.h
+    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_daqdev.h          \
+    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_collector_getter_common.h
 
 OTHER_FILES += \
     $${PWD}/../../../src/tools/pitz_daq_data_memory_base.cpp                                \
