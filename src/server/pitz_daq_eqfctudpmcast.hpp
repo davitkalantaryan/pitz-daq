@@ -2,8 +2,8 @@
 // Modified 2017 Oct 23
 // pitz_daq_eqfctudpmcast.hpp (old name daqadcreceiver.hpp)
 
-#ifndef __pitz_daq_eqfctudpmcast_hpp__
-#define __pitz_daq_eqfctudpmcast_hpp__
+#ifndef pitz_daq_eqfctudpmcast_hpp
+#define pitz_daq_eqfctudpmcast_hpp
 
 #include "pitz_daq_eqfctcollector.hpp"
 
@@ -19,13 +19,14 @@ class EqFctUdpMcast : public EqFctCollector
     friend class SingleEntryUdp;
 public:
     EqFctUdpMcast( );
-    virtual ~EqFctUdpMcast();
+    virtual ~EqFctUdpMcast() OVERRIDE2;
 
 protected:
-    virtual int  fct_code(void);
+    int  fct_code(void) OVERRIDE2;
 
-    void DataGetterThread(SNetworkStruct* pNet);
-    pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type creationType,const char* entryLine);
+    pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type creationType,const char* entryLine) OVERRIDE2;
+    void DataGetterFunctionWithWait(const SNetworkStruct* pNet, const ::std::vector<SingleEntry*>& pEntries) OVERRIDE2;
+    pitz::daq::SNetworkStruct* CreateNewNetworkStruct() OVERRIDE2;
 
 protected:
     D_string        m_hostName;
@@ -35,4 +36,4 @@ protected:
 
 }} // namespace pitz, namespace daq
 
-#endif // #ifndef __pitz_daq_eqfctudpmcast_hpp__
+#endif // #ifndef pitz_daq_eqfctudpmcast_hpp

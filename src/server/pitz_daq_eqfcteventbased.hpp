@@ -29,7 +29,7 @@ protected:
 
     //void DataGetterThread(SNetworkStruct* pNet) OVERRIDE2;
 
-    virtual bool DataGetterFunctionWithWait(const SNetworkStruct* pNet, const ::std::vector<SingleEntry*>& pEntries) OVERRIDE2 ;
+    virtual void DataGetterFunctionWithWait(const SNetworkStruct* pNet, const ::std::vector<SingleEntry*>& pEntries) OVERRIDE2 ;
 
     pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type creationType,const char* entryLine) OVERRIDE2;
     SNetworkStruct* CreateNewNetworkStruct() OVERRIDE2;

@@ -6,6 +6,9 @@
 # for PITZ
 #
 
+
+LIBS += -L/afs/ifh.de/group/pitz/doocs/data/ers/sys/$$CODENAME/lib
+
 MYDOOCS = /afs/ifh.de/group/pitz/doocs
 
 INCLUDEPATH += $$MYDOOCS/include

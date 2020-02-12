@@ -86,7 +86,7 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     m_errorMask.SetParentAndClbk(this,[](EntryParams::Base* a_pErrMask, void* a_pThis){
         EntryParams::Mask* pErrorMask = static_cast<EntryParams::Mask*>(a_pErrMask);
         if(pErrorMask->isMasked()){
-            static_cast<SingleEntry*>(a_pThis)->m_errorWithString.setError(0,"No error");
+            static_cast<SingleEntry*>(a_pThis)->SetError(0,"ok");
         }
     });
 
@@ -228,13 +228,17 @@ bool pitz::daq::SingleEntry::lockEntryForRoot()
 
 bool pitz::daq::SingleEntry::lockEntryForNetwork()
 {
-    uint64_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrIsUsedAtomic64,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
+    m_errorMask.isMasked();
+    if(!m_collectionMask.isMasked()){
+        uint64_t nReturn = __atomic_fetch_or (&m_willBeDeletedOrIsUsedAtomic64,VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
 
-    if(!(nReturn&VALUE_FOR_DELETE)){
-        return true;
+        if(!(nReturn&VALUE_FOR_DELETE)){
+            return true;
+        }
+
+        __atomic_fetch_and (&m_willBeDeletedOrIsUsedAtomic64,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
     }
 
-    __atomic_fetch_and (&m_willBeDeletedOrIsUsedAtomic64,~VALUE_FOR_ADD_TO_NETW,__ATOMIC_RELAXED);
     return false;
 }
 
@@ -337,15 +341,16 @@ void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData)* a_usedMemory
     FreeDataWithOffset(a_usedMemory,0);
 }
 
+#include "pitz_daq_collectorproperties.hpp"
 
 void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
+    int32_t nGenEventNormalized = a_pNewMemory->eventNumber%s_H_count;
     if(!lockEntryForRoot()){return;}
     if(!m_pTreeOnRoot){
 
         char vcBufferData[4096];
-
-        snprintf(vcBufferData,4095,DATA_HEADER_START VERSION_NAME_ADDITION DATA_HEADER_TYPE "%d",m_dataType.value());
+        snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d",m_dataType.value());
 
         m_pTreeOnRoot = new TreeForSingleEntry(this);
 
@@ -355,6 +360,17 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a
         if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
         m_additionalData.setRootBranchIfEnabled(m_pTreeOnRoot);
     }
+
+    // handle possible gen event errors
+    if((a_pNewMemory->eventNumber<0)||(a_pNewMemory->eventNumber<m_lastHeader.timestampSeconds)){
+        // we have gen event error handle it
+    }
+    if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->eventNumber){
+        a_pNewMemory->timestampSeconds = g_shareptr[nGenEventNormalized].seconds;
+    }
+
+
+    //if(g_shareptr[a_pNewMemory->eventNumber].gen_event)
 
     m_pHeaderBranch->SetAddress(a_pNewMemory);
     m_pDataBranch->SetAddress(reinterpret_cast<char*>(a_pNewMemory)+sizeof(DEC_OUT_PD(SingleData)));
@@ -441,7 +457,12 @@ void pitz::daq::SingleEntry::SetError(int a_error, const ::std::string& a_errorS
 {
     EqFctCollector* pClc = m_pNetworkParent?m_pNetworkParent->m_pParent:NEWNULLPTR2;
 
-    if(a_error&&(!m_errorWithString.value())){
+    if(m_errorMask.isMasked()&&m_errorWithString.value()){
+        if(pClc){pClc->DecrementErrors(m_daqName);}
+        m_errorWithString.setError(0,"ok");
+        return;
+    }
+    else if(a_error&&(!m_errorWithString.value())){
         if(pClc){pClc->IncrementErrors(m_daqName);}
     }
     else if((a_error==0)&&(m_errorWithString.value())){
@@ -684,7 +705,7 @@ void pitz::daq::EntryParams::Error::setError(int a_error, const ::std::string& a
 {
     switch(a_error){
     case 0:
-        m_errorString = "";
+        m_errorString = "ok";
         break;
     default:
         if(!(a_error & value())){
@@ -722,7 +743,9 @@ void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTr
 {
     if(!m_pCore){return ;}
     if((!m_pCore->isInited)&&(!InitDataStuff())){return;}
-    m_pCore->rootBranch = a_pTreeOnRoot->Branch( ADDITIONAL_HEADER_START  VERSION_NAME_ADDITION,nullptr,m_pCore->rootFormatString);
+    char vcBufferData[4096];
+    snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d",static_cast<int>(m_pCore->entryInfo.dataType));
+    m_pCore->rootBranch = a_pTreeOnRoot->Branch( vcBufferData,nullptr,m_pCore->rootFormatString);
     if(m_pCore->rootBranch){
         void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData);
         m_pCore->rootBranch->SetAddress( pAddress );
@@ -786,8 +809,6 @@ bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
     if(!m_pCore){return false;}
     if(m_pCore->isInited){return true;}
 
-    DEC_OUT_PD(BranchDataRaw) entryInfo;
-
     ptrdiff_t nCount = ::std::count(m_pCore->doocsUrl2.begin(),m_pCore->doocsUrl2.end(),'/');
 
     if(nCount>3){return false;}
@@ -810,10 +831,10 @@ bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
         fullAddr = m_pCore->doocsUrl2;
     }
 
-    if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&entryInfo) ){return false;}
+    if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&m_pCore->entryInfo) ){return false;}
     m_pCore->parentAndFinalDoocsUrl = fullAddr;
 
-    m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(1,&entryInfo,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+    m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(1,&m_pCore->entryInfo,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
     if(!(m_pCore->rootFormatString)){
         return false;
     }
@@ -1005,9 +1026,13 @@ size_t pitz::daq::EntryParams::Mask::WriteDataToLineBuffer(char* a_entryLineBuff
 }
 
 
-bool pitz::daq::EntryParams::Mask::isMasked()const
+bool pitz::daq::EntryParams::Mask::isMasked()
 {
-    return m_epochSeconds != NOT_MASKED_TO_TIME;
+    time_t currentTime;
+    time(&currentTime);
+    if((m_epochSeconds!=NON_EXPIRE_TIME)&&(currentTime>=m_epochSeconds)){m_epochSeconds=NOT_MASKED_TO_TIME;}
+    if(m_epochSeconds==NOT_MASKED_TO_TIME){return false;}
+    return true;
 }
 
 

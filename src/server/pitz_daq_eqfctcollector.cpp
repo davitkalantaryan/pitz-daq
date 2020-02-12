@@ -61,14 +61,24 @@ pitz::daq::EqFctCollector::EqFctCollector()
 
     m_unErrorUnableToWriteToDcacheNum = 0;
 
+    EqFct::err_.set_ro_access();
     m_genEvent.set_ro_access();
+    // m_fileMaxSize
     m_numberOfEntries.set_ro_access();
-    m_rootDirPathBaseRemote.set_ro_access();
-    //m_rootDirPathBaseLocal.set_ro_access();
-    //m_folderName.set_ro_access();
-    //m_rootFileNameBase.set_ro_access();
-    //m_numberOfFillThreadsDesigned.set_ro_access();
+    //m_logLevel("LOG.LEVEL log level of server", this),
+    //m_rootDirPathBaseRemote("ROOT.DIR.PATH.REMOTE",this),
+    //m_rootDirPathBaseLocal("ROOT.DIR.PATH.LOCAL",this),
+    //m_folderName("FOLDER.NAME for example 'pitznoadc0'",this),
+    //m_rootFileNameBase("ROOT.FILE.NAME.BASE",this),
+    //m_expertsMailingList("EXPERTS.MAILING.LIST  should be ; separated",this),
+    //m_numberOfFillThreadsDesigned("NUMBER.OF.FILL.THREDS.DESIGNED",this),
     m_numberOfFillThreadsFinal.set_ro_access();
+    m_currentFileSize.set_ro_access();
+    //m_addNewEntry("ADD.NEW.ENTRY",this),
+    //m_removeEntry("DELETE.ENTRY",this),
+    //m_loadOldConfig("LOAD.OLD.CONFIG",this),
+    m_numberOfEntriesInError.set_ro_access();
+    m_entriesInError.set_ro_access();
 
 }
 
@@ -135,6 +145,8 @@ void pitz::daq::EqFctCollector::init(void)
 
     if(m_shouldWork){return;}
     m_shouldWork = 1;
+
+    set_error(0,"ok");
 
     m_numberOfEntries.set_value(0);
     m_entriesInError.set_value("");
@@ -206,6 +218,7 @@ void pitz::daq::EqFctCollector::DataGetterThread(SNetworkStruct* a_pNet)
 {
     NewSharedLockGuard< ::STDN::shared_mutex > lockGuard;
     ::std::vector<SingleEntry*> vectForEntries;
+    struct timeval aTimeBeforeSleepFncCall, aTimeAfterSleepFncCall;
 
     struct sigaction sigAction;
 
@@ -239,7 +252,10 @@ enteTryPoint:
             lockGuard.UnlockShared();
 
             if(vectForEntries.size()>0){
-                if(!this->DataGetterFunctionWithWait(a_pNet,vectForEntries)){
+                gettimeofday(&aTimeBeforeSleepFncCall,nullptr);
+                this->DataGetterFunctionWithWait(a_pNet,vectForEntries);
+                gettimeofday(&aTimeAfterSleepFncCall,nullptr);
+                if((aTimeAfterSleepFncCall.tv_sec==aTimeBeforeSleepFncCall.tv_sec)&&(aTimeAfterSleepFncCall.tv_usec<(aTimeBeforeSleepFncCall.tv_usec+4))){
                     sleep(2);
                 }
             }
@@ -300,8 +316,12 @@ void pitz::daq::EqFctCollector::IncrementErrors(const char* a_entryName)
     //char vcBuffer[1024];
     const size_t entryNameLen = strlen(a_entryName);
     int nNumber = 0;
+    unsigned int unCurrentError;
 
     m_mutexForEntriesInError.lock();
+    unCurrentError = static_cast<unsigned int>(get_error());
+    unCurrentError |= ENTRY_IN_ERROR;
+    set_error(static_cast<int>(unCurrentError));
     strEntries = m_entriesInError.value();
     cpcBuffer = strEntries.c_str();
     cpcEntryInTheGroup = strstr(cpcBuffer,a_entryName);
@@ -325,7 +345,13 @@ void pitz::daq::EqFctCollector::IncrementErrors(const char* a_entryName)
 
 void pitz::daq::EqFctCollector::DecrementErrors(const char* a_entryName)
 {
-    int nNumber = m_numberOfEntriesInError.value();
+    NewLockGuard< ::std::mutex > lockGuard;
+    int nNumber;
+    unsigned int unCurrentError;
+
+    lockGuard.Lock(&m_mutexForEntriesInError);
+
+    nNumber = m_numberOfEntriesInError.value();
 
     if(nNumber>0){
         char* pcNext;
@@ -335,28 +361,32 @@ void pitz::daq::EqFctCollector::DecrementErrors(const char* a_entryName)
         //char vcBuffer[1024];
         std::string strEntries ;
 
-        m_mutexForEntriesInError.lock();
-
         strEntries = m_entriesInError.value();
         pcBuffer = const_cast<char*>(strEntries.c_str());
         pcNext=strstr(pcBuffer,a_entryName);
         if(!pcNext){m_mutexForEntriesInError.unlock();return;}
 
         if(*(pcNext+entryNameLen)!=DELIMETER_SYMBOL[0]){
-            m_mutexForEntriesInError.unlock();
+            lockGuard.Unlock();
             return;
         }
 
         unWholeStrLen = strEntries.length();
-        m_numberOfEntriesInError.set_value(--nNumber);
+        if(!(--nNumber)){
+            unCurrentError = static_cast<unsigned int>(get_error());
+            unCurrentError &= (~ENTRY_IN_ERROR);
+            set_error(static_cast<int>(unCurrentError));
+        }
+        m_numberOfEntriesInError.set_value(nNumber);
         DEBUG_APP_INFO(2,"!!!!!!!!!!!!!!! DecrementErrors setting to %d",nNumber);
         //strncpy(vcBuffer,cpcEntries,1023);
 
         memmove(pcNext,pcNext+entryNameLen+1,unWholeStrLen-static_cast<size_t>(pcNext-pcBuffer)-entryNameLen);
         m_entriesInError.set_value(pcBuffer);
 
-        m_mutexForEntriesInError.unlock();
     }
+
+    lockGuard.Unlock();
 }
 
 
@@ -615,6 +645,7 @@ void* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, 
 
     return pRootFile;
 }
+
 
 
 void pitz::daq::EqFctCollector::RootThreadFunction()

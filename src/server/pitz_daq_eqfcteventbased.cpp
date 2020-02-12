@@ -72,12 +72,11 @@ pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreation
 }
 
 
-bool pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct* a_pNet, const ::std::vector<SingleEntry*>& a_entries)
+void pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct* a_pNet, const ::std::vector<SingleEntry*>& a_entries)
 {
     const SNetworkStructZmqDoocs* pNetZmq = static_cast< const SNetworkStructZmqDoocs* >(a_pNet);
     DEC_OUT_PD(SingleData)* dataFromNetwork;
     SingleEntryZmqDoocs* pEntry;
-    int nHandled(0);
     int nReturn;
     size_t unIndex;
     size_t unValidEntriesCount;
@@ -98,11 +97,11 @@ bool pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct
     }
 
     unValidEntriesCount = validEntries.size();
-    if(unValidEntriesCount<1){return false;}
+    if(unValidEntriesCount<1){return ;}
     if(unValidEntriesCount>pNetZmq->m_unCreatedItemsCount){
         zmq_pollitem_t* pItemsNew = static_cast<zmq_pollitem_t*>(realloc(pNetZmq->m_pItems,unValidEntriesCount));
         if(!pItemsNew){
-            return false;
+            return ;
         }
         pNetZmq->m_pItems = pItemsNew;
         pNetZmq->m_unCreatedItemsCount = unValidEntriesCount;
@@ -115,14 +114,13 @@ bool pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct
     }
 
     nReturn=zmq_poll(pNetZmq->m_pItems,static_cast<int>(unValidEntriesCount),-1);
-    if(nReturn<=0){return false;}
+    if(nReturn<=0){return ;}
 
     for(unIndex=0;unIndex<unValidEntriesCount;++unIndex){
         pEntry=validEntries[unIndex];
         if(pNetZmq->m_pItems[unIndex].revents & ZMQ_POLLIN){
             if( (dataFromNetwork=pEntry->ReadData())){
                 AddJobForRootThread(dataFromNetwork,pEntry);
-                ++nHandled;
             }
             else{
                 // set network error
@@ -133,7 +131,6 @@ bool pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct
 
     }
 
-    return nHandled?true:false;
 }
 
 

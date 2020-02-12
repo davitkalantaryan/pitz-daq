@@ -25,7 +25,7 @@ include(../../common/common_qt/daqcollector_event_based_common.pri)
 
 INCLUDEPATH += $$MYDOOCS/include/zmq
 LIBS += -lzmq
-LIBS += -L/afs/ifh.de/group/pitz/doocs/data/ers/sys/$$CODENAME/lib
+#LIBS += -L/afs/ifh.de/group/pitz/doocs/data/ers/sys/$$CODENAME/lib
 
 # LIBS += -lMCclass
 SOURCES += \

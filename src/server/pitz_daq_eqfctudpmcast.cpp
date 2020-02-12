@@ -30,7 +30,7 @@
 #include <simple_plotter_c.h>
 #endif
 
-#define SPECIAL_KEY "channel"
+#define SPECIAL_KEY_CHANNEL "channel"
 
 static int SwapDataIfNecessary(DEC_OUT_PD(SingleData) *a_pMemory);
 
@@ -40,30 +40,39 @@ class SingleEntryUdp : public SingleEntry
 {
 public:
     SingleEntryUdp(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
-    ~SingleEntryUdp();
+    ~SingleEntryUdp() OVERRIDE2;
 
-    const char* rootFormatString()const;
-    void ValueStringByKeyInherited(bool bReadAll, const char* request, char* buffer, int bufferLength)const;
-    void PermanentDataIntoFile(FILE* fpFile)const;
+    const char* rootFormatString()const OVERRIDE2;
 
     void SetFctParent(EqFctUdpMcast*  a_pFctParent);
     int channelNumber()const{return m_nChannelNumber;}
 
-    //void ResetPending(int indexOrEventNumber);
-    //unsigned int IsAnyPending()const;
-    //unsigned int IsPending(int indexOrEventNumber)const;
+    int LastEventNumberHandled()const;
+    void SetLastEventNumberHandled(int);
 
     DEC_OUT_PD(SingleData)* GetAndRemovePendingBufferIfAny(int indexOrEventNumber);
     void SetPendingBuffer(int a_indexOrEventNumber, DEC_OUT_PD(SingleData)* a_pBuffer);
 
 private:
-    EqFctUdpMcast*  m_pFctParent;
-    int             m_nChannelNumber;
-    int             m_nReserved;
-    //unsigned int    m_isPending;
+    EqFctUdpMcast*                      m_pFctParent;
+    EntryParams::IntParam<int>          m_nChannelNumber;
+    int                                 m_nLastEventNumberHandled;
+    int                                 m_nReservedUdp1;
     DEC_OUT_PD(SingleData)* m_vPendings[NUMBER_OF_PENDING_PACKS];
 
 };
+
+
+class SNetworkStructUdp : public SNetworkStruct
+{
+public:
+    SNetworkStructUdp( EqFctCollector* pParentCollector, const char* a_cpcHostName );
+    ~SNetworkStructUdp() OVERRIDE2 ;
+
+public:
+    MClistener         m_socket;
+};
+
 }}
 
 using namespace pitz::daq;
@@ -89,7 +98,7 @@ EqFct* eq_create(int a_eq_code, void* /*a_arg*/)
 
 
 pitz::daq::EqFctUdpMcast::EqFctUdpMcast() :
-       m_hostName("HOST__NAME for multicasting", this)
+       m_hostName("HOST__NAME multicaster host name ", this)
 
 {
     memset(m_vMapper,0,sizeof(m_vMapper));
@@ -129,126 +138,75 @@ pitz::daq::SingleEntry* pitz::daq::EqFctUdpMcast::CreateNewEntry(entryCreationTy
 }
 
 
-void pitz::daq::EqFctUdpMcast::DataGetterThread(SNetworkStruct* /*pNet*/)
+pitz::daq::SNetworkStruct* pitz::daq::EqFctUdpMcast::CreateNewNetworkStruct()
+{
+    return new SNetworkStructUdp(this,m_hostName.value());
+}
+
+
+void pitz::daq::EqFctUdpMcast::DataGetterFunctionWithWait(const SNetworkStruct* a_pNet, const ::std::vector<SingleEntry*>& /*pEntries*/)
 {
     SingleEntryUdp* pCurEntry;
-    DEC_OUT_PD(SingleData) *pPendingData, *pMemory2 = CreateDataWithOffset(8,sizeof(DATA_struct)-8); // 8 = 4(for endian), 4(for branchNum)
-    MClistener      aListener;
-    //MClistener
+    DEC_OUT_PD(SingleData) *pPendingData, *pMemory = CreateDataWithOffset(8,sizeof(DATA_struct)-8); // 8 = 4(for endian), 4(for branchNum)
     int nBranchNum;
     int nbytes;
-    int GH;
-    int nEventNumberToTryPending,nLastEventToTryPending, nError=0;
+    int nEventNumberToTryPending,nLastEventToTryPending;
     int nEventNumber(0), nLastEventNumberHandled;
-    bool bErrorNoEntrySet(false);
+    const SNetworkStructUdp* pNet = static_cast<const SNetworkStructUdp*>(a_pNet);
 
-    if(aListener.ConnectToTheMGroup(m_hostName.value())){
-        std::cerr<<"Unable to connect to host\""<<m_hostName.value()<<"\"\n";
-        exit(1);
+    nbytes = pNet->m_socket.recvC(pMemory,sizeof(DATA_struct));
+
+    if( nbytes != sizeof(DATA_struct) ){
+
+        printtostderr("ERROR","nbytes < 0");
+        //ERR_LOG("nbytes<0");
+        fprintf(stderr,"Error during reading\n");
+        return;
     }
-    aListener.SetSocketTimeout(2000);
 
-    while( shouldWork() ){
+    nBranchNum = SwapDataIfNecessary(pMemory)%MAX_CHANNELS_NUM;
 
-        nbytes = aListener.recvC(pMemory2,sizeof(DATA_struct));
+    pCurEntry = static_cast<SingleEntryUdp*>(m_vMapper[nBranchNum]);
+    pCurEntry->lockEntryForRoot();
 
-        //DEBUG_("nbytes=%d\n",nbytes);
+    nLastEventNumberHandled = pCurEntry->LastEventNumberHandled();
+    nEventNumber = pMemory->eventNumber;
 
-        if( nbytes != sizeof(DATA_struct) ){
+    if(nEventNumber<=nLastEventNumberHandled){
+        // report on repetition (this is just warning forgot it :) )
+        return;
+    }
 
-#ifdef __OLD__
-            p->listener->init_socket_new();
-#else
-            if(shouldWork()){
-                if(nError==0){
-                    printtostderr("ERROR","nbytes < 0");
-                    //ERR_LOG("nbytes<0");
-                    fprintf(stderr,"Error during reading\n");
-                    nError = 1;
-                }
-                SleepMs(5000);
-            }
-            continue;
-#endif
-        }
+    // let's remove a pending data (if exists) corresponding to this event
+    pPendingData = pCurEntry->GetAndRemovePendingBufferIfAny(nEventNumber);
+    if(pPendingData){
+        // bad luck we have lost data
+        fprintf(stderr, "!!! data loss in the channel %d. Event number before %d is not found (%d).\n",
+                pCurEntry->channelNumber(), nEventNumber,pPendingData->eventNumber);
+        AddJobForRootThread(pPendingData,pCurEntry);
+        pCurEntry->SetLastEventNumberHandled(pPendingData->eventNumber);  // checking is done inside
+    }
 
-        if(nError==1){
-            nError = 0;
-            printf("Error recovered!\n");
-        }
-        nBranchNum = SwapDataIfNecessary(pMemory2)%MAX_CHANNELS_NUM;
+    // let's remove all pending data (if any) after this event
+    for(
+        nEventNumberToTryPending=nEventNumber+1,nLastEventToTryPending=nEventNumber+NUMBER_OF_PENDING_PACKS;
+        nEventNumberToTryPending<nLastEventToTryPending;++nEventNumberToTryPending)
+    {
+        pPendingData = pCurEntry->GetAndRemovePendingBufferIfAny(nEventNumberToTryPending);
+        if(!pPendingData){break;}
+        AddJobForRootThread(pPendingData,pCurEntry);
+        pCurEntry->SetLastEventNumberHandled(pPendingData->eventNumber);
+    }
 
-        pCurEntry = static_cast<SingleEntryUdp*>(m_vMapper[nBranchNum]);
-        pCurEntry->lockEntryForRoot();
+    // let's check whether this data should wait (become pending, untill previous package arrives) to make packages in correct order
+    if( ((nEventNumber-nLastEventNumberHandled)>1)&&nLastEventNumberHandled ){
+        pCurEntry->SetPendingBuffer(nEventNumber,pMemory);
+        return;
+    }
 
-        nLastEventNumberHandled = pCurEntry->LastEventNumberHandled();
-        nEventNumber = pMemory2->eventNumber;
-
-        if(nEventNumber<=nLastEventNumberHandled){
-            // report on repetition (this is just warning forgot it :) )
-            continue;
-        }
-
-        GH = nEventNumber% s_H_count;
-        pMemory2->timestampSeconds=::g_shareptr[GH].seconds;
-
-        // let's remove a pending data (if exists) corresponding to this event
-        pPendingData = pCurEntry->GetAndRemovePendingBufferIfAny(nEventNumber);
-        if(pPendingData){
-            // bed luck we have lost data
-            fprintf(stderr, "!!! data loss in the channel %d. Event number before %d is not found (%d).\n",
-                    pCurEntry->channelNumber(), nEventNumber,pPendingData->eventNumber);
-            if( !AddJobForRootThread(pPendingData,pCurEntry) ){
-                pCurEntry->SetError(-2);
-                if(!bErrorNoEntrySet){fprintf(stderr, "No place in root fifo!\n");bErrorNoEntrySet=true;}
-            }
-            else{ bErrorNoEntrySet = false; }
-            //pCurEntry->ResetPending(nEventNumber);
-            //if(nEventNumberOfPending>pCurEntry->LastEventNumberHandled()){pCurEntry->SetLastEventNumberHandled(nEventNumber-NUMBER_OF_PENDING_PACKS);}
-            pCurEntry->SetLastEventNumberHandled(pPendingData->eventNumber);  // checking is done inside
-        }
-
-        // let's remove all pending data (if any) after this event
-        for(
-            nEventNumberToTryPending=nEventNumber+1,nLastEventToTryPending=nEventNumber+NUMBER_OF_PENDING_PACKS;
-            nEventNumberToTryPending<nLastEventToTryPending;++nEventNumberToTryPending)
-        {
-            pPendingData = pCurEntry->GetAndRemovePendingBufferIfAny(nEventNumberToTryPending);
-            if(!pPendingData){break;}
-            if( !AddJobForRootThread(pPendingData,pCurEntry) ){
-                pCurEntry->SetError(-2);
-                if(!bErrorNoEntrySet){fprintf(stderr, "No place in root fifo!\n");bErrorNoEntrySet=true;}
-            }
-            else{ bErrorNoEntrySet = false; }
-            //pCurEntry->ResetPending(nEventNumberToTryPending);
-            pCurEntry->SetLastEventNumberHandled(pPendingData->eventNumber);
-        }
-
-
-        // let's check whether this data should wait (become pending, untill previous package arrives) to make packages in correct order
-        if( ((nEventNumber-nLastEventNumberHandled)>1)&&nLastEventNumberHandled ){
-            pCurEntry->SetPendingBuffer(nEventNumber,pMemory2);
-            goto prepareNextReceiveBuffer;
-        }
-
-        // ererything is ok add data to root
-        if(!AddJobForRootThread(pMemory2,pCurEntry)){
-            pCurEntry->SetMemoryBack(pMemory2);
-            pCurEntry->SetError(-2);
-            if(!bErrorNoEntrySet){fprintf(stderr, "No place in root fifo!\n");bErrorNoEntrySet=true;}
-        }
-        else{ bErrorNoEntrySet = false; }
-        pCurEntry->SetLastEventNumberHandled(nEventNumber);
-
-prepareNextReceiveBuffer:
-        pMemory2 = pCurEntry->GetNewMemoryForNetwork();
-
-    } // while( m_nWork )
-
-    aListener.CloseSock();
-    //delete pMemForRcv;
-    //DEBUG_("!!!!!!!!!!!!!!!!!!!!! m_nWork=%d\n",m_nWork);
-
+    // ererything is ok add data to root
+    AddJobForRootThread(pMemory,pCurEntry);
+    pCurEntry->SetLastEventNumberHandled(nEventNumber);
 }
 
 
@@ -257,12 +215,16 @@ prepareNextReceiveBuffer:
 pitz::daq::SingleEntryUdp::SingleEntryUdp(entryCreationType::Type a_creationType,const char* a_entryLine,TypeConstCharPtr* a_pHelper)
         :
         SingleEntry(a_creationType,a_entryLine,a_pHelper),
-        m_pFctParent(NEWNULLPTR2)
+        m_pFctParent(NEWNULLPTR2),
+        m_nChannelNumber(SPECIAL_KEY_CHANNEL)
 {
-
-    m_nReserved = 0;
-    //m_isPending = 0;
+    int nChannelNumber=0;
+    bool bCallIniter = false;
+    m_nReservedUdp1 = 0;
+    m_nLastEventNumberHandled = 0;
     memset(m_vPendings,0,sizeof(m_vPendings));
+
+    AddNewParameterToEnd(&m_nChannelNumber,false,true);
 
     switch(a_creationType)
     {
@@ -272,29 +234,27 @@ pitz::daq::SingleEntryUdp::SingleEntryUdp(entryCreationType::Type a_creationType
             char doocs_url[256], daqName[256];
 
             sscanf(a_entryLine,"%s %s %d %d %d %d",
-                   daqName,doocs_url,&from,&samples,&step,&m_nChannelNumber);
+                   daqName,doocs_url,&from,&samples,&step,&nChannelNumber);
+            //m_nChannelNumber = (nChannelNumber);
         }
         break;
 
     case entryCreationType::fromConfigFile: case entryCreationType::fromUser:
-        {
-            const char *pcNext = strstr(a_entryLine,SPECIAL_KEY "=");
-
-            if(!pcNext){throw errorsFromConstructor::syntax;}
-            pcNext += strlen(SPECIAL_KEY "=");
-            m_nChannelNumber = atoi(pcNext);
-
-        }
+        bCallIniter = true;
         break;
 
     default:
         throw errorsFromConstructor::type;
-        break;
     }
 
-    m_nChannelNumber = m_nChannelNumber<0 ? 0 : m_nChannelNumber;
-    m_nChannelNumber %= MAX_CHANNELS_NUM;
+    if(bCallIniter){
+        m_nChannelNumber.FindAndGetFromLine(a_entryLine);
+        nChannelNumber = (m_nChannelNumber);
+    }
 
+    nChannelNumber = nChannelNumber<0 ? 0 : nChannelNumber;
+    nChannelNumber %= MAX_CHANNELS_NUM;
+    m_nChannelNumber = (nChannelNumber);
 }
 
 
@@ -311,31 +271,22 @@ void pitz::daq::SingleEntryUdp::SetFctParent(EqFctUdpMcast*  a_pFctParent)
 }
 
 
-void pitz::daq::SingleEntryUdp::PermanentDataIntoFile(FILE* a_fpFile)const
-{
-    fprintf(a_fpFile,SPECIAL_KEY "=%d; ",m_nChannelNumber);
-}
-
-
 const char* pitz::daq::SingleEntryUdp::rootFormatString()const
 {
     return "seconds/I:gen_event/I:array_value[2048]/F";
 }
 
 
-void pitz::daq::SingleEntryUdp::ValueStringByKeyInherited(bool a_bReadAll, const char* a_request, char* a_buffer, int a_bufferLength)const
-{    
-    char* pcBufToWrite(a_buffer);
-    int nWritten,nBufLen(a_bufferLength);
-
-    if(a_bReadAll ||strstr(SPECIAL_KEY,a_request)){
-        nWritten = snprintf(pcBufToWrite,static_cast<size_t>(nBufLen),SPECIAL_KEY "=%d; ",m_nChannelNumber);
-        pcBufToWrite += nWritten;
-        nBufLen -= nWritten;
-        if(nBufLen<=0){return;}
-    }
+void pitz::daq::SingleEntryUdp::SetLastEventNumberHandled(int a_nLastEventNumber)
+{
+    m_nLastEventNumberHandled = a_nLastEventNumber;
 }
 
+
+int pitz::daq::SingleEntryUdp::LastEventNumberHandled() const
+{
+    return m_nLastEventNumberHandled ;
+}
 
 
 DEC_OUT_PD(SingleData)* pitz::daq::SingleEntryUdp::GetAndRemovePendingBufferIfAny(int a_indexOrEventNumber)
@@ -356,6 +307,26 @@ void pitz::daq::SingleEntryUdp::SetPendingBuffer(int a_indexOrEventNumber, DEC_O
     //unsigned int unMask = 1<<nIndex;
     //m_isPending |= unMask;
     m_vPendings[nIndex] = a_pBuffer;
+}
+
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+pitz::daq::SNetworkStructUdp::SNetworkStructUdp( EqFctCollector* a_pParentCollector, const char* a_cpcHostName )
+    :
+      SNetworkStruct(a_pParentCollector)
+{
+    if(m_socket.ConnectToTheMGroup(a_cpcHostName)){
+        std::cerr<<"Unable to connect to host\""<<a_cpcHostName<<"\"\n";
+        exit(1);
+    }
+    m_socket.SetSocketTimeout(2000);
+}
+
+
+pitz::daq::SNetworkStructUdp::~SNetworkStructUdp()
+{
+    StopThreadThenDeleteAndClearEntries();
+    m_socket.CloseSock();
 }
 
 /*/////////////////////////////////////////////////////////////////////////////////////*/

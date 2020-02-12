@@ -16,6 +16,8 @@
 #include <list>
 #include <TTree.h>
 
+#define ENTRY_IN_ERROR                  STATIC_CAST2(unsigned int,1)
+
 #ifndef PITZ_DAQ_UNSPECIFIED_DATA_TYPE
 #define PITZ_DAQ_UNSPECIFIED_DATA_TYPE  -1
 #endif  // #ifndef PITZ_DAQ_UNKNOWN_DATA_TYPE
@@ -200,7 +202,7 @@ public:
 
     bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
     size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
-    bool   isMasked()const;
+    bool   isMasked();
 
 };
 
@@ -224,14 +226,15 @@ protected:
 class AdditionalData : public SomeInts
 {
     struct Core{
-        std::string parentAndFinalDoocsUrl;
-        std::string doocsUrl2;
-        EqData      doocsData;
-        char*       rootFormatString;
-        TBranch*    rootBranch;
-        time_t      lastUpdateTime;
-        uint64_t    isInited : 1;
-        uint64_t    reserved64Bit : 63;
+        std::string                 parentAndFinalDoocsUrl;
+        std::string                 doocsUrl2;
+        EqData                      doocsData;
+        DEC_OUT_PD(BranchDataRaw)   entryInfo;
+        char*                       rootFormatString;
+        TBranch*                    rootBranch;
+        time_t                      lastUpdateTime;
+        uint64_t                    isInited : 1;
+        uint64_t                    reserved64Bit : 63;
         Core(){rootFormatString=nullptr;rootBranch=nullptr;lastUpdateTime=0;isInited=reserved64Bit=0;}
     };
 public:
@@ -326,7 +329,7 @@ private:
     char*                                   m_daqName;
     DEC_OUT_PD(SingleData)                  m_firstHeader;
     DEC_OUT_PD(SingleData)                  m_lastHeader;
-    time_t                                  m_lastReadTime;
+    //time_t                                  m_lastReadTime;
     SNetworkStruct*                         m_pNetworkParent;
     TTree*                                  m_pTreeOnRoot;
     TBranch*                                m_pHeaderBranch;

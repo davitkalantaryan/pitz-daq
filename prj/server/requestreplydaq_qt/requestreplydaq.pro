@@ -27,8 +27,9 @@ INCLUDEPATH += $${PWD}/../../../contrib/matlab/include
 
 SOURCES += \
     $${PWD}/../../../src/server/pitz_daq_eqfctrr.cpp                \
-    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.cpp
+    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.cpp
 
 HEADERS += \
+    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.hpp \
     $${PWD}/../../../src/server/pitz_daq_eqfctrr.hpp
 

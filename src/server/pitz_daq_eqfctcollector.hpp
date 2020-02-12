@@ -92,8 +92,7 @@ protected:
     // API to be inherited
 private:
     virtual pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type type,const char* entryLine)=0;
-    virtual bool DataGetterFunctionWithWait(const SNetworkStruct* pNet, const ::std::vector<SingleEntry*>& pEntries)=0;
-    void DataGetterThread(SNetworkStruct* pNet);
+    virtual void DataGetterFunctionWithWait(const SNetworkStruct* pNet, const ::std::vector<SingleEntry*>& pEntries)=0;
 
     // API can be used, as well inherited by child
 protected:
@@ -126,6 +125,7 @@ private:
     void* RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
     void  RootThreadFunction() ;
     void  LocalFileDeleterThread();
+    void  DataGetterThread(SNetworkStruct* pNet);
 
 public:
     // API public, for DOOCS properties usage
