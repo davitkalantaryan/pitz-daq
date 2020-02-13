@@ -19,8 +19,6 @@ public:
     TreeForSingleEntry( SingleEntry* pEntry );
     ~TreeForSingleEntry() OVERRIDE2;
 
-    Int_t           Fill() OVERRIDE2;
-
 public:
     SingleEntry*    m_pParentEntry;
 };

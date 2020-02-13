@@ -532,44 +532,32 @@ bool pitz::daq::SNetworkStruct::AddNewEntry(SingleEntry *a_newEntry)
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
+#include "pitz_daq_eqfctcollector.cpp.hpp"
+
 pitz::daq::TreeForSingleEntry::TreeForSingleEntry( pitz::daq::SingleEntry* a_pParentEntry )
     :
       ::TTree(a_pParentEntry->m_daqName, "DATA"),
       m_pParentEntry(a_pParentEntry)
 {
-    if(m_pParentEntry ){
-        m_pParentEntry->m_isPresentInLastFile = 0;
-    }
+    NewTFile* pFile = dynamic_cast<NewTFile*>(GetCurrentFile());
+    m_pParentEntry->m_isPresentInLastFile = 0;
+    pFile->AddNewTree(this);
 }
 
 
 pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
 {
-    if(m_pParentEntry ){
-        //m_pParentEntry->m_pBranchOnTree = NEWNULLPTR2;
-        m_pParentEntry->m_pHeaderBranch = NEWNULLPTR2;
-        m_pParentEntry->m_pDataBranch = NEWNULLPTR2;
-        m_pParentEntry->m_additionalData.initTimeAndRoot();
-        m_pParentEntry->m_pTreeOnRoot = NEWNULLPTR2;
-        if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
-            SingleEntry* pParentEntry( m_pParentEntry );
-            m_pParentEntry=NEWNULLPTR2;
-            delete pParentEntry;
-        }
+    m_pParentEntry->m_pHeaderBranch = NEWNULLPTR2;
+    m_pParentEntry->m_pDataBranch = NEWNULLPTR2;
+    m_pParentEntry->m_additionalData.initTimeAndRoot();
+    m_pParentEntry->m_pTreeOnRoot = NEWNULLPTR2;
+    if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
+        SingleEntry* pParentEntry( m_pParentEntry );
+        m_pParentEntry=NEWNULLPTR2;
+        delete pParentEntry;
     }
 }
 
-#include "pitz_daq_eqfctcollector.cpp.hpp"
-
-Int_t pitz::daq::TreeForSingleEntry::Fill()
-{
-    Int_t nReturn =  ::TTree::Fill();
-    NewTFile* pFile = dynamic_cast<NewTFile*>(GetCurrentFile());
-    if(pFile){
-        pFile->newDataAdded(nReturn);
-    }
-    return nReturn;
-}
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 

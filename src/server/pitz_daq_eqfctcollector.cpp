@@ -29,6 +29,8 @@
 
 static const char*      s_LN = "#_QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890";
 
+static int NewSystemStat(const char *a_command);
+
 static void SignalHandler(int){}
 
 pitz::daq::EqFctCollector::EqFctCollector()
@@ -587,39 +589,7 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 }
 
 
-
-
-//pitz::daq::SStructForFill pitz::daq::EqFctCollector::GetAndDeleteFirstData()
-//{
-//    SStructForFill strToRet(m_fifoToFill.front());
-//    m_fifoToFill.pop();
-//    //strToRet.entry->m_isInTheRootFifo = 0;
-//    return strToRet;
-//}
-
-
-//void pitz::daq::EqFctCollector::CheckGenEventError(int* a_pnPreviousTime, int* a_pnPreviousGenEvent)
-//{
-//    struct timeb currentTime;
-//    int nGenEvent;
-//
-//    ftime(&currentTime);
-//    if((currentTime.time-(*a_pnPreviousTime))>=10){
-//        nGenEvent = m_genEvent.value();
-//        if(nGenEvent==(*a_pnPreviousGenEvent)){
-//            set_error(2018,"Gen event error");
-//        }
-//        else{
-//            set_error(0,"ok");
-//            (*a_pnPreviousGenEvent) = nGenEvent;
-//        }
-//
-//        (*a_pnPreviousTime) = static_cast<int>(currentTime.time);
-//    }
-//}
-
-
-void* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
+NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
     int64_t llnCurFileSize;
     NewTFile *pRootFile;
@@ -629,8 +599,8 @@ void* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, 
     CalcLocalDir(&localDirPath);
     *a_pFilePathLocal = localDirPath+"/"+fileName;
     *a_pFilePathRemote = remoteDirPath+"/"+fileName;
-    std::cout<<"locDirPath="<<localDirPath<<std::endl;
-    std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
+    //std::cout<<"locDirPath="<<localDirPath<<std::endl;
+    //std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
     mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
     mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
 
@@ -650,11 +620,10 @@ void* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, 
 
 void pitz::daq::EqFctCollector::RootThreadFunction()
 {
+    NewTFile* pRootFile=nullptr;
     std::string filePathLocal, filePathRemote;
-    TFile* pGlobalRootFileInitial=gFile;
-    NewTFile* pRootFile = NEWNULLPTR2;
     SStructForFill strToFill;
-    int64_t llnCurFileSize, llnCurFileSizeMean, llnMaxFileSize;
+    int64_t llnCurFileSize, llnMaxFileSize/*, llnCurFileSizeLastSaved=0*/;
 
     while( this->shouldWork()  ){
 
@@ -663,38 +632,35 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
         while( m_fifoToFill.frontAndPop(&strToFill) ){
 
             if(!pRootFile){  // open root file
-                pGlobalRootFileInitial=gFile;
-                pRootFile=static_cast<NewTFile*>(RootFileCreator(&filePathLocal,&filePathRemote));
+                pRootFile=RootFileCreator(&filePathLocal,&filePathRemote);
             }
 
-            //CheckGenEventError(&nPreviousTime,&nPreviousGenEvent);
             strToFill.entry->Fill(strToFill.data);
 
-            llnCurFileSizeMean = pRootFile->meanDataSize();llnCurFileSize=pRootFile->GetSize();
+            llnCurFileSize=gFile->GetSize();
             llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());
-            m_currentFileSize.set_value(static_cast<int>(llnCurFileSizeMean));
-            //::std::cout << "!!!!!! GetSize="<< llnCurFileSize << ", meanDataSize=" << llnCurFileSizeMean << ::std::endl;
+            m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
 
             if(llnCurFileSize>=llnMaxFileSize){ // close root file
+                pRootFile->SaveAllTrees();
                 pRootFile->TDirectory::DeleteAll();
                 pRootFile->TDirectory::Close();
                 delete pRootFile;
-                gFile = pGlobalRootFileInitial;
                 pRootFile = NEWNULLPTR2;
                 m_currentFileSize.set_value(-1);
                 CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
             }
-            else if(llnCurFileSizeMean>llnMaxFileSize){pRootFile->SaveSelf();}
 
         } // while( m_fifoToFill.frontAndPop(&strToFill) ){
 
     } // while( this->shouldWork() )
 
     if(pRootFile){
+        pRootFile->SaveAllTrees();
+        pRootFile->cd();gFile = pRootFile;
         pRootFile->TDirectory::DeleteAll();
         pRootFile->TDirectory::Close();
         delete pRootFile;
-        gFile = pGlobalRootFileInitial;
         pRootFile = NEWNULLPTR2;
         m_currentFileSize.set_value(-1);
         CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
@@ -715,7 +681,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
 
     snprintf(vcBuffer,1023,"dccp -d 0 %s %s", a_fileLocal.c_str(), a_fileRemote.c_str());
     DEBUG_APP_INFO(2,"executing \"%s\"\n",vcBuffer);
-    if(system(vcBuffer)!=0){
+    if(NewSystemStat(vcBuffer)){
         if(m_unErrorUnableToWriteToDcacheNum++==0){
             // send an email
             SendEmailCpp(m_rootFileNameBase.value(),m_expertsMailingList.value(),"Unable to copy the file", "Unable to copy the file");
@@ -761,15 +727,6 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
 }
 
 
-//void pitz::daq::EqFctCollector::RemoveOneEntry2(SingleEntry* a_pEntry)
-//{
-//    WriteLockEntries();
-//    if(!IsAllowedToAdd2(a_entryLine)){bRet = false;goto returnPoint;}
-//    AddNewEntryPrivate(a_creationType,a_entryLine);
-//returnPoint:
-//    WriteUnlockEntries();
-//}
-
 
 uint64_t pitz::daq::EqFctCollector::shouldWork()const
 {
@@ -790,30 +747,61 @@ bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_da
 }
 
 
-/*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
 
 NewTFile::NewTFile(const char* a_filePath)
     :
       TFile(a_filePath,"UPDATE","DATA",1)
 {
-    m_uncompressedDataSize= 0;
 }
 
 
 NewTFile::~NewTFile()
 {
-    //
+    gFile=nullptr;
 }
 
 
-void NewTFile::newDataAdded(Int_t a_newDataSize)
+void NewTFile::SaveAllTrees()
 {
-    m_uncompressedDataSize += static_cast<Long64_t>(a_newDataSize);
+    //TList* keyList=GetListOfKeys();
+    //if(keyList){
+    //    TTree* pTree;
+    //    const Int_t numberOfTrees = keyList->GetEntries();
+    //    for(Int_t i(0);i<numberOfTrees;++i){
+    //        pTree = static_cast<TTree *>(Get(keyList->At(i)->GetName()));
+    //        if(pTree){
+    //            pTree->AutoSave("SaveSelf");
+    //        }
+    //    }
+    //}
+
+    const size_t cunTreesNumber(m_trees.size());
+
+    for(size_t i(0);i<cunTreesNumber;++i){
+        m_trees[i]->AutoSave("SaveSelf");
+    }
+
 }
 
 
-Long64_t NewTFile::meanDataSize()const
+void NewTFile::AddNewTree(TTree* a_pNewTree)
 {
-    Long64_t sizeInTheFile(GetSize());
-    return (m_uncompressedDataSize+sizeInTheFile+sizeInTheFile+sizeInTheFile)/4;
+    m_trees.push_back(a_pNewTree);
+}
+
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+static int NewSystemStat(const char *a_command)
+{
+    int nReturn;
+    int stdoutCopy = dup(STDOUT_FILENO);
+    int stderrCopy = dup(STDERR_FILENO);
+    freopen( "/dev/null", "w", stdout);
+    freopen( "/dev/null", "w", stderr);
+    nReturn = system(a_command);
+    dup2(stdoutCopy,STDOUT_FILENO);
+    dup2(stderrCopy,STDERR_FILENO);
+    return nReturn;
 }

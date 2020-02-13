@@ -4,6 +4,7 @@
 # This file can be used to produce Makefile for daqadcreceiver application
 # for PITZ
 
+
 DEFINES += DMSG
 #DEFINES += DEBUG_APP
 DEFINES += NEW_GETTER_THREAD

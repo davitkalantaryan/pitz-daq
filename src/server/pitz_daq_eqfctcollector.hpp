@@ -34,6 +34,7 @@
 #define CAST_CLEAR_RET(_retValue)
 #endif
 
+class NewTFile;
 
 namespace pitz{namespace daq{
 
@@ -80,9 +81,6 @@ struct SStructForFill{
 
 class EqFctCollector : public EqFct
 {
-    //friend class D_addNewEntry;
-    //friend class D_removeEntry;
-    //friend class D_genEvent;
     friend class SNetworkStruct;
 
 protected:
@@ -117,12 +115,11 @@ private:
     pitz::daq::SingleEntry* FindEntry(const char* entryName);
     void CalculateRemoteDirPathAndFileName(std::string* fileName,std::string* remoteDirPath)STUPID_NON_CONST;
     void CalcLocalDir(std::string* localDirPath)STUPID_NON_CONST;
-
     void CopyFileToRemoteAndMakeIndexing(const std::string& localFilePath, const std::string& remoteFilePath);
     void WriteEntriesToConfig()const;
-    //void CheckGenEventError(int* a_nPreviousTime, int* a_nPreviousGenEvent);
+    NewTFile*  RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
 
-    void* RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
+    // thread functions
     void  RootThreadFunction() ;
     void  LocalFileDeleterThread();
     void  DataGetterThread(SNetworkStruct* pNet);

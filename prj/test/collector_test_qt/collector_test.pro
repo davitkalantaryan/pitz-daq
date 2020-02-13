@@ -31,6 +31,8 @@ include($${PWD}/../../common/common_qt/root_no_gui_common.pri)
 SOURCES += \
     $${PWD}/../../../src/test/main_collector_test.cpp
 
+HEADERS += ../../../src/test/test_collector_test_reader_common.h
+
 
 HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_singleentrydoocs.hpp \
