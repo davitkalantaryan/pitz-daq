@@ -3,62 +3,30 @@
 //
 // pitznoadc0 Eq function class
 
-// to be deleted
-#define TO_BE_UNDERSTOOD_ASOVA_THREAD   0
 
-//#define IMPLEMENT_CONDITIONS
-//#define ALARM_UNDERSTOOD
-
-#include <cstdlib>
-#define atoll       atol
-#define strtoull    strtoul
 #include "pitz_daq_eqfctrr.hpp"
-#include <ctime>
-#include <cstdio>
 #include <iostream>
 #include <fstream>
-#include <cstring>
-#include <cstdlib>
-#include <cerrno>
-
 #include <sys/stat.h>
 #include <sys/shm.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <dirent.h>
 #include <libgen.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include "printtostderr.h"
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-
-
-#include <TROOT.h>
-#include <TString.h>
-#include <TFile.h>
-#include <TTree.h>
-#include <TBranch.h>
-#include <TBasket.h>
-#include <TObject.h>
-#include <TSystem.h>
-#include <TError.h>
-#include <TNetFile.h>
 #include <stdio.h>
 #include "pitz_daq_singleentrydoocs_base.hpp"
-
+#include <pitz_daq_data_handling_types.h>
+#include <pitz_daq_data_handling_daqdev.h>
 #include "eq_errors.h"
 #include "eq_sts_codes.h"
 #include "eq_fct_errors.h"
 
-#define DATA_TYPE_TAKE_FR_DOOCS -1
-#define LEN_OF_SPECIAL_MIN1   511
-#define SPECIAL_KEY_DOOCS "doocs"
-#define SPECIAL_KEY_DATA_TYPE "type"
-#define SPECIAL_KEY_DATA_SAMPLES "samples"
 
 namespace pitz{namespace daq{
 
@@ -68,7 +36,8 @@ public:
     SingleEntryRR(entryCreationType::Type creationType,const char* entryLine,TypeConstCharPtr* a_pHelper);
     ~SingleEntryRR();
 
-private:
+    void GetDataAndFill();
+
 };
 }}
 
@@ -107,102 +76,29 @@ int pitz::daq::EqFctRR::fct_code()
 
 
 pitz::daq::SingleEntry* pitz::daq::EqFctRR::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
-{    
-    EqAdr dcsAddr;
-    EqData dataIn, dataOut;
-    EqCall eqCall;
-    const char* cpcLine;
-    SingleEntryRR* pEntry = new SingleEntryRR(a_creationType,a_entryLine,&cpcLine);
-    int nDcsCallResult;
-
-    if(!pEntry){return NEWNULLPTR2;}
-
-    dcsAddr.adr( pEntry->doocsUrl());
-    dataIn.init();dataOut.init();
-    nDcsCallResult = eqCall.get(&dcsAddr,&dataIn,&dataOut);
-
-    if(nDcsCallResult != 0){
-        goto returnPoint;
-    }
-    else if(dataOut.type() != pEntry->dataType()){
-
-        if(pEntry->dataType() == DATA_TYPE_TAKE_FR_DOOCS){
-            pEntry->setDataType(dataOut.type());
-        }
-        else {nDcsCallResult = -2; goto returnPoint;}
-    }
-
-
-returnPoint:
-
-    if(nDcsCallResult && (a_creationType == entryCreationType::fromUser)){
-        delete pEntry;return NEWNULLPTR2;
-    }
-
-    return pEntry;
-}
-
-extern int g_nInTheStack;
-
-void pitz::daq::EqFctRR::DataGetterThread(SNetworkStruct* a_pNet)
 {
-    DEC_OUT_PD(SingleData)* pMemory;
-    ::std::list< SingleEntry* >::const_iterator pIter, pIterEnd;
-    const ::std::list< SingleEntry* >& entriesList = a_pNet->daqEntries();
-
-    //data::memory::ForServerBase* pMemory;
-    SingleEntryRR *pEntry;
-    //SingleEntryRR *pEntry, *pCurEntry, *pNextOfLast;
-    EqAdr  dcsAddr;
-    EqData dataIn, dataOut;
-    EqCall eqCall;
-    int nDcsCallresult, nEventNumber;
-    int nWaitMs;
-    int nTime;
-
-    while(shouldWork() && a_pNet->shouldRun()){
-        //m_mutexForEntries.lock_shared();
-        //pNextOfLast = (SingleEntryRR*)a_pNet->last()->next;
-        GetEventAndTime(&nEventNumber,&nTime);
-
-        pIterEnd = entriesList.end();
-        for(pIter=entriesList.begin();pIter!=pIterEnd;++pIter){
-            pEntry = static_cast< SingleEntryRR* >( *pIter );
-            //if(pEntry->LoadOrValidateData(pNetZmq->m_pContext)){
-            //    if(pEntry->lockEntryForNetwork()){
-            //        validEntries.push_back(pEntry);
-            //        //validEntries.AddNewElement(pEntryCheck->socket(),pEntryCheck);
-            //    }
-            //}
-
-            dcsAddr.adr(pEntry->doocsUrl());
-            dataIn.init();dataOut.init();
-            nDcsCallresult = eqCall.get(&dcsAddr,&dataIn,&dataOut);
-
-            if(nDcsCallresult){
-                //if(pEntry->MaskErrors(nullptr)){}
-                pEntry->SetError(-3);
-                continue;
-            }
-
-            pMemory = pEntry->GetNewMemoryForNetwork();
-            pMemory->eventNumber = nEventNumber;
-            pMemory->timestampSeconds = nTime;
-            pEntry->FromDoocsToMemory(pMemory,&dataOut);
-
-            if(!AddJobForRootThread(pMemory,pEntry)){
-                pEntry->SetError(-2);
-                fprintf(stderr, "No place in root fifo!\n");
-            }
-        }
-
-        nWaitMs = m_pollingPeriod.value();
-        if(!nWaitMs){nWaitMs=1;}
-        SleepMs(nWaitMs);
-    }  // while(m_nWork){
-
+    const char* cpcLine;
+    return new SingleEntryRR(a_creationType,a_entryLine,&cpcLine);
 }
 
+
+void pitz::daq::EqFctRR::DataGetterFunctionWithWait(const SNetworkStruct* /*a_pNet*/, const ::std::vector<SingleEntry*>& a_pEntries)
+{
+    int nWaitMs;
+    SingleEntryRR* pEntry;
+    size_t unIndex;
+    const size_t cunValidSize( a_pEntries.size() );
+
+    for(unIndex=0;unIndex<cunValidSize;++unIndex){
+        pEntry = static_cast< SingleEntryRR* >( a_pEntries[unIndex] );
+        pEntry->GetDataAndFill();
+
+    }
+
+    nWaitMs = m_pollingPeriod.value();
+    if(nWaitMs<10){nWaitMs=10;}
+    SleepMs(nWaitMs);
+}
 
 
 /*////////////////////////////////////////////////////*/
@@ -219,3 +115,48 @@ pitz::daq::SingleEntryRR::~SingleEntryRR()
 }
 
 
+void pitz::daq::SingleEntryRR::GetDataAndFill()
+{
+    void* pDoocsData;
+    size_t expectedDataLength;
+    int64_t timeSeconds, genEvent;
+    uint32_t oneItemSize;
+    DEC_OUT_PD(BranchDataRaw) entryInfo;
+    EqData dataOut;
+    DEC_OUT_PD(SingleData)* pNewMemory;
+
+    if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&entryInfo)){
+        SetError(NETWORK_READ_ERROR,"DOOCS RR error");
+        return;
+    }
+
+    if(!PrepareDaqEntryBasedOnType(0,&entryInfo,&oneItemSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2)){
+        SetError(UNABLE_TO_PREPARE_DATA,"nable to prepare data");
+        return ;
+    }
+
+    if((m_dataType.value()!=entryInfo.dataType)||((m_itemsCountPerEntry)!=entryInfo.itemsCountPerEntry)){
+        SetError(DATA_TYPE_MISMATCH,"data type mismatch");
+        return ;
+    }
+
+    pDoocsData=GetDataPointerFromEqData(&dataOut,&timeSeconds,&genEvent);
+    if(!pDoocsData){
+        SetError(UNABLE_TO_GET_DOOCS_DATA,"unable to get doocs data");
+        return ;
+    }
+
+    expectedDataLength = oneItemSize*static_cast<uint32_t>(entryInfo.itemsCountPerEntry);
+    pNewMemory =CreateDataWithOffset(0,expectedDataLength);
+    if(!pNewMemory){
+        SetError(LOW_MEMORY_DQ,"Unable to create memory for root");
+        return ;
+    }
+
+    pNewMemory->eventNumber = static_cast<decltype (pNewMemory->eventNumber)>(genEvent);
+    pNewMemory->timestampSeconds = static_cast<decltype (pNewMemory->timestampSeconds)>(timeSeconds);
+
+    memcpy(wrPitzDaqDataFromEntry(pNewMemory),pDoocsData,expectedDataLength);
+
+    Fill(pNewMemory);
+}

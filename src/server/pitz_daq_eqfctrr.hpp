@@ -25,13 +25,14 @@ class EqFctRR : public EqFctCollector
 {
 public:
     EqFctRR();
-    virtual ~EqFctRR();
+    ~EqFctRR() OVERRIDE2;
 
 protected:
-    virtual int  fct_code(void);
+    int  fct_code(void) OVERRIDE2;
 
-    void DataGetterThread(SNetworkStruct* pNet);
-    pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type creationType,const char* entryLine);
+    //void DataGetterThread(SNetworkStruct* pNet);
+    pitz::daq::SingleEntry* CreateNewEntry(entryCreationType::Type creationType,const char* entryLine) OVERRIDE2;
+    void DataGetterFunctionWithWait(const SNetworkStruct* pNet, const ::std::vector<SingleEntry*>& pEntries) OVERRIDE2;
 
 
 protected:

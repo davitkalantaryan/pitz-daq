@@ -53,6 +53,10 @@
 #define ROOT_ERROR                  1
 #define NETWORK_READ_ERROR          (1<<1)
 #define DATA_TYPE_MISMATCH_ERROR    (1<<2)
+#define UNABLE_TO_PREPARE_DATA      (1<<3)
+#define DATA_TYPE_MISMATCH          (1<<4)
+#define LOW_MEMORY_DQ               (1<<5)
+#define UNABLE_TO_GET_DOOCS_DATA    (1<<6)
 
 class EqData;
 
@@ -69,7 +73,7 @@ namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknow
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
 bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo );
-void* GetDataPointerFromEqData(EqData* a_pData);
+void* GetDataPointerFromEqData(EqData* a_pData,int64_t* a_pTimeeconds, int64_t* a_pMacroPulse);
 
 #define D_BASE_FOR_STR  D_text
 

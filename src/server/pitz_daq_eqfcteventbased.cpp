@@ -64,11 +64,7 @@ pitz::daq::SNetworkStruct* pitz::daq::EqFctEventBased::CreateNewNetworkStruct()
 pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
     const char* cpcLine;
-    SingleEntryZmqDoocs* pEntry = new SingleEntryZmqDoocs(a_creationType,a_entryLine,&cpcLine);
-
-    if(!pEntry){return pEntry;}
-
-    return pEntry;
+    return new SingleEntryZmqDoocs(a_creationType,a_entryLine,&cpcLine);
 }
 
 

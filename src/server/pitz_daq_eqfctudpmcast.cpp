@@ -273,7 +273,8 @@ void pitz::daq::SingleEntryUdp::SetFctParent(EqFctUdpMcast*  a_pFctParent)
 
 const char* pitz::daq::SingleEntryUdp::rootFormatString()const
 {
-    return "seconds/I:gen_event/I:array_value[2048]/F";
+    //return "seconds/I:gen_event/I:array_value[2048]/F";
+    return "data[2048]/F";
 }
 
 

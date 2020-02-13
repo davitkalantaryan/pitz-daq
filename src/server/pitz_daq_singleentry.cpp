@@ -747,7 +747,7 @@ void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTr
     snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d",static_cast<int>(m_pCore->entryInfo.dataType));
     m_pCore->rootBranch = a_pTreeOnRoot->Branch( vcBufferData,nullptr,m_pCore->rootFormatString);
     if(m_pCore->rootBranch){
-        void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData);
+        void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData,nullptr,nullptr);
         m_pCore->rootBranch->SetAddress( pAddress );
     }
 }
@@ -777,7 +777,7 @@ void pitz::daq::EntryParams::AdditionalData::checkIfFillTimeAndFillIfYes()
         }
         m_pCore->doocsData.copy_from(&dataOut);
 
-        void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData);
+        void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData,nullptr,nullptr);
         if(pAddress){
             m_pCore->rootBranch->SetAddress( pAddress );
             m_pCore->lastUpdateTime = timeNow;
@@ -1154,7 +1154,7 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
 }
 
 
-void* GetDataPointerFromEqData(EqData* a_pData)
+void* GetDataPointerFromEqData(EqData* a_pData, int64_t* a_pTimeSeconds, int64_t* a_pMacroPulse)
 {
     EqDataBlock* pDataBlock = a_pData->data_block();
 
@@ -1162,7 +1162,14 @@ void* GetDataPointerFromEqData(EqData* a_pData)
 
     int nDataLen = a_pData->length();
     if(nDataLen<1){return nullptr;}
-    else if((nDataLen<2)||(a_pData->type()==DATA_IIII)||(a_pData->type()==DATA_IFFF)){return &(pDataBlock->data_u.DataUnion_u);}
+
+    if(a_pTimeSeconds){*a_pTimeSeconds=static_cast<int64_t>(pDataBlock->tm);}
+    if(a_pMacroPulse){
+        *a_pMacroPulse = static_cast<int64_t>((static_cast<uint64_t>(pDataBlock->mp_hi)<<32) | static_cast<uint64_t>(pDataBlock->mp_lo));
+    }
+
+
+    if((nDataLen<2)||(a_pData->type()==DATA_IIII)||(a_pData->type()==DATA_IFFF)){return &(pDataBlock->data_u.DataUnion_u);}
 
     return pDataBlock->data_u.DataUnion_u.d_char.d_char_val;
 }
