@@ -45,3 +45,4 @@ contrib/doocs/*
 .test/*
 .test/*/*
 .test/*/*/*
+/tests/*.root

@@ -42,11 +42,12 @@ public:
     SNetworkStructZmqDoocs( EqFctCollector* pParentCollector );
     ~SNetworkStructZmqDoocs() OVERRIDE2 ;
 
-    void ResizeItemsCount();
+    bool ResizeItemsCount(size_t a_unNewCount)const;
 
 public:
     void*                   m_pContext;
     mutable zmq_pollitem_t* m_pItems;
+private:
     mutable size_t          m_unCreatedItemsCount;
 };
 

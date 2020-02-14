@@ -94,16 +94,10 @@ void pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct
 
     unValidEntriesCount = validEntries.size();
     if(unValidEntriesCount<1){return ;}
-    if(unValidEntriesCount>pNetZmq->m_unCreatedItemsCount){
-        zmq_pollitem_t* pItemsNew = static_cast<zmq_pollitem_t*>(realloc(pNetZmq->m_pItems,unValidEntriesCount));
-        if(!pItemsNew){
-            return ;
-        }
-        pNetZmq->m_pItems = pItemsNew;
-        pNetZmq->m_unCreatedItemsCount = unValidEntriesCount;
-    }
+    if(!pNetZmq->ResizeItemsCount(unValidEntriesCount)){return;}
 
     for(unIndex=0;unIndex<unValidEntriesCount;++unIndex){
+        pNetZmq->m_pItems[unIndex].fd = 0;
         pNetZmq->m_pItems[unIndex].revents = 0;
         pNetZmq->m_pItems[unIndex].socket = validEntries[unIndex]->socket();
         pNetZmq->m_pItems[unIndex].events = ZMQ_POLLIN;
@@ -155,15 +149,16 @@ pitz::daq::SNetworkStructZmqDoocs::~SNetworkStructZmqDoocs()
 }
 
 
-void pitz::daq::SNetworkStructZmqDoocs::ResizeItemsCount()
+bool pitz::daq::SNetworkStructZmqDoocs::ResizeItemsCount(size_t a_unNewSize)const
 {
-    const size_t newCount(daqEntries().size());
-    if(newCount>m_unCreatedItemsCount){
-        zmq_pollitem_t* pItemsTmp = static_cast<zmq_pollitem_t*>(realloc(m_pItems,sizeof(zmq_pollitem_t)*newCount));
+    if(a_unNewSize>m_unCreatedItemsCount){
+        zmq_pollitem_t* pItemsTmp = static_cast<zmq_pollitem_t*>(realloc(m_pItems,sizeof(zmq_pollitem_t)*a_unNewSize));
         HANDLE_LOW_MEMORY(pItemsTmp);
         m_pItems = pItemsTmp;
-        m_unCreatedItemsCount = newCount;
+        m_unCreatedItemsCount = a_unNewSize;
     }
+
+    return true;
 }
 
 /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/

@@ -350,11 +350,11 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a
     if(!m_pTreeOnRoot){
 
         char vcBufferData[4096];
-        snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d",m_dataType.value());
+        snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_COUNT "%d",m_dataType.value(),static_cast<int>(m_itemsCountPerEntry));
 
         m_pTreeOnRoot = new TreeForSingleEntry(this);
 
-        m_pHeaderBranch =m_pTreeOnRoot->Branch(HEADER_HEADER_START VERSION_NAME_ADDITION,nullptr,"seconds/I:gen_event/I");
+        m_pHeaderBranch =m_pTreeOnRoot->Branch(HEADERS_HEADER,nullptr,"seconds/I:gen_event/I");
         if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
         m_pDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
         if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
@@ -585,7 +585,11 @@ const char* pitz::daq::EntryParams::Base::paramName()const
 
 size_t pitz::daq::EntryParams::Base::WriteToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
 {
-    size_t unStrLen = strlen(m_paramName);
+    size_t unStrLen;
+
+    if(ShouldSkipProviding()){return 0;}
+
+    unStrLen = strlen(m_paramName);
 
     if(LIKELY2(a_unBufferSize>(unStrLen+1))){
         size_t unDataStrLen;
@@ -718,6 +722,7 @@ pitz::daq::EntryParams::AdditionalData::AdditionalData(const char* a_entryParamN
       SomeInts(a_entryParamName),
       m_pCore(nullptr)
 {
+    m_value = 0;
 }
 
 
@@ -727,12 +732,18 @@ pitz::daq::EntryParams::AdditionalData::~AdditionalData()
 }
 
 
+bool pitz::daq::EntryParams::AdditionalData::ShouldSkipProviding() const
+{
+    return m_value ? false : true;
+}
+
+
 void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTreeOnRoot)
 {
     if(!m_pCore){return ;}
     if((!m_pCore->isInited)&&(!InitDataStuff())){return;}
     char vcBufferData[4096];
-    snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d",static_cast<int>(m_pCore->entryInfo.dataType));
+    snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_COUNT "%d",static_cast<int>(m_pCore->entryInfo.dataType),static_cast<int>(m_pCore->entryInfo.itemsCountPerEntry));
     m_pCore->rootBranch = a_pTreeOnRoot->Branch( vcBufferData,nullptr,m_pCore->rootFormatString);
     if(m_pCore->rootBranch){
         void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData,nullptr,nullptr);
@@ -741,16 +752,23 @@ void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTr
 }
 
 
+//time_t time;		/* Seconds since epoch, as from `time'.  */
+//unsigned short int millitm;	/* Additional milliseconds.  */
+
+#define FTIMES_TO_MS_DIFF(_timeInit,_timeFinal) \
+    ( static_cast<int64_t>(((_timeFinal).time-(_timeInit).time)*1000)+static_cast<int64_t>((_timeFinal).millitm-(_timeInit).millitm)  )
+
+
 void pitz::daq::EntryParams::AdditionalData::checkIfFillTimeAndFillIfYes()
 {
     if((!m_pCore)||(!m_pCore->isInited)||(!m_pCore->rootBranch)){return ;}
 
-    time_t timeNow;
-    const time_t  maxTime = static_cast<time_t>(m_value);
+    struct timeb timeNow;
+    const int64_t  maxTime = static_cast<int64_t>(m_value);
 
-    timeNow = time(&timeNow);
+    ftime(&timeNow);
 
-    if((timeNow-m_pCore->lastUpdateTime)>maxTime){
+    if( FTIMES_TO_MS_DIFF(m_pCore->lastUpdateTime,timeNow)>maxTime){
         EqData dataIn, dataOut;
         EqAdr doocsAdr;
         EqCall doocsCaller;
@@ -777,7 +795,7 @@ void pitz::daq::EntryParams::AdditionalData::checkIfFillTimeAndFillIfYes()
 void pitz::daq::EntryParams::AdditionalData::initTimeAndRoot()
 {
     if(m_pCore){
-        m_pCore->lastUpdateTime = 0;
+        m_pCore->lastUpdateTime = {0,0,0,0};
         m_pCore->rootBranch = nullptr;
     }
 }
@@ -826,6 +844,8 @@ bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
     if(!(m_pCore->rootFormatString)){
         return false;
     }
+
+    if(m_value<100){m_value=100;}
 
     m_pCore->isInited = 1;
     return true;

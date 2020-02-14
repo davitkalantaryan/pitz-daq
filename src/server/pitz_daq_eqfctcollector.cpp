@@ -11,6 +11,10 @@
 #include <sys/timeb.h>
 #include <sys/time.h>
 #include <time.h>
+#include <pitz_daq_data_collector_getter_common.h>
+
+#define CONF_FILE_VERSION_START "DAQ_VERSION="
+static const size_t s_cunDaqVersionForConfigLen = strlen(CONF_FILE_VERSION_START);
 
 #define MINIMUM_ROOT_FILE_SIZE_HARD     1000
 
@@ -136,6 +140,7 @@ int pitz::daq::EqFctCollector::write(fstream &a_fprt)
 
 void pitz::daq::EqFctCollector::init(void)
 {
+    int nConfigFileVersion = PITZ_DAQ_CURRENT_VERSION;
     NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard;
     SNetworkStruct* pNetworkToAdd2;
     int i;
@@ -185,6 +190,11 @@ void pitz::daq::EqFctCollector::init(void)
         //if(  data[0] == '#'  ) continue;
         pn = strpbrk(data,s_LN);
         if( ( !pn ) || ( pn[0] == '#' ) ) continue;
+        if(strncmp(CONF_FILE_VERSION_START,pn,s_cunDaqVersionForConfigLen)==0){
+            nConfigFileVersion =atoi(pn+s_cunDaqVersionForConfigLen);
+            ::std::cout<<"DAQ version when config file is created is " << nConfigFileVersion << ::std::endl;
+            continue;
+        }
         if(IsAllowedToAdd(pn)){
             AddNewEntryNotLocked(entryCreationType::fromConfigFile, data);
         }
@@ -498,6 +508,7 @@ void pitz::daq::EqFctCollector::WriteEntriesToConfig()const
     DEBUG_APP_INFO(2,"!!!!!!!!!!!!!!!!!!!!!!!!!!!! flName=%s, filePtr=%p ",vcNewConfFileName,static_cast<void*>(fpConfig) );
 
     if(fpConfig){
+        fprintf(fpConfig,CONF_FILE_VERSION_START "%d\n",PITZ_DAQ_CURRENT_VERSION);
         for( auto netStruct : m_networsList){
             pList = &netStruct->daqEntries();
             pIterEnd = pList->end();
@@ -591,8 +602,11 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 
 NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
+    Int_t nVersion = PITZ_DAQ_CURRENT_VERSION;
     int64_t llnCurFileSize;
     NewTFile *pRootFile;
+    TTree* pTreeForVersion;
+    TBranch *pBranchVersion;
     std::string localDirPath, remoteDirPath, fileName;
 
     CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
@@ -610,6 +624,17 @@ NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLoc
         exit(-1);
     }
     pRootFile->cd(); gFile = pRootFile;
+
+    pTreeForVersion = new TTree(VERSION_TREE_AND_BRANCH_NAME,"DATA");
+    pBranchVersion=pTreeForVersion->Branch(VERSION_TREE_AND_BRANCH_NAME,nullptr,"version/I");
+    if(!pBranchVersion){
+        fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
+        exit(-1);
+    }
+    pBranchVersion->SetAddress(&nVersion);
+    pTreeForVersion->Fill();
+    pTreeForVersion->AutoSave("SaveSelf");
+
     llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
     DEBUG_APP_INFO(2," ");
 

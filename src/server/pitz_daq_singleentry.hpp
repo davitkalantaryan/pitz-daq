@@ -15,6 +15,7 @@
 #include <pitz_daq_data_handling_daqdev.h>
 #include <list>
 #include <TTree.h>
+#include <sys/timeb.h>
 
 #define ENTRY_IN_ERROR                  STATIC_CAST2(unsigned int,1)
 
@@ -97,6 +98,7 @@ public:
 private:
     virtual bool   GetDataFromLine(const char* entryLine)=0;
     virtual size_t WriteDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const=0;
+    virtual bool   ShouldSkipProviding()const{return false;}
 
 protected:
     const char* m_paramName;
@@ -149,23 +151,6 @@ private:
 private:
     std::string m_errorString;
 };
-
-
-//class AdditionalData : public SomeInts
-//{
-//public:
-//    AdditionalData(const char* entryParamName);
-//    ~AdditionalData() OVERRIDE2 ;
-//
-//    void set(const ::std::string& doocsUrlOfAddData);
-//    void unset();
-//
-//private:
-//    ::std::string additionalString()const OVERRIDE2;
-//
-//private:
-//    std::string m_doocsUrlOfAddData;
-//};
 
 
 class DataType : public SomeInts
@@ -236,10 +221,10 @@ class AdditionalData : public SomeInts
         DEC_OUT_PD(BranchDataRaw)   entryInfo;
         char*                       rootFormatString;
         TBranch*                    rootBranch;
-        time_t                      lastUpdateTime;
+        struct timeb                lastUpdateTime;
         uint64_t                    isInited : 1;
         uint64_t                    reserved64Bit : 63;
-        Core(){rootFormatString=nullptr;rootBranch=nullptr;lastUpdateTime=0;isInited=reserved64Bit=0;}
+        Core(){rootFormatString=nullptr;rootBranch=nullptr;lastUpdateTime.time=0;isInited=reserved64Bit=0;}
     };
 public:
     AdditionalData(const char* entryParamName);
@@ -254,6 +239,7 @@ private:
     bool  InitDataStuff();
     bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
     ::std::string additionalString()const OVERRIDE2;
+    bool   ShouldSkipProviding() const OVERRIDE2;
 
 private:
     Core*   m_pCore;
