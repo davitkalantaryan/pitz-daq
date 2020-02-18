@@ -133,6 +133,7 @@ void pitz::daq::EqFctCollector::CalculateRemoteDirPathAndFileName(std::string* a
 int pitz::daq::EqFctCollector::write(fstream &a_fprt)
 {
     int nReturn = EqFct::write(a_fprt);
+    NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard(&m_lockForEntries);
     WriteEntriesToConfig();
     return nReturn;
 }
@@ -177,8 +178,8 @@ void pitz::daq::EqFctCollector::init(void)
     for(i=0;i<nNumberOfFillThreadsDesigned;++i){
 
         pNetworkToAdd2 = this->CreateNewNetworkStruct();
-        m_networsList.push_front(pNetworkToAdd2);
-        pNetworkToAdd2->m_thisIter = m_networsList.begin();
+        m_networsList.push_back(pNetworkToAdd2);
+        pNetworkToAdd2->m_thisIter = --m_networsList.end();
 
     }
     m_numberOfFillThreadsFinal.set_value(static_cast<int>(m_networsList.size()));
@@ -455,6 +456,7 @@ void pitz::daq::EqFctCollector::AddNewEntryNotLocked(entryCreationType::Type a_c
     }
 
     m_pNextNetworkToAdd->AddNewEntry(pCurEntry);
+    add_property(pCurEntry);
     nextIterator = m_pNextNetworkToAdd->m_thisIter;
     if( (++nextIterator)==m_networsList.end() ){
         nextIterator = m_networsList.begin();
@@ -467,18 +469,24 @@ void pitz::daq::EqFctCollector::AddNewEntryNotLocked(entryCreationType::Type a_c
 
 CLEAR_RET_TYPE pitz::daq::EqFctCollector::CLEAR_FUNC_NAME(void)
 {
+    NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard;
+
     DEBUG_APP_INFO(0,"!!!!!!!!!!!!!!!!!!!!!!!!!! %s, m_nWork=%d",__FUNCTION__,static_cast<int>(m_shouldWork));
 
     if(!m_shouldWork){return CAST_CLEAR_RET(0);}
     m_shouldWork = 0;
 
+    aSharedGuard.LockShared(&m_lockForEntries);
     WriteEntriesToConfig();
+    aSharedGuard.UnlockShared();
 
     m_semaForRootThread.post();
     m_semaForLocalFileDeleter.post();
 
     m_threadRoot.join();
     m_threadLocalFileDeleter.join();
+
+    // no need to synchronize, because all threads are gone
 
     for( auto netStruct : m_networsList){
         DEBUG_APP_INFO(0,"!!!!!! stopping and deleting network\n");
@@ -514,7 +522,7 @@ void pitz::daq::EqFctCollector::WriteEntriesToConfig()const
             pIterEnd = pList->end();
             for(pIter=pList->begin();pIter!=pIterEnd;++pIter){
                 pCurEntry = *pIter;
-                pCurEntry->WriteContentToTheFile(fpConfig);
+                pCurEntry->WriteContentToTheFile(fpConfig); // this takes care whether entry is deleted or not
             }
         }
 
@@ -586,13 +594,11 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 
     bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnIfPossibleNow();
 
-    if(bIsAllowedToDelete){
-    }
-
     m_pNextNetworkToAdd = a_pEntry->networkParent();
     m_numberOfEntries.set_value(--nNumberOfEntries);
 
     DEBUG_APP_INFO(0,"Number of entries remained is: %d",nNumberOfEntries);
+    rem_property(a_pEntry);
 
     if(bIsAllowedToDelete){
         delete a_pEntry;

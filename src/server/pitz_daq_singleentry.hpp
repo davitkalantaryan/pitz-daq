@@ -253,6 +253,7 @@ class SingleEntry : protected D_BASE_FOR_STR
 {
     friend class SNetworkStruct;
     friend class TreeForSingleEntry;
+    friend class EqFctCollector;
 public:
     SingleEntry( entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     virtual ~SingleEntry() OVERRIDE2;
@@ -356,7 +357,6 @@ protected:
     void StopThreadThenDeleteAndClearEntries();
 
 private:
-    EqFctCollector*                             m_pParent;
     STDN::thread                                m_thread;
     uint64_t                                    m_shouldRun : 1;
     uint64_t                                    m_bitwise64Reserved : 63 ;

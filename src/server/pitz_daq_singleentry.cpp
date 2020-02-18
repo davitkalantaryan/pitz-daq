@@ -396,23 +396,25 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a
 
 void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
 {
-    //char vcBufForCrt[32],vcBufForExp[32],vcBufForMask[32];
-    char vcBuffer[4096];
-    char* pcBufToWrite(vcBuffer);
-    size_t nBufLen(4093);
-    size_t nWritten;
+    if(!(m_willBeDeletedOrIsUsedAtomic64&DELETER_ALL)){
+        //char vcBufForCrt[32],vcBufForExp[32],vcBufForMask[32];
+        char vcBuffer[4096];
+        char* pcBufToWrite(vcBuffer);
+        size_t nBufLen(4093);
+        size_t nWritten;
 
-    for( auto pParam : m_permanentParams){
-        nWritten=pParam->WriteToLineBuffer(pcBufToWrite,nBufLen);
-        if(nBufLen<=(nWritten+1)){return;}
-        nBufLen -= nWritten;
-        pcBufToWrite += nWritten;
+        for( auto pParam : m_permanentParams){
+            nWritten=pParam->WriteToLineBuffer(pcBufToWrite,nBufLen);
+            if(nBufLen<=(nWritten+1)){return;}
+            nBufLen -= nWritten;
+            pcBufToWrite += nWritten;
+        }
+        pcBufToWrite[0]='\n';
+        pcBufToWrite[1]=0;
+        pcBufToWrite[2]=0;
+
+        fprintf(a_fpFile,"%s %s",m_daqName,vcBuffer);
     }
-    pcBufToWrite[0]='\n';
-    pcBufToWrite[1]=0;
-    pcBufToWrite[2]=0;
-
-    fprintf(a_fpFile,"%s %s",m_daqName,vcBuffer);
 }
 
 
@@ -455,7 +457,7 @@ returnPoint:
 
 void pitz::daq::SingleEntry::SetError(int a_error, const ::std::string& a_errorString)
 {
-    EqFctCollector* pClc = m_pNetworkParent?m_pNetworkParent->m_pParent:NEWNULLPTR2;
+    EqFctCollector* pClc = static_cast<EqFctCollector*>(get_eqfct());
 
     if(m_errorMask.isMasked()&&m_errorWithString.value()){
         if(pClc){pClc->DecrementErrors(m_daqName);}
@@ -477,13 +479,11 @@ void pitz::daq::SingleEntry::SetError(int a_error, const ::std::string& a_errorS
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 pitz::daq::SNetworkStruct::SNetworkStruct(EqFctCollector* a_parent)
-        :
-        m_pParent(a_parent)
 {
     m_shouldRun = 1;
     m_bitwise64Reserved =0;
 
-    m_thread = STDN::thread(&EqFctCollector::DataGetterThread,m_pParent,this);
+    m_thread = STDN::thread(&EqFctCollector::DataGetterThread,a_parent,this);
 }
 
 
@@ -519,11 +519,10 @@ void pitz::daq::SNetworkStruct::StopThreadThenDeleteAndClearEntries()
 bool pitz::daq::SNetworkStruct::AddNewEntry(SingleEntry *a_newEntry)
 {
     if(!a_newEntry || (a_newEntry->m_pNetworkParent)){return false;}
-    m_daqEntries.push_front(a_newEntry);
-    a_newEntry->m_thisIter = m_daqEntries.begin();
+    m_daqEntries.push_back(a_newEntry);
+    a_newEntry->m_thisIter = --m_daqEntries.end();
     a_newEntry->m_pNetworkParent = this;
-    m_pParent->add_property(a_newEntry);
-    //a_newEntry->SetNetworkParent(this);
+    //m_pParent->add_property(a_newEntry);
 
     return true;
 }
