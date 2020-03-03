@@ -39,5 +39,6 @@ Some additional information can be obtained from the files from 'doc' directory 
 [github](https://github.com/davitkalantaryan/pitz-daq)		<br />  
 [DESY bitbucket](https://github.com/davitkalantaryan/pitz-daq)	<br />  
 [todo list](https://docs.google.com/document/d/1iTEdPX8mgdXXk3oF4MCKzOL8G_-i_1ULmwTxfbOzHnk/edit?usp=sharing)  
+[binaries](https://desycloud.desy.de/index.php/s/zrrx5ePfa4WPExx?path=%2F)  
 
 
