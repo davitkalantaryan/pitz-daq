@@ -24,6 +24,7 @@ DEFINES += ___QT___
 #INCLUDEPATH += $$MYDOOCS/lib/include
 #INCLUDEPATH += $$MYKALANTARW/haditioninc
 #INCLUDEPATH += /doocs/lib/include
+INCLUDEPATH += ../../../include
 
 
 #LIBS +=    -L$$MAINLIBPATH
@@ -33,7 +34,7 @@ DEFINES += ___QT___
 #LIBS += -lmcastclass
 #LIBS += -L/doocs/lib
 
-LIBS +=  -lMCclass
+#LIBS +=  -lMCclass
 LIBS +=    -lADCShm
 LIBS +=    -lADCDma
 LIBS +=    -lADCscope
@@ -41,4 +42,5 @@ HEADERS += \
     ../../../src/server/eq_scopedaq.h \
     ../../../src/server/adc_map_helper.h
 SOURCES += \
-    ../../../src/server/scopedaq_rpc_server.cc
+    ../../../src/server/scopedaq_rpc_server.cc      \
+    ../../../src/tmp/MCclass.cc

@@ -15,5 +15,9 @@ QT -= gui
 
 include(../../common/common_qt/sys_common.pri)
 
+INCLUDEPATH += ../../../include
 
-SOURCES += ../../../src/test/main_test_udp_receiver.cpp
+
+SOURCES += \
+    ../../../src/test/main_udp_mcast_sender_test.cpp    \
+    ../../../src/tmp/MCclass.cc

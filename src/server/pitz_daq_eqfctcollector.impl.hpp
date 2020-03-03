@@ -86,6 +86,7 @@ void pitz::daq::NewSharedLockGuard<TypeSharedMutex>::UnlockShared()
 template <typename QueueType>
 void pitz::daq::ProtectedQueue<QueueType>::pushBack(const QueueType& a_newElem)
 {
+    ::std::lock_guard< ::std::mutex > aGuard(m_mutexForQueue);
     ::std::queue<QueueType>::push(a_newElem);
 }
 
