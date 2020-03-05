@@ -20,7 +20,10 @@ INCLUDEPATH += $${PWD}/../../../contrib/data_handling/include
 
 
 SOURCES += \
-    $${PWD}/../../../src/test/main_udp_mcast_sender_test.cpp    \
+    $${PWD}/../../../src/fnc_tests/main_udp_mcast_sender_fnc_test.cpp    \
+    $${PWD}/../../../src/fnc_tests/mcast_fnc_test_sender_receiver_common.c    \
+    $${PWD}/../../../src/common/common_argument_parser.cpp      \
     $${PWD}/../../../src/tmp/MCclass.cc
 
 HEADERS += \
+    $${PWD}/../../../src/fnc_tests/mcast_fnc_test_sender_receiver_common.h
