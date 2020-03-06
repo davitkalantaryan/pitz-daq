@@ -666,7 +666,8 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
                 pRootFile=RootFileCreator(&filePathLocal,&filePathRemote);
             }
 
-            strToFill.entry->Fill(strToFill.data);
+            // todo: open it
+            //strToFill.entry->Fill(strToFill.data);
 
             llnCurFileSize=gFile->GetSize();
             llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());

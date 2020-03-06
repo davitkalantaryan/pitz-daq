@@ -24,15 +24,22 @@ struct H_struct* g_shareptr = NEWNULLPTR2;
 
 const char* object_name = "daqcollector";
 
+static void CleanupFunction(void)
+{
+    printf("exiting app!\n");
+}
+
 void eq_init_prolog() 	// called once before init of all EqFct's
 {
 
-    printf("version 5 (Multibranch collection)\n");
+    printf("version 6 (Multibranch collection)\n");
 
 #ifdef DEBUG_APP
     printf("Press any key, then press Enter to continue\n");fflush(stdout);
     getchar();
 #endif
+
+    atexit(CleanupFunction);
 
     if(s_SHMKEY){return;}
 
