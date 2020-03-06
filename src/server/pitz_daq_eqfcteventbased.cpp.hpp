@@ -22,8 +22,8 @@ public:
     void* socket()const;
 
     bool LoadOrValidateData(void* a_pContext);
-    DEC_OUT_PD(SingleData)* ReadData();
-    void SetMemoryBack( DEC_OUT_PD(SingleData)* );
+    DEC_OUT_PD(SingleData2)* ReadData();
+    void SetMemoryBack( DEC_OUT_PD(SingleData2)* );
 
 private:
     void*                           m_pSocket;

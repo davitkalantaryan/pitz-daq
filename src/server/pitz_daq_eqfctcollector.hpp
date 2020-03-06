@@ -74,8 +74,8 @@ private:
 };
 
 struct SStructForFill{
-    SingleEntry*            entry;
-    DEC_OUT_PD(SingleData)* data;
+    SingleEntry*             entry;
+    DEC_OUT_PD(SingleData2)* data;
 };
 
 
@@ -99,7 +99,7 @@ protected:
 
     // API should be used by childs
 protected:
-    bool AddJobForRootThread(DEC_OUT_PD(SingleData)* data, SingleEntry* pEntry);
+    bool AddJobForRootThread(DEC_OUT_PD(SingleData2)* data, SingleEntry* pEntry);
     uint64_t  shouldWork()const;
 
     // API inherited from EqFct,

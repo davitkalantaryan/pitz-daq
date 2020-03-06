@@ -73,7 +73,7 @@ typedef const char* TypeConstCharPtr;
 namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknownCreation};}
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
-bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo );
+bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, DEC_OUT_PD(TypeAndCount)* a_pEntryInfo );
 void* GetDataPointerFromEqData(EqData* a_pData,int64_t* a_pTimeeconds, int64_t* a_pMacroPulse);
 
 #define D_BASE_FOR_STR  D_text
@@ -218,7 +218,7 @@ class AdditionalData : public SomeInts
         std::string                 parentAndFinalDoocsUrl;
         std::string                 doocsUrl2;
         EqData                      doocsData;
-        DEC_OUT_PD(BranchDataRaw)   entryInfo;
+        DEC_OUT_PD(TypeAndCount)    entryInfo;
         char*                       rootFormatString;
         TBranch*                    rootBranch;
         struct timeb                lastUpdateTime;
@@ -259,7 +259,7 @@ public:
     virtual ~SingleEntry() OVERRIDE2;
 
     virtual const char* rootFormatString()const=0;
-    virtual void        FreeUsedMemory(DEC_OUT_PD(SingleData)* usedMemory);
+    virtual void        FreeUsedMemory(DEC_OUT_PD(SingleData2)* usedMemory);
     SNetworkStruct*     networkParent();
     uint64_t            isValid()const;
     void                SetValid();
@@ -273,7 +273,7 @@ public:
     bool                resetNetworkLockAndReturnIfDeletable();
     bool                resetRooFileLockAndReturnIfDeletable();
     bool                isLockedForAnyAction()const;
-    void                Fill(DEC_OUT_PD(SingleData)* pNewMemory);
+    void                Fill(DEC_OUT_PD(SingleData2)* pNewMemory);
     const char*         daqName()const{return m_daqName;}
     int                 firstSecond()const{return m_firstHeader.timestampSeconds;}
     int                 firstEventNumber()const{return m_firstHeader.eventNumber;}
@@ -318,8 +318,8 @@ protected:
     // everything that should not be set to 0, should be declared before this line
 private:
     char*                                   m_daqName;
-    DEC_OUT_PD(SingleData)                  m_firstHeader;
-    DEC_OUT_PD(SingleData)                  m_lastHeader;
+    DEC_OUT_PD(Header)                      m_firstHeader;
+    DEC_OUT_PD(Header)                      m_lastHeader;
     //time_t                                  m_lastReadTime;
     SNetworkStruct*                         m_pNetworkParent;
     TTree*                                  m_pTreeOnRoot;

@@ -27,7 +27,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
     //bool bCallIniter = false, bIsAddedByUser = false;
     bool bCallIniter = false;
     uint32_t singleEntrySize;
-    DEC_OUT_PD(BranchDataRaw)      branchInfo={-1,-1};
+    DEC_OUT_PD(TypeAndCount)      branchInfo={-1,-1};
     EqData dataOut;
 
     AddNewParameterToBeg(&m_doocsUrl,false,true);
@@ -40,12 +40,12 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
             char doocs_url[DOOCS_URI_MAX_LEN],daqName[256];
 
             doocs_url[0]=0;
-            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&branchInfo.itemsCountPerEntry,&step,&branchInfo.dataType);
+            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&branchInfo.itemsCountPerEntry,&step,&branchInfo.type);
 
             if(branchInfo.itemsCountPerEntry<1){branchInfo.itemsCountPerEntry=1;}
 
             m_doocsUrl.setValue(doocs_url);
-            m_dataType.set(branchInfo.dataType);
+            m_dataType.set(branchInfo.type);
             m_itemsCountPerEntry=branchInfo.itemsCountPerEntry;
         }
         break;
@@ -64,17 +64,17 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
         //LoadFromLine(a_entryLine,true,bIsAddedByUser);
         m_doocsUrl.FindAndGetFromLine(a_entryLine);
         m_additionalData.setParentDoocsUrl(m_doocsUrl.value());
-        branchInfo.dataType = m_dataType.value();
+        branchInfo.type = m_dataType.value();
         branchInfo.itemsCountPerEntry = (m_itemsCountPerEntry);
     }
 
-    if((branchInfo.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(branchInfo.itemsCountPerEntry<1)){
+    if((branchInfo.type == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(branchInfo.itemsCountPerEntry<1)){
         if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&branchInfo)){
             throw ::std::bad_alloc();
         }
     }
 
-    m_rootFormatStr = PrepareDaqEntryBasedOnType(1,&branchInfo,&singleEntrySize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+    m_rootFormatStr = PrepareDaqEntryBasedOnType2(1,branchInfo.type,NEWNULLPTR2,&branchInfo,&singleEntrySize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
 
     if(!m_rootFormatStr){
         throw ::std::bad_alloc();

@@ -666,8 +666,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
                 pRootFile=RootFileCreator(&filePathLocal,&filePathRemote);
             }
 
-            // todo: open it
-            //strToFill.entry->Fill(strToFill.data);
+            strToFill.entry->Fill(strToFill.data);
 
             llnCurFileSize=gFile->GetSize();
             llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());
@@ -766,7 +765,7 @@ uint64_t pitz::daq::EqFctCollector::shouldWork()const
 }
 
 
-bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_data, SingleEntry* a_pEntry)
+bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData2)* a_data, SingleEntry* a_pEntry)
 {
     bool bPossibleToAdd = a_pEntry->lockEntryForRoot();
 

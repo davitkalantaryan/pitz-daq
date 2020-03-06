@@ -336,16 +336,18 @@ void pitz::daq::SingleEntry::write (fstream &)
 }
 
 
-void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData)* a_usedMemory)
+void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedMemory)
 {
-    FreeDataWithOffset(a_usedMemory,0);
+    FreeBufferForNetwork(a_usedMemory->data);a_usedMemory->data=NEWNULLPTR2;
+    FreeBufferForNetwork(a_usedMemory->additionalDataPtr);a_usedMemory->additionalDataPtr=NEWNULLPTR2;
+    FreeDataWithOffset2(a_usedMemory,0);
 }
 
 #include "pitz_daq_collectorproperties.hpp"
 
-void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
+void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
-    int32_t nGenEventNormalized = a_pNewMemory->eventNumber%s_H_count;
+    int32_t nGenEventNormalized = a_pNewMemory->header.eventNumber%s_H_count;
     if(!lockEntryForRoot()){return;}
     if(!m_pTreeOnRoot){
 
@@ -362,24 +364,24 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a
     }
 
     // handle possible gen event errors
-    if((a_pNewMemory->eventNumber<0)||(a_pNewMemory->eventNumber<m_lastHeader.timestampSeconds)){
+    if((a_pNewMemory->header.eventNumber<0)||(a_pNewMemory->header.eventNumber<m_lastHeader.timestampSeconds)){
         // we have gen event error handle it
     }
-    if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->eventNumber){
-        a_pNewMemory->timestampSeconds = g_shareptr[nGenEventNormalized].seconds;
+    if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->header.eventNumber){
+        a_pNewMemory->header.timestampSeconds = g_shareptr[nGenEventNormalized].seconds;
     }
 
 
     //if(g_shareptr[a_pNewMemory->eventNumber].gen_event)
 
-    m_pHeaderBranch->SetAddress(a_pNewMemory);
-    m_pDataBranch->SetAddress(reinterpret_cast<char*>(a_pNewMemory)+sizeof(DEC_OUT_PD(SingleData)));
+    m_pHeaderBranch->SetAddress(&(a_pNewMemory->header));
+    m_pDataBranch->SetAddress( wrPitzDaqDataFromEntry(a_pNewMemory));
     m_additionalData.checkIfFillTimeAndFillIfYes();
     m_pTreeOnRoot->Fill();
 
     if(!m_isPresentInLastFile){
         m_isPresentInLastFile = 1;
-        m_firstHeader = *a_pNewMemory;
+        m_firstHeader = a_pNewMemory->header;
         m_numberInCurrentFile = (0);
     }
 
@@ -389,7 +391,7 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData)* a_pNewMemory/*, int a
     // todo: set only root part to null
     SetError(0, "No error");
 
-    m_lastHeader = *a_pNewMemory;
+    m_lastHeader = a_pNewMemory->header;
     FreeUsedMemory(a_pNewMemory);
 }
 
@@ -742,7 +744,7 @@ void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTr
     if(!m_pCore){return ;}
     if((!m_pCore->isInited)&&(!InitDataStuff())){return;}
     char vcBufferData[4096];
-    snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_COUNT "%d",static_cast<int>(m_pCore->entryInfo.dataType),static_cast<int>(m_pCore->entryInfo.itemsCountPerEntry));
+    snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_COUNT "%d",static_cast<int>(m_pCore->entryInfo.type),static_cast<int>(m_pCore->entryInfo.itemsCountPerEntry));
     m_pCore->rootBranch = a_pTreeOnRoot->Branch( vcBufferData,nullptr,m_pCore->rootFormatString);
     if(m_pCore->rootBranch){
         void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData,nullptr,nullptr);
@@ -839,7 +841,8 @@ bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
     if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&m_pCore->entryInfo) ){return false;}
     m_pCore->parentAndFinalDoocsUrl = fullAddr;
 
-    m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(1,&m_pCore->entryInfo,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+    m_pCore->rootFormatString = PrepareDaqEntryBasedOnType2(1,m_pCore->entryInfo.type,NEWNULLPTR2,
+                                                            &m_pCore->entryInfo,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
     if(!(m_pCore->rootFormatString)){
         return false;
     }
@@ -1137,7 +1140,7 @@ static size_t EPOCH_TO_STRING(const time_t& a_epoch, char* a_buffer, size_t a_bu
 }
 
 
-bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_doocsUrl, DEC_OUT_PD(BranchDataRaw)* a_pEntryInfo )
+bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_doocsUrl, DEC_OUT_PD(TypeAndCount)* a_pEntryInfo )
 {
     int nReturn;
     EqCall eqCall;
@@ -1153,7 +1156,7 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
         return false;
     }
 
-    a_pEntryInfo->dataType = a_pEqDataOut->type();
+    a_pEntryInfo->type = a_pEqDataOut->type();
     a_pEntryInfo->itemsCountPerEntry = a_pEqDataOut->length();
 
     //return GetDataPointerFromEqData(a_pEqDataOut)?true:false;
