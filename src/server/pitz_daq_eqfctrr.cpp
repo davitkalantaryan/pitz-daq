@@ -121,21 +121,21 @@ void pitz::daq::SingleEntryRR::GetDataAndFill()
     size_t expectedDataLength;
     int64_t timeSeconds, genEvent;
     uint32_t oneItemSize;
-    DEC_OUT_PD(BranchDataRaw) entryInfo;
+    DEC_OUT_PD(TypeAndCount) entryInfo;
     EqData dataOut;
-    DEC_OUT_PD(SingleData)* pNewMemory;
+    DEC_OUT_PD(SingleData2)* pNewMemory;
 
     if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&entryInfo)){
         SetError(NETWORK_READ_ERROR,"DOOCS RR error");
         return;
     }
 
-    if(!PrepareDaqEntryBasedOnType(0,&entryInfo,&oneItemSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2)){
+    if(!PrepareDaqEntryBasedOnType2(0,entryInfo.type,NEWNULLPTR2,&entryInfo,&oneItemSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2)){
         SetError(UNABLE_TO_PREPARE_DATA,"nable to prepare data");
         return ;
     }
 
-    if((m_dataType.value()!=entryInfo.dataType)||((m_itemsCountPerEntry)!=entryInfo.itemsCountPerEntry)){
+    if((m_dataType.value()!=entryInfo.type)||((m_itemsCountPerEntry)!=entryInfo.itemsCountPerEntry)){
         SetError(DATA_TYPE_MISMATCH,"data type mismatch");
         return ;
     }
@@ -147,16 +147,14 @@ void pitz::daq::SingleEntryRR::GetDataAndFill()
     }
 
     expectedDataLength = oneItemSize*static_cast<uint32_t>(entryInfo.itemsCountPerEntry);
-    pNewMemory =CreateDataWithOffset(0,expectedDataLength);
-    if(!pNewMemory){
-        SetError(LOW_MEMORY_DQ,"Unable to create memory for root");
-        return ;
-    }
+    //pNewMemory =CreateDataWithOffset2(0,expectedDataLength);
+    pNewMemory =CreateDataWithOffset2(0);
+    pNewMemory->data = CreatePitzDaqBuffer(expectedDataLength);
 
-    pNewMemory->eventNumber = static_cast<decltype (pNewMemory->eventNumber)>(genEvent);
-    pNewMemory->timestampSeconds = static_cast<decltype (pNewMemory->timestampSeconds)>(timeSeconds);
+    pNewMemory->header.eventNumber = static_cast<decltype (pNewMemory->header.eventNumber)>(genEvent);
+    pNewMemory->header.timestampSeconds = static_cast<decltype (pNewMemory->header.timestampSeconds)>(timeSeconds);
 
-    memcpy(wrPitzDaqDataFromEntry(pNewMemory),pDoocsData,expectedDataLength);
+    memcpy(pNewMemory->data,pDoocsData,expectedDataLength);
 
     Fill(pNewMemory);
 }
