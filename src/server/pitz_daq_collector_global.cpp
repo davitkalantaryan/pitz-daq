@@ -23,10 +23,14 @@ static int mkdir_p_raw(const char *a_path, mode_t a_mode);
 struct H_struct* g_shareptr = NEWNULLPTR2;
 
 const char* object_name = "daqcollector";
+extern int g_nIsZombieFile;
+int g_nIsZombieFile = 0;
 
 static void CleanupFunction(void)
 {
-    printf("exiting app!\n");
+    if(g_nIsZombieFile){
+        printf("exiting app, because of zombie!\n");
+    }
 }
 
 void eq_init_prolog() 	// called once before init of all EqFct's

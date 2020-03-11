@@ -275,7 +275,7 @@ DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
     }
 
     pMemory = CreateDataWithOffset2(0);
-    pMemory->data = CreateBufferForNetwork(m_expectedDataLength);
+    pMemory->data = CreatePitzDaqBuffer(m_expectedDataLength);
     more_size = sizeof(more);
     nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -285,7 +285,7 @@ DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
         goto returnPoint;
     }
 
-    nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromEntry(pMemory),m_expectedDataLength,0);
+    nReturn=zmq_recv(this->m_pSocket,pMemory->data,m_expectedDataLength,0);
     if(nReturn!=static_cast<int>(m_expectedDataLength)){
         this->FreeUsedMemory(pMemory);
         pMemory = nullptr;

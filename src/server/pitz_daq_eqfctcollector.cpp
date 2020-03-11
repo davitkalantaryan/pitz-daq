@@ -605,6 +605,7 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
     }
 }
 
+extern int g_nIsZombieFile;
 
 NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
@@ -626,6 +627,7 @@ NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLoc
 
     pRootFile = new NewTFile(a_pFilePathLocal->c_str());// SetCompressionLevel(1)
     if ((!pRootFile) || pRootFile->IsZombie()){
+        g_nIsZombieFile = 1;
         fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
         exit(-1);
     }

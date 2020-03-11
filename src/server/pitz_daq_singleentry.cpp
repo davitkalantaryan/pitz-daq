@@ -14,6 +14,7 @@
 #include <eq_data.h>
 #include <eq_client.h>
 #include <pitz_daq_data_handling_types.h>
+#include <pitz_daq_data_handling_daqdev.h>
 #include <pitz_daq_data_collector_getter_common.h>
 #include <algorithm>
 
@@ -338,8 +339,8 @@ void pitz::daq::SingleEntry::write (fstream &)
 
 void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedMemory)
 {
-    FreeBufferForNetwork(a_usedMemory->data);a_usedMemory->data=NEWNULLPTR2;
-    FreeBufferForNetwork(a_usedMemory->additionalDataPtr);a_usedMemory->additionalDataPtr=NEWNULLPTR2;
+    FreePitzDaqBuffer(a_usedMemory->data);a_usedMemory->data=NEWNULLPTR2;
+    FreePitzDaqBuffer(a_usedMemory->additionalDataPtr);a_usedMemory->additionalDataPtr=NEWNULLPTR2;
     FreeDataWithOffset2(a_usedMemory,0);
 }
 
@@ -375,7 +376,7 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int 
     //if(g_shareptr[a_pNewMemory->eventNumber].gen_event)
 
     m_pHeaderBranch->SetAddress(&(a_pNewMemory->header));
-    m_pDataBranch->SetAddress( wrPitzDaqDataFromEntry(a_pNewMemory));
+    m_pDataBranch->SetAddress( a_pNewMemory->data);
     m_additionalData.checkIfFillTimeAndFillIfYes();
     m_pTreeOnRoot->Fill();
 
