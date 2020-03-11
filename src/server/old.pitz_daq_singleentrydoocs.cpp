@@ -6,6 +6,7 @@
 #include "pitz_daq_singleentrydoocs.hpp"
 #include <eq_client.h>
 #include <new>
+#include <pitz_daq_data_handling_types.h>
 
 #define DOOCS_URI_MAX_LEN           256
 #define SPECIAL_KEY_DOOCS           "doocs"
@@ -26,7 +27,6 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
 {
 
     size_t unStrLen ;
-    DEC_OUT_PD(BranchDataRaw)&  entryInfo = m_branchInfo;
 
     switch(a_creationType)
     {
@@ -35,9 +35,9 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             int from, step;
             char doocs_url[DOOCS_URI_MAX_LEN],daqName[256];
 
-            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&entryInfo.itemsCountPerEntry,&step,&entryInfo.dataType);
+            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&m_branchInfo.itemsCountPerEntry,&step,&m_branchInfo.dataType);
 
-            if(entryInfo.itemsCountPerEntry<1){entryInfo.itemsCountPerEntry=1;}
+            if(m_branchInfo.itemsCountPerEntry<1){m_branchInfo.itemsCountPerEntry=1;}
 
             unStrLen = strlen(doocs_url);
             m_doocsUrl = static_cast<char*>(malloc(unStrLen + 1));
@@ -61,13 +61,13 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             memcpy(m_doocsUrl,pcNext,unStrLen);
             m_doocsUrl[unStrLen] = 0;
 
-            GetEntryInfoFromServer(&entryInfo);
+            GetEntryInfoFromServer(&m_branchInfo);
 
             // Find data type
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_TYPE "=");
             if(pcNext){
                 pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" );
-                entryInfo.dataType = atoi(pcNext);
+                m_branchInfo.dataType = atoi(pcNext);
             }
 
             // Find number of samples
@@ -77,7 +77,7 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
                 int nSamples;
                 pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );
                 nSamples = atoi(pcNext);
-                if(nSamples>0){entryInfo.itemsCountPerEntry = nSamples;}
+                if(nSamples>0){m_branchInfo.itemsCountPerEntry = nSamples;}
             }
 
         }
@@ -97,7 +97,7 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             memcpy(m_doocsUrl,pcNext,unStrLen);
             m_doocsUrl[unStrLen]=0;
 
-            if(!GetEntryInfoFromServer(&entryInfo)){
+            if(!GetEntryInfoFromServer(&m_branchInfo)){
                 ::free(m_doocsUrl);
                 m_doocsUrl = NEWNULLPTR2;
                 throw errorsFromConstructor::doocsUnreachable;
@@ -107,7 +107,7 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
             pcNext = strstr(a_entryLine,SPECIAL_KEY_DATA_TYPE "=");
             if(pcNext){
                 pcNext += strlen( SPECIAL_KEY_DATA_TYPE "=" );
-                entryInfo.dataType = atoi(pcNext);
+                m_branchInfo.dataType = atoi(pcNext);
             }
 
             // Find number of samples
@@ -116,7 +116,7 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
                 int nSamples;
                 pcNext += strlen( SPECIAL_KEY_DATA_SAMPLES "=" );
                 nSamples = atoi(pcNext);
-                if(nSamples>0){entryInfo.itemsCountPerEntry = nSamples;}
+                if(nSamples>0){m_branchInfo.itemsCountPerEntry = nSamples;}
             }
 
         }
@@ -126,7 +126,13 @@ pitz::daq::SingleEntryDoocs::SingleEntryDoocs(entryCreationType::Type a_creation
         throw errorsFromConstructor::type;
     }
 
-    m_rootFormatStr = this->ApplyEntryInfo(1);
+
+    if( (m_branchInfo.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(m_branchInfo.itemsCountPerEntry<1) ){
+        throw ::std::bad_alloc();
+    }
+
+    m_rootFormatStr = PrepareDaqEntryBasedOnType(1,&m_branchInfo,&m_unOnlyDataBufferSize,&m_unTotalRootBufferSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+
     if(!m_rootFormatStr){
         throw ::std::bad_alloc();
     }
@@ -253,6 +259,13 @@ const char* pitz::daq::SingleEntryDoocs::rootFormatString()const
 }
 
 
+DEC_OUT_PD(SingleData)* pitz::daq::SingleEntryDoocs::GetNewMemoryForNetwork2()
+{
+    return static_cast<DEC_OUT_PD(SingleData)*>(malloc(m_unTotalRootBufferSize+16));
+}
+
+
+#if 0
 void pitz::daq::SingleEntryDoocs::ValueStringByKeyInherited(bool a_bReadAll, const char* a_request, char* a_buffer, int a_bufferLength)const
 {
     //#define SPECIAL_KEY_DOOCS "doocs"
@@ -297,3 +310,4 @@ void pitz::daq::SingleEntryDoocs::PermanentDataIntoFile(FILE* a_fpFile)const
             m_branchInfo.dataType,
             m_branchInfo.itemsCountPerEntry);
 }
+#endif

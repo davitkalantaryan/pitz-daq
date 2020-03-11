@@ -3,18 +3,15 @@
 // to include ->  #include "mclistener.hpp"
 // created on 2018 Jan 22
 
-#ifndef __mclistener_hpp__
-#define __mclistener_hpp__
-
-#ifdef _MSC_VER
-#pragma comment(lib, "Ws2_32.lib")
-#endif
+#ifndef common_mclistener_hpp
+#define common_mclistener_hpp
 
 #ifdef _WIN32
 #include <Winsock2.h>
 #include <WS2tcpip.h>
 #include <Windows.h>
 #define errnoNew	WSAGetLastError()
+typedef SOCKET  socket2_t;
 #else
 #include <unistd.h>
 #include <fcntl.h>
@@ -26,24 +23,25 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #define errnoNew	errno
+typedef int  socket2_t;
 #endif
 
 #include <mcast_common_apis.h>
 
-#ifndef _NEGATIVE_ERROR_
-#define	_NEGATIVE_ERROR_(x)		(((x)>0) ? -(x) : (x))
+#ifndef NEGATIVE_ERROR_
+#define	NEGATIVE_ERROR_(x)		(((x)>0) ? -(x) : (x))
 #endif
 
 #ifndef E_SELECT
 #define E_SELECT		-28	/* error by select */
 #endif
 
-#ifndef _SOCKET_TIMEOUT_
-#define _SOCKET_TIMEOUT_ -2001
+#ifndef SOCKET_TIMEOUT_
+#define SOCKET_TIMEOUT_ -2001
 #endif
 
-#ifndef _EINTR_ERROR_
-#define	_EINTR_ERROR_			_NEGATIVE_ERROR_(EINTR)
+#ifndef EINTR_ERROR_
+#define	EINTR_ERROR_			NEGATIVE_ERROR_(EINTR)
 #endif
 
 #ifndef LAST_PATH
@@ -72,15 +70,15 @@ public:
 	int SetSocketTimeout(int timeoutMs);
 	void CloseSock();
 
-	int recvC(void* buff, int buffLen);
+        int recvC(void* buff, int buffLen)const;
 
 
 	static bool Init();
 	static void Cleanup();
 
 private:
-	int m_sock;
-	socklen_t	m_socklen;
+        socket2_t   m_sock;
+        socket2_t   m_nReserved1;
 	sockaddr_in m_saddr;
 };
 

@@ -6,9 +6,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
-
-#define TEST_ROOT_FLE_NAME      "test_root_file.root"
-#define TEST_DAQ_ENTRY_NAME     "TEST_DAQ_NAME"
+#include "test_collector_test_reader_common.h"
 
 #define TEST_ROOT_FORMAT_STRING_HEADER  "seconds/I:gen_event/I"
 #define TEST_ROOT_FORMAT_STRING_DATA    "data[1]/F"
@@ -38,9 +36,9 @@ int main()
                                           "RIO",
                                           "TStreamerInfo()");
 
-    pRootFile = new TFile(TEST_ROOT_FLE_NAME,"UPDATE","DATA",1);// SetCompressionLevel(1)
+    pRootFile = new TFile(TEST_ROOT_FILE_NAME,"UPDATE","DATA",1);// SetCompressionLevel(1)
     if ( pRootFile->IsZombie() ){
-        fprintf(stderr,"!!!! Error opening ROOT file %s. ln:%d\n",TEST_ROOT_FLE_NAME, __LINE__);
+        fprintf(stderr,"!!!! Error opening ROOT file %s. ln:%d\n",TEST_ROOT_FILE_NAME, __LINE__);
         goto returnPoint;
     }
     pRootFile->cd();gFile = pRootFile;
@@ -60,15 +58,9 @@ int main()
         pBranchData->SetAddress(&pDaqDataBuf->fData);
 
         pRootTree->Fill();
-        //pBranchHeader->Fill();
-        //pBranchData->Fill();
 
         delete pDaqDataBuf;
 
-        //if(nIteration>10000){
-        //    pRootTree->AutoSave("SaveSelf");
-        //    nIteration = 0;
-        //}
         nFileSize = static_cast<int>(pRootFile->GetSize());
         if(nFileSizePrev!=nFileSize){
             printf("%.5d  => fileSize=%d\n",nIteration,nFileSize);
@@ -76,10 +68,10 @@ int main()
         }
     }
 
-    pRootFile->cd();gFile = pRootFile;
+    pRootTree->AutoSave("SaveSelf");
     pRootFile->TDirectory::DeleteAll();
     pRootFile->TDirectory::Close();
-    delete pRootFile;
+    delete gFile;
 
     nReturn = 0;
 returnPoint:

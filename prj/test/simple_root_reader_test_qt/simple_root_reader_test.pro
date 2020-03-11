@@ -25,3 +25,6 @@ CONFIG -= qt
 #INCLUDEPATH += /afs/ifh.de/@sys/products/root64/5.20.00/include
 
 SOURCES += ../../../src/test/main_simple_root_reader_test.cpp
+
+
+HEADERS += ../../../src/test/test_collector_test_reader_common.h

@@ -4,8 +4,6 @@
 // int mkdir_p(const char *a_path, mode_t a_mode) defined here
 
 #include <cstdlib>
-#define atoll       atol
-#define strtoull    strtoul
 #include <TPluginManager.h>
 #include <TROOT.h>
 #include <sys/types.h>
@@ -25,18 +23,30 @@ static int mkdir_p_raw(const char *a_path, mode_t a_mode);
 struct H_struct* g_shareptr = NEWNULLPTR2;
 
 const char* object_name = "daqcollector";
+extern int g_nIsZombieFile;
+int g_nIsZombieFile = 0;
+
+static void CleanupFunction(void)
+{
+    if(g_nIsZombieFile){
+        printf("exiting app, because of zombie!\n");
+    }
+}
 
 void eq_init_prolog() 	// called once before init of all EqFct's
 {
 
-    printf("version 4\n");
-    printf("Press any key, then press Enter to continue\n");fflush(stdout);
-    getchar();
-    if(s_SHMKEY){return;}
+    printf("version 6 (Multibranch collection)\n");
 
 #ifdef DEBUG_APP
+    printf("Press any key, then press Enter to continue\n");fflush(stdout);
     getchar();
 #endif
+
+    atexit(CleanupFunction);
+
+    if(s_SHMKEY){return;}
+
 
 #ifndef PLUGIN_MANAGER_LOADING_DISABLE
     /*
@@ -82,7 +92,9 @@ exitPoint:
 
 void eq_cancel()
 {
-    // shared memory should be released
+    // todo:
+    // 1. shared memory should be released
+    // 2. root plugins should be unloaded
 }
 
 void refresh_prolog() {}

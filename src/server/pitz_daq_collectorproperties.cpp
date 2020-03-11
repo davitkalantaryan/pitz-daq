@@ -141,10 +141,10 @@ void pitz::daq::D_loadOldConfig::set (EqAdr * a_adr, EqData * a_dataFromUser, Eq
 
     if(!aOldConfigPath.length()){
         aOldConfig = value();
-        pCollector->parse_old_config2(value());
+        pCollector->parse_old_config(value());
     }
 
-    if(!pCollector->parse_old_config2(aOldConfig)){
+    if(!pCollector->parse_old_config(aOldConfig)){
         D_string::set(a_adr, a_dataFromUser, a_dataToUser, a_pFct);
     }
     else{

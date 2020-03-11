@@ -7,7 +7,7 @@ message("!!! daqcollector_common.pri:")
 include(../../common/common_qt/root_no_gui_common.pri)
 DEFINES += ROOT_APP
 
-include($${PWD}/../../../contrib/matlab/prj/common/common_qt/matlab_matrix_without_libs_common.pri)
+include($${PWD}/../../../contrib/data_handling/contrib/matlab/prj/common/common_qt/matlab_matrix_without_libs_common.pri)
 DEFINES += USE_NEW_MATLB_NAMES
 
 DEFINES += R__NULLPTR
@@ -58,8 +58,7 @@ INCLUDEPATH += ../../../contrib/data_handling/src/include_p
 SOURCES += \
     $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling.cpp              \
     $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling_types.cpp        \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_indexing.cpp              \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp
+    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_indexing.cpp
 
 HEADERS += \
     $${PWD}/../../../src/server/pitz_daq_collectorproperties.hpp                            \
@@ -75,7 +74,9 @@ HEADERS += \
     $${PWD}/../../../contrib/cpp-raft/include/common/impl.lists.hpp                         \
     $${PWD}/../../../contrib/cpp-raft/include/cpp11+/shared_mutex_cpp14.hpp                 \
     $${PWD}/../../../src/server/pitz_daq_singleentry.hpp                                    \
+    $${PWD}/../../../src/server/pitz_daq_singleentry.impl.hpp                               \
     $${PWD}/../../../src/server/pitz_daq_eqfctcollector.hpp                                 \
+    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.impl.hpp                            \
     $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
     $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp                             \
     $${PWD}/../../../include/pitz_daq_internal.h                                            \
@@ -84,7 +85,9 @@ HEADERS += \
     $${PWD}/../../../include/common/inthash.impl.hpp                                        \
     $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_types.h           \
     $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling.h                 \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_daqdev.h
+    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp.hpp                             \
+    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_daqdev.h          \
+    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_collector_getter_common.h
 
 OTHER_FILES += \
     $${PWD}/../../../src/tools/pitz_daq_data_memory_base.cpp                                \
@@ -100,4 +103,5 @@ OTHER_FILES += \
     $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
     $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp                             \
     $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp                \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_getter.h
+    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_getter.h                   \
+    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp

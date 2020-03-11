@@ -1,9 +1,6 @@
 [submodule "contrib/cpp-raft"]
 	path = contrib/cpp-raft
 	url = https://github.com/davitkalantaryan/fork-cpp-raft.git
-[submodule "contrib/matlab"]
-	path = contrib/matlab
-	url = https://github.com/davitkalantaryan/matlabdev.git
 [submodule "contrib/data_handling"]
 	path = contrib/data_handling
 	url = https://kalantar@stash.desy.de/scm/ers/pitz_daq_data_handling.git

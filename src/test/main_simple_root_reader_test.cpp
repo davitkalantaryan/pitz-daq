@@ -10,10 +10,9 @@
 #include <TPluginManager.h>
 #include <TFile.h>
 #include <TTree.h>
+#include "test_collector_test_reader_common.h"
+#include <iostream>
 
-
-#define ROOT_FILE_NAME  "~/dev/.pitz/daq/prj/test/build-collector_test-Desktop_Qt_5_12_2_GCC_64bit-Debug/test_root_file.root"
-#define DAQ_ENTRY_NAME  "TEST_DAQ_NAME"
 
 struct DaqDataStruct
 {
@@ -27,6 +26,7 @@ int main(void)
 {
     int nReturn = -1;
     int i, nNumOfEntries,nNumOfEntriesHeader,nNumOfEntriesData;
+    TList* keyList;
     TFile* tFile = nullptr;
     TTree* pTree;
     TBranch *pBranchHeader, *pBranchData;
@@ -39,12 +39,14 @@ int main(void)
                                           "RIO",
                                           "TStreamerInfo()");
 
-    tFile = TFile::Open(ROOT_FILE_NAME);
+    tFile = TFile::Open(TEST_ROOT_FILE_NAME);
     if(!tFile || !tFile->IsOpen()){
         goto returnPoint;
     }
 
-    pTree = static_cast<TTree *>(tFile->Get(DAQ_ENTRY_NAME));
+    keyList=tFile->GetListOfKeys();
+    ::std::cout << "keyList.length="<<keyList->GetEntries() << ::std::endl;
+    pTree = static_cast<TTree *>(tFile->Get(TEST_DAQ_ENTRY_NAME));
     if(!pTree){
         goto returnPoint;
     }

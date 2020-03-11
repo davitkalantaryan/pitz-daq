@@ -47,6 +47,14 @@
 #define HANDLE_LOW_MEMORY(_memory) do{if(!(_memory)){exit(1);}}while(0)
 #endif
 
+#ifndef PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES
+#define PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES -1
+#endif
+
+#ifndef PITZ_DAQ_UNSPECIFIED_DATA_TYPE
+#define PITZ_DAQ_UNSPECIFIED_DATA_TYPE -1
+#endif
+
 //#define CENTRAL_TIMING_DETAILS  "tcp://mtcapitzcpu4:5566"
 
 static void TineThreadFunction(void);
@@ -56,10 +64,10 @@ static volatile int s_nWork2 = 1;
 static void* s_pContext = nullptr;
 
 static const char* s_vcpcDoocsAddress2[] = {
-    "PITZ.RF/SIS8300DMA/RF5_DMA.ADC0/CH00.ZMQ",
-    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/FNUM",
-    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/INUM",
-    "PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/SPECT"
+    "PITZ.RF/SIS8300DMA/RF5_DMA.ADC0/CH00.ZMQ"
+    //,"PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/FNUM"
+    //,"PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/INUM"
+    //,"PITZ.CHECK/PICUS2/TEST_ZMQ_PUB/SPECT"
 };
 
 static const int s_cnNumberOfDoocsEntries2 = sizeof(s_vcpcDoocsAddress2) / sizeof(const char*) ;
@@ -89,10 +97,10 @@ private:
     ::std::string   m_doocsAddress;
     ::std::string   m_hostName;
     void*           m_pSocket;
-    size_t          m_expectedRead1;
-    size_t          m_expectedRead2;
-    size_t          m_buffer1Size;
-    size_t          m_buffer2Size;
+    size_t          m_secondHeaderLength;
+    size_t          m_expectedDataLength;
+    size_t          m_bufferForSecondHeaderSize;
+    size_t          m_bufferForDataSize;
     int             m_nCount;
     int             m_nKnownDataType;
     int             m_nKnownCount;
@@ -100,7 +108,7 @@ private:
     uint64_t        m_isValid : 1;
     uint64_t        m_isDataLoaded : 1;
     uint64_t        m_reserved : 62;
-    char            *m_pBuffer1,*m_pBuffer2;
+    char            *m_pBufferForSecondHeader,*m_pBufferForData2;
 };
 
 class DaqCollectorDZ
@@ -149,9 +157,9 @@ SingleEntryZmqDoocs::SingleEntryZmqDoocs()
     m_doocsAddress = "";
     m_hostName = "";
     m_pSocket = nullptr;
-    m_expectedRead1 = 0;
-    m_expectedRead2 = 0;
-    m_buffer1Size=m_buffer2Size=0;
+    m_secondHeaderLength = 0;
+    m_expectedDataLength = 0;
+    m_bufferForSecondHeaderSize=m_bufferForDataSize=0;
     m_nCount = PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES;
     m_nKnownDataType = PITZ_DAQ_UNSPECIFIED_DATA_TYPE;
     m_nKnownCount = PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES;
@@ -159,7 +167,7 @@ SingleEntryZmqDoocs::SingleEntryZmqDoocs()
     m_isValid = 0;
     m_isDataLoaded = 0;
     m_reserved = 0;
-    m_pBuffer1 = m_pBuffer2 = nullptr;
+    m_pBufferForData2 = m_pBufferForSecondHeader = nullptr;
 }
 
 
@@ -335,7 +343,7 @@ int SingleEntryZmqDoocs::ReadData()
         return PITZ_DAQ_DATA_TYPE_MISMATCH;
     }
 
-    if(m_expectedRead1){
+    if(m_secondHeaderLength){
         more_size = sizeof(more);
         nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -343,13 +351,13 @@ int SingleEntryZmqDoocs::ReadData()
             return -1;
         }
 
-        nReturn=zmq_recv(this->m_pSocket,m_pBuffer1,m_expectedRead1,0);
-        if(nReturn!=static_cast<int>(m_expectedRead1)){
+        nReturn=zmq_recv(this->m_pSocket,m_pBufferForData2,m_secondHeaderLength,0);
+        if(nReturn!=static_cast<int>(m_secondHeaderLength)){
             return -1;
         }
     }
 
-    if(m_expectedRead2){
+    if(m_expectedDataLength){
         more_size = sizeof(more);
         nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -357,8 +365,8 @@ int SingleEntryZmqDoocs::ReadData()
             return -1;
         }
 
-        nReturn=zmq_recv(this->m_pSocket,m_pBuffer2,m_expectedRead2,0);
-        if(nReturn!=static_cast<int>(m_expectedRead2)){
+        nReturn=zmq_recv(this->m_pSocket,m_pBufferForData2,m_expectedDataLength,0);
+        if(nReturn!=static_cast<int>(m_expectedDataLength)){
             return -1;
         }
     }
@@ -375,7 +383,8 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
 {
     //m_expectedRead1=0;
     //m_expectedRead2=0;
-    size_t expectedRead1(0), expectedRead2(0);
+    //size_t expectedRead1(0), expectedRead2(0);
+    size_t bufferForSecondHeaderSize=0,bufferForDataSize=0;
 
     //EqDataBlock* db;
     //char* dp;
@@ -383,11 +392,11 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
     switch (m_nKnownDataType) {
 
     case DATA_INT:
-        expectedRead1 = static_cast<size_t>(m_nCount) * sizeof(int);
+        bufferForDataSize = static_cast<size_t>(m_nCount) * sizeof(int);
         break;
 
     case DATA_FLOAT:
-        expectedRead1 = static_cast<size_t>(m_nCount) * sizeof(float);
+        bufferForDataSize = static_cast<size_t>(m_nCount) * sizeof(float);
         break;
 
     case DATA_DOUBLE:
@@ -417,8 +426,8 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
         //db->data_u.DataUnion_u.d_spectrum.d_spect_array.d_spect_array_val = (float*)(dp + sizeof(SPECTRUM) + STRING_LENGTH);
         //break;
 
-        expectedRead1 = sizeof(struct SPECTRUM) + STRING_LENGTH ;
-        expectedRead2 = static_cast<size_t>(m_nKnownCount) * sizeof(float);  // in order to keep socket clean
+        bufferForSecondHeaderSize = sizeof(struct SPECTRUM) + STRING_LENGTH ;
+        bufferForDataSize = static_cast<size_t>(m_nKnownCount) * sizeof(float);  // in order to keep socket clean
         break;
 
     case DATA_GSPECTRUM:
@@ -430,6 +439,7 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
     case DATA_A_SHORT:
         //db->data_u.DataUnion_u.d_short_array.d_short_array_val = (short*)dp;
         //db->data_u.DataUnion_u.d_short_array.d_short_array_len = len;
+        bufferForDataSize = static_cast<size_t>(m_nCount) * sizeof(short);
         break;
 
     case DATA_A_INT:
@@ -508,26 +518,26 @@ bool SingleEntryZmqDoocs::GetExpectedSizesAndCreateBuffers()
         return false;
     }
 
-    if(expectedRead1>m_buffer1Size){
-        char* pBufferTmp = static_cast<char*>(realloc(m_pBuffer1,expectedRead1));
+    if(bufferForSecondHeaderSize>m_bufferForSecondHeaderSize){
+        char* pBufferTmp = static_cast<char*>(realloc(m_pBufferForSecondHeader,bufferForSecondHeaderSize));
         if(pBufferTmp){
-            m_pBuffer1 = pBufferTmp;
-            m_buffer1Size=m_expectedRead1 = expectedRead1;
+            m_pBufferForSecondHeader = pBufferTmp;
+            m_secondHeaderLength=m_bufferForSecondHeaderSize = bufferForSecondHeaderSize;
         }
     }
     else{
-        m_expectedRead1 = expectedRead1;
+        m_secondHeaderLength = bufferForSecondHeaderSize;
     }
 
-    if(expectedRead2>m_buffer2Size){
-        char* pBufferTmp = static_cast<char*>(realloc(m_pBuffer2,expectedRead2));
+    if(bufferForDataSize>m_bufferForDataSize){
+        char* pBufferTmp = static_cast<char*>(realloc(m_pBufferForData2,bufferForDataSize));
         if(pBufferTmp){
-            m_pBuffer2 = pBufferTmp;
-            m_buffer2Size=m_expectedRead2 = expectedRead2;
+            m_pBufferForData2 = pBufferTmp;
+            m_expectedDataLength=m_bufferForDataSize = bufferForDataSize;
         }
     }
     else{
-        m_expectedRead2 = expectedRead2;
+        m_expectedDataLength = bufferForDataSize;
     }
 
     return true;

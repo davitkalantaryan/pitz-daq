@@ -3,20 +3,23 @@
 // 2017 Nov 24
 
 #include <cstdlib>
-#define atoll       atol
-#define strtoull    strtoul
 #include "pitz_daq_eqfctcollector.hpp"
 #include <signal.h>
-#include <TFile.h>
+#include "pitz_daq_eqfctcollector.cpp.hpp"
 #include <dirent.h>
 #include "mailsender.h"
 #include <sys/timeb.h>
 #include <sys/time.h>
 #include <time.h>
+#include <pitz_daq_data_collector_getter_common.h>
+
+#define CONF_FILE_VERSION_START "DAQ_VERSION="
+static const size_t s_cunDaqVersionForConfigLen = strlen(CONF_FILE_VERSION_START);
 
 #define MINIMUM_ROOT_FILE_SIZE_HARD     1000
 
-#define SEMA_WAIT_TIME_MS       10000
+//#define SEMA_WAIT_TIME_MS       10000
+#define WAIT_INFINITE  -1
 #define BUF_LEN_FOR_STRFTIME    64
 #define data_length             1024
 #define NUMER_OF_WAITING_FOR_ERR_REP    36000
@@ -30,11 +33,16 @@
 
 static const char*      s_LN = "#_QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890";
 
+static int NewSystemStat(const char *a_command);
+
+static void SignalHandler(int){}
+
 pitz::daq::EqFctCollector::EqFctCollector()
         :
           EqFct("Name = location"),
+          //m_testProp("TEST_VOID",this),
           m_genEvent("GEN_EVENT value",this),
-          m_fileMaxSize("FILE_SIZE_MAXIMUM approximate size of final file", this),
+          m_fileMaxSize("FILE_SIZE_DESIGNED approximate size of final file", this),
           m_numberOfEntries("NUMBER.OF.ENTRIES",this),
           m_logLevel("LOG.LEVEL log level of server", this),
           m_rootDirPathBaseRemote("ROOT.DIR.PATH.REMOTE",this),
@@ -57,19 +65,26 @@ pitz::daq::EqFctCollector::EqFctCollector()
     m_shouldWork  = 0;
     m_bitwise64Reserved = 0;
 
-    m_nNumberOfEntries = 0;
-    m_nNumberOfFillThreadsFinal = 0;
-
     m_unErrorUnableToWriteToDcacheNum = 0;
 
+    EqFct::err_.set_ro_access();
     m_genEvent.set_ro_access();
+    // m_fileMaxSize
     m_numberOfEntries.set_ro_access();
-    m_rootDirPathBaseRemote.set_ro_access();
-    //m_rootDirPathBaseLocal.set_ro_access();
-    //m_folderName.set_ro_access();
-    //m_rootFileNameBase.set_ro_access();
-    //m_numberOfFillThreadsDesigned.set_ro_access();
+    //m_logLevel("LOG.LEVEL log level of server", this),
+    //m_rootDirPathBaseRemote("ROOT.DIR.PATH.REMOTE",this),
+    //m_rootDirPathBaseLocal("ROOT.DIR.PATH.LOCAL",this),
+    //m_folderName("FOLDER.NAME for example 'pitznoadc0'",this),
+    //m_rootFileNameBase("ROOT.FILE.NAME.BASE",this),
+    //m_expertsMailingList("EXPERTS.MAILING.LIST  should be ; separated",this),
+    //m_numberOfFillThreadsDesigned("NUMBER.OF.FILL.THREDS.DESIGNED",this),
     m_numberOfFillThreadsFinal.set_ro_access();
+    m_currentFileSize.set_ro_access();
+    //m_addNewEntry("ADD.NEW.ENTRY",this),
+    //m_removeEntry("DELETE.ENTRY",this),
+    //m_loadOldConfig("LOAD.OLD.CONFIG",this),
+    m_numberOfEntriesInError.set_ro_access();
+    m_entriesInError.set_ro_access();
 
 }
 
@@ -80,7 +95,7 @@ pitz::daq::EqFctCollector::~EqFctCollector()
 }
 
 
-void pitz::daq::EqFctCollector::CalcLocalDir2(std::string* a_localDirName)STUPID_NON_CONST
+void pitz::daq::EqFctCollector::CalcLocalDir(std::string* a_localDirName)STUPID_NON_CONST
 {
     *a_localDirName = m_rootDirPathBaseLocal.value() + std::string("/") + m_folderName.value();
 }
@@ -93,13 +108,14 @@ void pitz::daq::EqFctCollector::CalculateRemoteDirPathAndFileName(std::string* a
     char
             vcYear[BUF_LEN_FOR_STRFTIME], vcMonth[BUF_LEN_FOR_STRFTIME],
             vcDay[BUF_LEN_FOR_STRFTIME], vcHour[BUF_LEN_FOR_STRFTIME],
-            vcMinute[BUF_LEN_FOR_STRFTIME];
+            vcMinute[BUF_LEN_FOR_STRFTIME], vcSeconds[BUF_LEN_FOR_STRFTIME];
 
     strftime (vcYear,BUF_LEN_FOR_STRFTIME,"%Y",timeinfo);
     strftime (vcMonth,BUF_LEN_FOR_STRFTIME,"%m",timeinfo);
     strftime (vcDay,BUF_LEN_FOR_STRFTIME,"%d",timeinfo);
     strftime (vcHour,BUF_LEN_FOR_STRFTIME,"%H",timeinfo);
     strftime (vcMinute,BUF_LEN_FOR_STRFTIME,"%M",timeinfo);
+    strftime (vcSeconds,BUF_LEN_FOR_STRFTIME,"%S",timeinfo);
     DUMMY_ARGS2(aWalltime);
 
     *a_remoteDirPath = m_rootDirPathBaseRemote.value()+std::string("/")+
@@ -109,7 +125,7 @@ void pitz::daq::EqFctCollector::CalculateRemoteDirPathAndFileName(std::string* a
 
     *a_fileName = m_rootFileNameBase.value()+std::string(".")+
             std::string(vcYear)+"-"+std::string(vcMonth)+"-"+
-            std::string(vcDay)+"-"+std::string(vcHour)+vcMinute +
+            std::string(vcDay)+"-"+std::string(vcHour)+std::string(vcMinute) +vcSeconds +
             std::string(".root");
 }
 
@@ -117,6 +133,7 @@ void pitz::daq::EqFctCollector::CalculateRemoteDirPathAndFileName(std::string* a
 int pitz::daq::EqFctCollector::write(fstream &a_fprt)
 {
     int nReturn = EqFct::write(a_fprt);
+    NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard(&m_lockForEntries);
     WriteEntriesToConfig();
     return nReturn;
 }
@@ -124,6 +141,8 @@ int pitz::daq::EqFctCollector::write(fstream &a_fprt)
 
 void pitz::daq::EqFctCollector::init(void)
 {
+    int nConfigFileVersion = PITZ_DAQ_CURRENT_VERSION;
+    NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard;
     SNetworkStruct* pNetworkToAdd2;
     int i;
     int nNumberOfFillThreadsDesigned;
@@ -135,6 +154,8 @@ void pitz::daq::EqFctCollector::init(void)
     if(m_shouldWork){return;}
     m_shouldWork = 1;
 
+    set_error(0,"ok");
+
     m_numberOfEntries.set_value(0);
     m_entriesInError.set_value("");
     m_numberOfEntriesInError.set_value(0);
@@ -144,13 +165,11 @@ void pitz::daq::EqFctCollector::init(void)
     g_nLogLevel = m_logLevel.value();
     InitSocketLibrary();
 
-    WriteLockEntries2();
+    aSharedGuard.LockShared(&m_lockForEntries);
 
     nNumberOfFillThreadsDesigned = m_numberOfFillThreadsDesigned.value();
     if(nNumberOfFillThreadsDesigned<=0){nNumberOfFillThreadsDesigned=1;m_numberOfFillThreadsDesigned.set_value(1);}
-    m_nNumberOfFillThreadsFinal = 0;
 
-    m_nNumberOfEntries = 0;
     snprintf(vcNewConfFileName,511,"%s.nconf",name().c_str());
     fpConfig = fopen(vcNewConfFileName,"r");
 
@@ -159,12 +178,12 @@ void pitz::daq::EqFctCollector::init(void)
     for(i=0;i<nNumberOfFillThreadsDesigned;++i){
 
         pNetworkToAdd2 = this->CreateNewNetworkStruct();
-        m_networsList.push_front(pNetworkToAdd2);
-        pNetworkToAdd2->m_thisIter = m_networsList.begin();
+        m_networsList.push_back(pNetworkToAdd2);
+        pNetworkToAdd2->m_thisIter = --m_networsList.end();
 
     }
+    m_numberOfFillThreadsFinal.set_value(static_cast<int>(m_networsList.size()));
     m_pNextNetworkToAdd = m_networsList.front();
-    m_nNumberOfFillThreadsFinal = static_cast<decltype (m_nNumberOfFillThreadsFinal)>(m_networsList.size());
 
     if(!fpConfig){goto finalizeStuffPoint;}
 
@@ -172,23 +191,27 @@ void pitz::daq::EqFctCollector::init(void)
         //if(  data[0] == '#'  ) continue;
         pn = strpbrk(data,s_LN);
         if( ( !pn ) || ( pn[0] == '#' ) ) continue;
-        if(IsAllowedToAdd2(pn)){
+        if(strncmp(CONF_FILE_VERSION_START,pn,s_cunDaqVersionForConfigLen)==0){
+            nConfigFileVersion =atoi(pn+s_cunDaqVersionForConfigLen);
+            ::std::cout<<"DAQ version when config file is created is " << nConfigFileVersion << ::std::endl;
+            continue;
+        }
+        if(IsAllowedToAdd(pn)){
             AddNewEntryNotLocked(entryCreationType::fromConfigFile, data);
         }
     }
     fclose(fpConfig);
 
 finalizeStuffPoint:
-    WriteUnlockEntries2();
+    aSharedGuard.UnlockShared();
     DEBUG_APP_INFO(1," ");
 
-    m_threadForEntryAdding = ::STDN::thread(&EqFctCollector::EntryAdderDeleter,this);
     m_threadRoot = ::STDN::thread(&EqFctCollector::RootThreadFunction,this);
     m_threadLocalFileDeleter = ::STDN::thread(&EqFctCollector::LocalFileDeleterThread,this);
 }
 
 
-bool pitz::daq::EqFctCollector::IsAllowedToAdd2(const char* a_newEntryLine)
+bool pitz::daq::EqFctCollector::IsAllowedToAdd(const char* a_newEntryLine)
 {
     // should be more general search
     ::std::string aEntryName(a_newEntryLine);
@@ -199,14 +222,74 @@ bool pitz::daq::EqFctCollector::IsAllowedToAdd2(const char* a_newEntryLine)
     if( FindEntry(pcEntryName) ){
         return false;
     }
-    if(FindEntryInAdding(pcEntryName)){
-        return false;
-    }
-    if(FindEntryInDeleting(pcEntryName)){
-        return false;
-    }
 
     return true;
+}
+
+
+void pitz::daq::EqFctCollector::DataGetterThread(SNetworkStruct* a_pNet)
+{
+    NewSharedLockGuard< ::STDN::shared_mutex > lockGuard;
+    ::std::vector<SingleEntry*> vectForEntries;
+    struct timeval aTimeBeforeSleepFncCall, aTimeAfterSleepFncCall;
+
+    struct sigaction sigAction;
+
+    //sigAction.sa_handler = SignalHandler;
+#ifdef sa_handler
+#pragma push_macro("sa_handler")
+#undef sa_handler
+    sigAction.__sigaction_handler.sa_handler = SignalHandler;
+#pragma pop_macro("sa_handler")
+#else
+    sigAction.sa_handler = SignalHandler;
+#endif
+    sigfillset(&sigAction.sa_mask);
+    sigdelset(&sigAction.sa_mask,SIGNAL_FOR_CANCELATION);
+    sigAction.sa_flags = 0;
+    sigAction.sa_restorer = NEWNULLPTR2; // not used
+
+    // we have to init sig handle, because in some cases, we will stop by interrupt
+    sigaction(SIGNAL_FOR_CANCELATION,&sigAction,NEWNULLPTR2);
+
+enteTryPoint:
+    try {
+        while(shouldWork() && a_pNet->m_shouldRun){
+            vectForEntries.clear();
+            lockGuard.LockShared(&m_lockForEntries);
+            for(auto pEntry : a_pNet->daqEntries()){
+                if(pEntry->lockEntryForNetwork()){
+                    vectForEntries.push_back(pEntry);
+                }
+            }
+            lockGuard.UnlockShared();
+
+            if(vectForEntries.size()>0){
+                gettimeofday(&aTimeBeforeSleepFncCall,nullptr);
+                this->DataGetterFunctionWithWait(a_pNet,vectForEntries);
+                gettimeofday(&aTimeAfterSleepFncCall,nullptr);
+                if((aTimeAfterSleepFncCall.tv_sec==aTimeBeforeSleepFncCall.tv_sec)&&(aTimeAfterSleepFncCall.tv_usec<(aTimeBeforeSleepFncCall.tv_usec+4))){
+                    sleep(2);
+                }
+            }
+            else{
+                sleep(2);
+            }
+
+            lockGuard.LockShared(&m_lockForEntries);
+            for(auto pEntry : a_pNet->daqEntries()){
+                pEntry->resetNetworkLockAndReturnIfDeletable();
+            }
+            lockGuard.UnlockShared();
+        }
+
+    } catch (...) {
+        lockGuard.UnlockShared();
+        sleep(5);
+        goto enteTryPoint;
+    }
+
+
 }
 
 
@@ -235,17 +318,6 @@ pitz::daq::SingleEntry* pitz::daq::EqFctCollector::FindEntry(const char* a_entry
 }
 
 
-bool pitz::daq::EqFctCollector::FindEntryInAdding(const char* )
-{
-    return false;
-}
-
-bool pitz::daq::EqFctCollector::FindEntryInDeleting(const char *)
-{
-    return false;
-}
-
-
 #define DELIMETER_SYMBOL  "\n"
 
 
@@ -257,8 +329,12 @@ void pitz::daq::EqFctCollector::IncrementErrors(const char* a_entryName)
     //char vcBuffer[1024];
     const size_t entryNameLen = strlen(a_entryName);
     int nNumber = 0;
+    unsigned int unCurrentError;
 
     m_mutexForEntriesInError.lock();
+    unCurrentError = static_cast<unsigned int>(get_error());
+    unCurrentError |= ENTRY_IN_ERROR;
+    set_error(static_cast<int>(unCurrentError));
     strEntries = m_entriesInError.value();
     cpcBuffer = strEntries.c_str();
     cpcEntryInTheGroup = strstr(cpcBuffer,a_entryName);
@@ -282,7 +358,13 @@ void pitz::daq::EqFctCollector::IncrementErrors(const char* a_entryName)
 
 void pitz::daq::EqFctCollector::DecrementErrors(const char* a_entryName)
 {
-    int nNumber = m_numberOfEntriesInError.value();
+    NewLockGuard< ::std::mutex > lockGuard;
+    int nNumber;
+    unsigned int unCurrentError;
+
+    lockGuard.Lock(&m_mutexForEntriesInError);
+
+    nNumber = m_numberOfEntriesInError.value();
 
     if(nNumber>0){
         char* pcNext;
@@ -292,40 +374,45 @@ void pitz::daq::EqFctCollector::DecrementErrors(const char* a_entryName)
         //char vcBuffer[1024];
         std::string strEntries ;
 
-        m_mutexForEntriesInError.lock();
-
         strEntries = m_entriesInError.value();
         pcBuffer = const_cast<char*>(strEntries.c_str());
         pcNext=strstr(pcBuffer,a_entryName);
         if(!pcNext){m_mutexForEntriesInError.unlock();return;}
 
         if(*(pcNext+entryNameLen)!=DELIMETER_SYMBOL[0]){
-            m_mutexForEntriesInError.unlock();
+            lockGuard.Unlock();
             return;
         }
 
         unWholeStrLen = strEntries.length();
-        m_numberOfEntriesInError.set_value(--nNumber);
+        if(!(--nNumber)){
+            unCurrentError = static_cast<unsigned int>(get_error());
+            unCurrentError &= (~ENTRY_IN_ERROR);
+            set_error(static_cast<int>(unCurrentError));
+        }
+        m_numberOfEntriesInError.set_value(nNumber);
         DEBUG_APP_INFO(2,"!!!!!!!!!!!!!!! DecrementErrors setting to %d",nNumber);
         //strncpy(vcBuffer,cpcEntries,1023);
 
         memmove(pcNext,pcNext+entryNameLen+1,unWholeStrLen-static_cast<size_t>(pcNext-pcBuffer)-entryNameLen);
         m_entriesInError.set_value(pcBuffer);
 
-        m_mutexForEntriesInError.unlock();
     }
+
+    lockGuard.Unlock();
 }
 
 
-int pitz::daq::EqFctCollector::parse_old_config2(const std::string& a_daqConfFilePath)
+int pitz::daq::EqFctCollector::parse_old_config(const std::string& a_daqConfFilePath)
 {
+    NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard;
     FILE *fpConfig;
     const char* pn;
     const std::string& daqConfFilePath = a_daqConfFilePath;
     char    data[data_length];
     int     nReturn(-1);
 
-    WriteLockEntries2();
+    aSharedGuard.LockShared(&m_lockForEntries);
 
     fpConfig =	fopen(daqConfFilePath.c_str(),"r");
     DEBUG_APP_INFO(1,"fpConfig=%p",static_cast<void*>(fpConfig));
@@ -338,18 +425,18 @@ int pitz::daq::EqFctCollector::parse_old_config2(const std::string& a_daqConfFil
     while ( fgets(data, data_length, fpConfig) ){
         pn = strpbrk(data,s_LN);
         if( ( !pn ) || ( pn[0] == '#' ) ) continue;
-        if(IsAllowedToAdd2(pn)){
+        if(IsAllowedToAdd(pn)){
             AddNewEntryNotLocked(entryCreationType::fromOldFile, data);
         }
     }
     fclose(fpConfig);
     //m_fifoToFill.ResizeCash(m_nNumberOfEntries*4);
-    DEBUG_APP_INFO(0,"!!!!!!! numberOfEntries=%d, numberOfEntriesDcs=%d",m_nNumberOfEntries,m_numberOfEntries.value());
+    DEBUG_APP_INFO(0,"!!!!!!! numberOfEntries=%d, numberOfEntriesDcs=%d",m_numberOfEntries.value(),m_numberOfEntries.value());
     nReturn = 0;
 
 returnPoint:
     WriteEntriesToConfig();
-    WriteUnlockEntries2();
+    aSharedGuard.UnlockShared();
     return nReturn;
 
 }
@@ -359,6 +446,7 @@ void pitz::daq::EqFctCollector::AddNewEntryNotLocked(entryCreationType::Type a_c
 {
     ::std::list< SNetworkStruct* >::iterator    nextIterator;
     SingleEntry *pCurEntry(nullptr);
+    int nNumberOfEntries = m_numberOfEntries.value();
 
     try{
         pCurEntry = CreateNewEntry(a_creationType,a_entryLine);
@@ -368,37 +456,40 @@ void pitz::daq::EqFctCollector::AddNewEntryNotLocked(entryCreationType::Type a_c
     }
 
     m_pNextNetworkToAdd->AddNewEntry(pCurEntry);
+    add_property(pCurEntry);
     nextIterator = m_pNextNetworkToAdd->m_thisIter;
     if( (++nextIterator)==m_networsList.end() ){
         nextIterator = m_networsList.begin();
     }
     m_pNextNetworkToAdd = *nextIterator;
 
-    m_numberOfEntries.set_value(++m_nNumberOfEntries);
-    m_numberOfFillThreadsFinal.set_value(m_nNumberOfFillThreadsFinal);
+    m_numberOfEntries.set_value(++nNumberOfEntries);
 }
 
 
 CLEAR_RET_TYPE pitz::daq::EqFctCollector::CLEAR_FUNC_NAME(void)
 {
+    NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard;
+
     DEBUG_APP_INFO(0,"!!!!!!!!!!!!!!!!!!!!!!!!!! %s, m_nWork=%d",__FUNCTION__,static_cast<int>(m_shouldWork));
 
     if(!m_shouldWork){return CAST_CLEAR_RET(0);}
     m_shouldWork = 0;
 
+    aSharedGuard.LockShared(&m_lockForEntries);
     WriteEntriesToConfig();
+    aSharedGuard.UnlockShared();
 
     m_semaForRootThread.post();
     m_semaForLocalFileDeleter.post();
-    m_semaForEntryAdder.post();
 
     m_threadRoot.join();
     m_threadLocalFileDeleter.join();
-    m_threadForEntryAdding.join();
+
+    // no need to synchronize, because all threads are gone
 
     for( auto netStruct : m_networsList){
-        DEBUG_APP_INFO(0,"!!!!!! stopping network\n");
-        netStruct->StopThreadAndClear();
+        DEBUG_APP_INFO(0,"!!!!!! stopping and deleting network\n");
         delete netStruct;
     }
 
@@ -425,12 +516,13 @@ void pitz::daq::EqFctCollector::WriteEntriesToConfig()const
     DEBUG_APP_INFO(2,"!!!!!!!!!!!!!!!!!!!!!!!!!!!! flName=%s, filePtr=%p ",vcNewConfFileName,static_cast<void*>(fpConfig) );
 
     if(fpConfig){
+        fprintf(fpConfig,CONF_FILE_VERSION_START "%d\n",PITZ_DAQ_CURRENT_VERSION);
         for( auto netStruct : m_networsList){
             pList = &netStruct->daqEntries();
             pIterEnd = pList->end();
             for(pIter=pList->begin();pIter!=pIterEnd;++pIter){
                 pCurEntry = *pIter;
-                pCurEntry->WriteContentToTheFile(fpConfig);
+                pCurEntry->WriteContentToTheFile(fpConfig); // this takes care whether entry is deleted or not
             }
         }
 
@@ -446,9 +538,7 @@ void pitz::daq::EqFctCollector::LocalFileDeleterThread()
 
     while( shouldWork()  ){
         m_semaForLocalFileDeleter.wait(-1);
-        while(m_fifoForLocalFileDeleter.size()>0){
-            filePathLocal = m_fifoForLocalFileDeleter.front();
-            m_fifoForLocalFileDeleter.pop();
+        while(m_fifoForLocalFileDeleter.frontAndPop(&filePathLocal)){
             DEBUG_APP_INFO(1," deleting file %s",filePathLocal.c_str());
             remove(filePathLocal.c_str());
         }
@@ -456,39 +546,19 @@ void pitz::daq::EqFctCollector::LocalFileDeleterThread()
 }
 
 
-void pitz::daq::EqFctCollector::EntryAdderDeleter()
-{
-    while( m_shouldWork  ){
-        m_semaForEntryAdder.wait(-1);
-
-        if(m_entriesToAdd.size()){
-            WriteLockEntries2();
-
-            while(m_entriesToAdd.size()){
-                //AddNewEntryPrivate(entryCreationType::fromUser, ::std::move(m_entriesToAdd.front()));
-                AddNewEntryNotLocked(entryCreationType::fromUser, m_entriesToAdd.front().c_str());
-                m_entriesToAdd.pop();
-            }
-
-            WriteUnlockEntries2();
-        }  // if(bAction){
-
-    }  // while( m_nWork2  ){
-}
-
-
 bool pitz::daq::EqFctCollector::AddNewEntryByUser(const char* a_entryLine)
 {
+    NewSharedLockGuard< ::STDN::shared_mutex > aGuard;
     bool bRet(false);
-    ReadLockEntries2();
 
-    if(IsAllowedToAdd2(a_entryLine)){
+    aGuard.LockShared(&m_lockForEntries);
+
+    if(IsAllowedToAdd(a_entryLine)){
         bRet=true;
-        m_entriesToAdd.push(a_entryLine);
-        m_semaForEntryAdder.post();
+        AddNewEntryNotLocked(entryCreationType::fromUser, a_entryLine);
     }
 
-    ReadUnlockEntries2();
+    aGuard.UnlockShared();
 
     return bRet;
 }
@@ -498,22 +568,16 @@ bool pitz::daq::EqFctCollector::RemoveEntryByUser(const char* a_entryName)
 {
     bool bRet(false);
     SingleEntry* pEntry;
+    NewLockGuard< ::STDN::shared_mutex> lockGuard;
 
-    this->WriteLockEntries2();
-
-    if(FindEntryInAdding(a_entryName)){
-        //bRet = true;
-        // todo: remove from adding entries list
-        return true;
-    }
+    lockGuard.Lock(&m_lockForEntries);
 
     if( (pEntry=FindEntry(a_entryName))){
         bRet=true;
         TryToRemoveEntryNotLocked(pEntry);
     }
 
-
-    this->WriteUnlockEntries2();
+    lockGuard.Unlock();
 
     return bRet;
 }
@@ -522,178 +586,135 @@ bool pitz::daq::EqFctCollector::RemoveEntryByUser(const char* a_entryName)
 void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 {
     bool bIsAllowedToDelete;
-    SNetworkStruct* pNetworkParent;
+    int nNumberOfEntries(m_numberOfEntries.value());
 
     if(!a_pEntry){
         return;
     }
 
-    bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnIfPossibleNow(); 
+    bIsAllowedToDelete = a_pEntry->markEntryForDeleteAndReturnIfPossibleNow();
 
-    //WriteLockEntries2();
-    pNetworkParent = a_pEntry->CleanEntryNoFree();
-    m_pNextNetworkToAdd = pNetworkParent;
-    m_numberOfEntries.set_value(--m_nNumberOfEntries);
-    //WriteUnlockEntries2();
+    m_pNextNetworkToAdd = a_pEntry->networkParent();
+    m_numberOfEntries.set_value(--nNumberOfEntries);
 
-    DEBUG_APP_INFO(0,"Number of entries remained is: %d",m_nNumberOfEntries);
+    DEBUG_APP_INFO(0,"Number of entries remained is: %d",nNumberOfEntries);
+    rem_property(a_pEntry);
 
     if(bIsAllowedToDelete){
         delete a_pEntry;
     }
 }
 
+extern int g_nIsZombieFile;
 
-
-void pitz::daq::EqFctCollector::WriteLockEntries2()
+NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
-    pthread_t handleToThread;
+    Int_t nVersion = PITZ_DAQ_CURRENT_VERSION;
+    int64_t llnCurFileSize;
+    NewTFile *pRootFile;
+    TTree* pTreeForVersion;
+    TBranch *pBranchVersion;
+    std::string localDirPath, remoteDirPath, fileName;
 
-    m_lockForEntries2.WriteLockWillBeCalled();
+    CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
+    CalcLocalDir(&localDirPath);
+    *a_pFilePathLocal = localDirPath+"/"+fileName;
+    *a_pFilePathRemote = remoteDirPath+"/"+fileName;
+    //std::cout<<"locDirPath="<<localDirPath<<std::endl;
+    //std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
+    mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+    mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
 
-
-    for(auto pNetwork : m_networsList){
-        handleToThread = static_cast<pthread_t>(pNetwork->m_pThread->native_handle());
-        pthread_kill(handleToThread,SIGNAL_FOR_CANCELATION);
+    pRootFile = new NewTFile(a_pFilePathLocal->c_str());// SetCompressionLevel(1)
+    if ((!pRootFile) || pRootFile->IsZombie()){
+        g_nIsZombieFile = 1;
+        fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
+        exit(-1);
     }
+    pRootFile->cd(); gFile = pRootFile;
 
-
-    m_lockForEntries2.lock();
-
-}
-
-
-void pitz::daq::EqFctCollector::WriteUnlockEntries2()
-{
-    m_lockForEntries2.unlock();
-}
-
-
-void pitz::daq::EqFctCollector::ReadLockEntries2()
-{
-    m_lockForEntries2.lock_shared();
-}
-
-
-void pitz::daq::EqFctCollector::ReadUnlockEntries2()
-{
-    m_lockForEntries2.unlock_shared();
-}
-
-
-uint64_t pitz::daq::EqFctCollector::shouldWork()const
-{
-    return m_shouldWork;
-}
-
-
-pitz::daq::SStructForFill pitz::daq::EqFctCollector::GetAndDeleteFirstData()
-{
-    SStructForFill strToRet(m_fifoToFill.front());
-    m_fifoToFill.pop();
-    //strToRet.entry->m_isInTheRootFifo = 0;
-    return strToRet;
-}
-
-
-void pitz::daq::EqFctCollector::CheckGenEventError(int* a_pnPreviousTime, int* a_pnPreviousGenEvent)
-{
-    struct timeb currentTime;
-    int nGenEvent;
-
-    ftime(&currentTime);
-    if((currentTime.time-(*a_pnPreviousTime))>=(SEMA_WAIT_TIME_MS/1000)){
-        nGenEvent = m_genEvent.value();
-        if(nGenEvent==(*a_pnPreviousGenEvent)){
-            set_error(2018,"Gen event error");
-        }
-        else{
-            set_error(0,"ok");
-            (*a_pnPreviousGenEvent) = nGenEvent;
-        }
-
-        (*a_pnPreviousTime) = static_cast<int>(currentTime.time);
+    pTreeForVersion = new TTree(VERSION_TREE_AND_BRANCH_NAME,"DATA");
+    pBranchVersion=pTreeForVersion->Branch(VERSION_TREE_AND_BRANCH_NAME,nullptr,"version/I");
+    if(!pBranchVersion){
+        fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
+        exit(-1);
     }
+    pBranchVersion->SetAddress(&nVersion);
+    pTreeForVersion->Fill();
+    pTreeForVersion->AutoSave("SaveSelf");
+
+    llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
+    DEBUG_APP_INFO(2," ");
+
+    return pRootFile;
 }
+
 
 
 void pitz::daq::EqFctCollector::RootThreadFunction()
 {
-    TFile *pGlobalRootFileInitial,*pRootFile = NEWNULLPTR2;
-    std::string filePathLocal, filePathRemote, localDirPath, remoteDirPath, fileName;
-    int nSeconds, nEventNumber;
-    int nPreviousGenEvent(0),nPreviousTime(0);
+    NewTFile* pRootFile=nullptr;
+    std::string filePathLocal, filePathRemote;
     SStructForFill strToFill;
-    SingleEntry* pCurEntry;
-    DEC_OUT_PD(SingleData)* pCurrentData;
-    int64_t llnCurFileSize;
+    int64_t llnCurFileSize, llnMaxFileSize/*, llnCurFileSizeLastSaved=0*/;
 
     while( this->shouldWork()  ){
 
-        CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
-        CalcLocalDir2(&localDirPath);
-        filePathLocal = localDirPath+"/"+fileName;
-        filePathRemote = remoteDirPath+"/"+fileName;
-        std::cout<<"locDirPath="<<localDirPath<<std::endl;
-        std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
-        mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
-        mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+        m_semaForRootThread.wait(WAIT_INFINITE);
 
-        pRootFile = new TFile(filePathLocal.c_str(),"UPDATE","DATA",1);// SetCompressionLevel(1)
-        if ((!pRootFile) || pRootFile->IsZombie()){
-            fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
-            exit(-1);
-        }
-        pGlobalRootFileInitial = gFile;
-        pRootFile->cd(); gFile = pRootFile;
-        llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(llnCurFileSize);
-        DEBUG_APP_INFO(2," ");
+        while( m_fifoToFill.frontAndPop(&strToFill) ){
 
-        // the while below corresponds to file filling
-        for( ;this->shouldWork()&&(pRootFile->GetSize()<m_fileMaxSize.value());llnCurFileSize=pRootFile->GetSize(),m_currentFileSize.set_value(llnCurFileSize)  ){
+            if(!pRootFile){  // open root file
+                pRootFile=RootFileCreator(&filePathLocal,&filePathRemote);
+            }
 
-            m_semaForRootThread.wait(SEMA_WAIT_TIME_MS);
-            CheckGenEventError(&nPreviousTime,&nPreviousGenEvent);
-            while( this->shouldWork() && (m_fifoToFill.size()>0) ){
-                strToFill = GetAndDeleteFirstData();
-                pCurEntry = strToFill.entry;
-                pCurrentData = strToFill.data;
-                nSeconds = pCurrentData->timestampSeconds;
-                nEventNumber=pCurrentData->eventNumber;
+            strToFill.entry->Fill(strToFill.data);
 
-                pCurEntry->Fill(strToFill.data,nSeconds,nEventNumber);
+            llnCurFileSize=gFile->GetSize();
+            llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());
+            m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
 
-            } // while( this->shouldWork() && (m_fifoToFill.size()>0) ){
-        }// while( this->shouldWork() && nContinueFill  ){
+            if(llnCurFileSize>=llnMaxFileSize){ // close root file
+                pRootFile->SaveAllTrees();
+                pRootFile->TDirectory::DeleteAll();
+                pRootFile->TDirectory::Close();
+                delete pRootFile;
+                pRootFile = NEWNULLPTR2;
+                m_currentFileSize.set_value(-1);
+                CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
+            }
 
-        pRootFile->cd();
-        gFile = pRootFile;
+        } // while( m_fifoToFill.frontAndPop(&strToFill) ){
+
+    } // while( this->shouldWork() )
+
+    if(pRootFile){
+        pRootFile->SaveAllTrees();
+        pRootFile->cd();gFile = pRootFile;
         pRootFile->TDirectory::DeleteAll();
         pRootFile->TDirectory::Close();
         delete pRootFile;
         pRootFile = NEWNULLPTR2;
-        gFile = pGlobalRootFileInitial;
-
+        m_currentFileSize.set_value(-1);
         CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
-
-    } // while( m_nWork && (m_threadStatus.value() == 1) )
+    }
 
 }
 
 
-
 void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::string& a_fileLocal, const std::string& a_fileRemote)
 {
+    NewLockGuard< ::STDN::shared_mutex > aGuard;
     SingleEntry* pCurEntry;
     fstream index_fl;
     char vcBuffer[1024];
 
-    ::std::list< SingleEntry* >::const_iterator pIter, pIterEnd;
-    const ::std::list< SingleEntry* >* pList;
+    ::std::list< SingleEntry* >::iterator pIter, pIterEnd, pIterToRemove;
+    ::std::list< SingleEntry* >* pList;
 
     snprintf(vcBuffer,1023,"dccp -d 0 %s %s", a_fileLocal.c_str(), a_fileRemote.c_str());
     DEBUG_APP_INFO(2,"executing \"%s\"\n",vcBuffer);
-    if(system(vcBuffer)!=0){
+    if(NewSystemStat(vcBuffer)){
         if(m_unErrorUnableToWriteToDcacheNum++==0){
             // send an email
             SendEmailCpp(m_rootFileNameBase.value(),m_expertsMailingList.value(),"Unable to copy the file", "Unable to copy the file");
@@ -702,14 +723,14 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
         return;
     }
 
-    //m_mutexForEntries.lock_shared();
+    aGuard.Lock(&m_lockForEntries);
 
     for( auto netStruct : m_networsList){
         pList = &netStruct->daqEntries();
         pIterEnd = pList->end();
-        for(pIter=pList->begin();pIter!=pIterEnd;++pIter){
+        for(pIter=pList->begin();pIter!=pIterEnd;){
             pCurEntry = *pIter;
-            if(pCurEntry->isPresentInCurrentFile()){
+            if(pCurEntry->isPresentInLastFile()){
                 sprintf(vcBuffer,"/doocs/data/DAQdata/INDEX/%s.idx",pCurEntry->daqName());
                 index_fl.open(vcBuffer,ios_base::out | ios_base::app);
                 if(index_fl.is_open()){
@@ -721,149 +742,99 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
                     index_fl.close();
                 } // if(index_fl.open(vcBuffer)){
                 //pCurEntry->isPresent = false; // This is done automatically with SetTree(...) function
-            } // if(pCurEntry->isPresent){
+                if(pCurEntry->resetRootLockAndReturnIfDeletable()){
+                    pIterToRemove = pIter++;
+                    TryToRemoveEntryNotLocked(pCurEntry);
+                    pList->erase(pIterToRemove);
+                }
+                else{++pIter;}
+            } // if(pCurEntry->isPresentInLastFile){
+            else{++pIter;}
         }
     }
 
-    //m_mutexForEntries.unlock_shared();
+    aGuard.Unlock();
 
-    m_fifoForLocalFileDeleter.push(a_fileLocal);
+    m_fifoForLocalFileDeleter.pushBack(a_fileLocal);
     m_semaForLocalFileDeleter.post();
 }
 
 
-//void pitz::daq::EqFctCollector::RemoveOneEntry2(SingleEntry* a_pEntry)
-//{
-//    WriteLockEntries();
-//    if(!IsAllowedToAdd2(a_entryLine)){bRet = false;goto returnPoint;}
-//    AddNewEntryPrivate(a_creationType,a_entryLine);
-//returnPoint:
-//    WriteUnlockEntries();
-//}
+
+uint64_t pitz::daq::EqFctCollector::shouldWork()const
+{
+    return m_shouldWork;
+}
 
 
-bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData)* a_data, SingleEntry* a_pEntry)
+bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData2)* a_data, SingleEntry* a_pEntry)
 {
     bool bPossibleToAdd = a_pEntry->lockEntryForRoot();
 
     if(bPossibleToAdd){
-        m_fifoToFill.push({a_pEntry,a_data});
-        //if(CHECK_QUEUE_ADD(m_fifoToFill.push({a_pEntry,a_data}))){
-        //    m_semaForRootThread.post();
-        //    return true;
-        //}
-        //else{
-        //    DEBUG_APP_INFO(0,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! No place in the fifo!\n");
-        //    return false;
-        //}
+        m_fifoToFill.pushBack({a_pEntry,a_data});
+        m_semaForRootThread.post();
     }
 
     return bPossibleToAdd;
 }
 
 
-/*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-#ifndef USE_SHARED_LOCK
-#define MAX_READ_LOCK_COUNT       0xffff
-#define WRITE_LOCK_ADD_VALUE      ((1<<16)|1)
-#define WRITE_LOCK_COUNT(_value)  ((_value)>>16)
-#define READ_LOCK_COUNT(_value)   static_cast<uint16_t>(_value)
-#endif
 
-pitz::daq::EntryLock::EntryLock()
+NewTFile::NewTFile(const char* a_filePath)
+    :
+      TFile(a_filePath,"UPDATE","DATA",1)
 {
-    m_writerThread = NULL_THREAD_HANDLE;
-    m_nLocksCount = 0;
-
-    m_isGoingToWriteLock = 0;
-    m_bitwiseReserved = 0;
 }
 
 
-void pitz::daq::EntryLock::WriteLockWillBeCalled()
+NewTFile::~NewTFile()
 {
-    m_isGoingToWriteLock = 1;
+    gFile=nullptr;
 }
 
 
-void pitz::daq::EntryLock::lock()
+void NewTFile::SaveAllTrees()
 {
-    pthread_t thisThread = pthread_self();
+    //TList* keyList=GetListOfKeys();
+    //if(keyList){
+    //    TTree* pTree;
+    //    const Int_t numberOfTrees = keyList->GetEntries();
+    //    for(Int_t i(0);i<numberOfTrees;++i){
+    //        pTree = static_cast<TTree *>(Get(keyList->At(i)->GetName()));
+    //        if(pTree){
+    //            pTree->AutoSave("SaveSelf");
+    //        }
+    //    }
+    //}
 
-#ifdef USE_SHARED_LOCK
+    const size_t cunTreesNumber(m_trees.size());
 
-    if(thisThread!=m_lockerThread){
-        ::STDN::shared_mutex::lock();
-        m_lockerThread = thisThread;
-    }
-    ++m_nLocksCount; // __atomic_fetch_add(&m_nRootStopCount,1,__ATOMIC_RELAXED);
-
-#else   // #ifdef USE_SHARED_LOCK
-    uint32_t nReturn = __atomic_fetch_add(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED);
-
-    if(!nReturn){
-        m_writerThread=thisThread;
-        m_isGoingToWriteLock = 0;
-        return;
-    }
-
-    if(m_writerThread==thisThread){
-        m_isGoingToWriteLock = 0;
-        return;
+    for(size_t i(0);i<cunTreesNumber;++i){
+        m_trees[i]->AutoSave("SaveSelf");
     }
 
-    while(nReturn){
-        SleepMs(1);
-        __atomic_fetch_sub(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED);
-        nReturn = __atomic_fetch_add(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED);
-    }
-
-    m_writerThread=thisThread;
-    m_isGoingToWriteLock = 0;
-
-#endif  // #ifdef USE_SHARED_LOCK
 }
 
 
-void pitz::daq::EntryLock::unlock()
+void NewTFile::AddNewTree(TTree* a_pNewTree)
 {
-    if(__atomic_fetch_sub(&m_nLocksCount,WRITE_LOCK_ADD_VALUE,__ATOMIC_RELAXED) == WRITE_LOCK_ADD_VALUE){
-#ifdef USE_SHARED_LOCK
-        ::STDN::shared_mutex::unlock();
-#endif
-        m_writerThread = NULL_THREAD_HANDLE;
-    }
+    m_trees.push_back(a_pNewTree);
 }
 
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-#ifndef USE_SHARED_LOCK
-
-void pitz::daq::EntryLock::lock_shared()
+static int NewSystemStat(const char *a_command)
 {
-    pthread_t thisThread = pthread_self();
-
-    while(m_isGoingToWriteLock){
-        SleepMs(1);
-    }
-
-    uint32_t nReturn = __atomic_fetch_add(&m_nLocksCount,1,__ATOMIC_RELAXED);
-
-    while(nReturn>MAX_READ_LOCK_COUNT){
-        if(m_writerThread==thisThread){
-            return;
-        }
-        __atomic_fetch_sub(&m_nLocksCount,1,__ATOMIC_RELAXED);
-        SleepMs(1);
-        nReturn = __atomic_fetch_add(&m_nLocksCount,1,__ATOMIC_RELAXED);
-    }
+    int nReturn;
+    int stdoutCopy = dup(STDOUT_FILENO);
+    int stderrCopy = dup(STDERR_FILENO);
+    freopen( "/dev/null", "w", stdout);
+    freopen( "/dev/null", "w", stderr);
+    nReturn = system(a_command);
+    dup2(stdoutCopy,STDOUT_FILENO);
+    dup2(stderrCopy,STDERR_FILENO);
+    return nReturn;
 }
-
-
-void pitz::daq::EntryLock::unlock_shared()
-{
-    __atomic_fetch_sub(&m_nLocksCount,1,__ATOMIC_RELAXED);
-}
-
-#endif   // #ifndef USE_SHARED_LOCK
-

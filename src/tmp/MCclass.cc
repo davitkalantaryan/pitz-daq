@@ -19,7 +19,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
-
+#include <mcast_common_apis.h>
 #include "MCclass.h"
 
 #ifndef SOCKET_ERROR_UNI
@@ -75,6 +75,7 @@ int MCsender::GroupNameAndPortAlg1_self(char* a_groupNameBuf,int a_bufferLen,int
     nError = gethostname(pcHostNameBuf, a_bufferLen);
     if(nError) return nError;
     nError = mcast_common_apis::GroupNameAndPortAlg1(pcHostNameBuf,a_groupNameBuf,a_bufferLen,a_portPtr);
+    ::std::cout << "group:port -> " << a_groupNameBuf <<":"<<*a_portPtr << ::std::endl;
     return nError;
 }
 

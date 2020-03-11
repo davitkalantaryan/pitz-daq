@@ -15,15 +15,16 @@ win32{
 
 }
 
-INCLUDEPATH += ../../../src/tmp
 #DEFINES += DEBUG_APP
 include(../../common/common_qt/daqcollector_common.pri)
 
 # LIBS += -lMCclass
 SOURCES += \
-    $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.cpp \
-    $${PWD}/../../../src/tmp/mclistener.cpp
+    $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.cpp              \
+    $${PWD}/../../../src/common/mclistener.cpp
+
 HEADERS += \
-    $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.hpp \
-    $${PWD}/../../../src/tmp/MCclass.h \
-    $${PWD}/../../../include/udpmcastdaq_commonheader.h
+    $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.hpp              \
+    $${PWD}/../../../include/udpmcastdaq_commonheader.h                 \
+    $${PWD}/../../../include/mclistener.hpp
+

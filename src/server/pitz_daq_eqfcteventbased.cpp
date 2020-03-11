@@ -5,12 +5,13 @@
 
 #include "pitz_daq_eqfcteventbased.hpp"
 #include <zmq.h>
-#include "pitz_daq_singleentrydoocs.hpp"
+#include "pitz_daq_singleentrydoocs_base.hpp"
 #include <event_based_common_header.h>
 #include <eq_client.h>
 #include "pitz_daq_eqfcteventbased.cpp.hpp"
 #include <thread>
 #include <common/inthash.hpp>
+#include <pitz_daq_data_handling_types.h>
 
 #ifndef HANDLE_LOW_MEMORY
 #define HANDLE_LOW_MEMORY(_memory,...) do{if(!(_memory)){exit(1);}}while(0)
@@ -63,112 +64,62 @@ pitz::daq::SNetworkStruct* pitz::daq::EqFctEventBased::CreateNewNetworkStruct()
 pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
     const char* cpcLine;
-    SingleEntryZmqDoocs* pEntry = new SingleEntryZmqDoocs(a_creationType,a_entryLine,&cpcLine);
-
-    if(!pEntry){return pEntry;}
-
-    return pEntry;
+    return new SingleEntryZmqDoocs(a_creationType,a_entryLine,&cpcLine);
 }
 
 
-void pitz::daq::EqFctEventBased::DataGetterThread(SNetworkStruct* a_pNet)
+void pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct* a_pNet, const ::std::vector<SingleEntry*>& a_entries)
 {
-    SNetworkStructZmqDoocs* pNetZmq = static_cast< SNetworkStructZmqDoocs* >(a_pNet);
-    DEC_OUT_PD(SingleData)* dataFromNetwork;
+    const SNetworkStructZmqDoocs* pNetZmq = static_cast< const SNetworkStructZmqDoocs* >(a_pNet);
+    DEC_OUT_PD(SingleData2)* dataFromNetwork;
     SingleEntryZmqDoocs* pEntry;
-    time_t  lastUpdateTime = 0, currentTime;
-    size_t unNumbeOfEntries(0);
-    int i;
     int nReturn;
-    const ::std::list< SingleEntry* >& entriesList = a_pNet->daqEntries();
-    ::std::list< SingleEntry* >::const_iterator pIter, pIterEnd;
+    size_t unIndex;
+    size_t unValidEntriesCount;
+    const size_t cunEntriesCount(a_entries.size());
     // which one is the best container
     //::common::IntHash< SingleEntryZmqDoocs* >  validEntries(entriesList.size() * 2);
     //::std::vector< SingleEntryZmqDoocs* > validEntries;
-    ::std::list< SingleEntryZmqDoocs* > validEntries;
-    ::std::list< SingleEntryZmqDoocs* >::iterator listIter, listIterTmp, listIterEnd;
+    ::std::vector< SingleEntryZmqDoocs* > validEntries;
 
-    while(shouldWork() && a_pNet->shouldRun() ){
-
-        time(&currentTime);
-
-        if(currentTime-lastUpdateTime>PITZ_DAQ_LIST_UPDATE_DEFAULT_TIME){
-
-            validEntries.clear();
-
-            this->ReadLockEntries2();
-
-            pNetZmq->ResizeItemsCount();
-            pIterEnd = entriesList.end();
-            for(pIter=entriesList.begin();pIter!=pIterEnd;++pIter){
-                pEntry = static_cast< SingleEntryZmqDoocs* >( *pIter );
-                if(pEntry->LoadOrValidateData(pNetZmq->m_pContext)){
-                    if(pEntry->lockEntryForNetwork()){
-                        validEntries.push_back(pEntry);
-                        //validEntries.AddNewElement(pEntryCheck->socket(),pEntryCheck);
-                    }
-                }
-            }
-
-            this->ReadUnlockEntries2();
-
-            unNumbeOfEntries = validEntries.size();
-            if(unNumbeOfEntries<1){
-                SleepMs(1);
-                return;
-            }
-
-            lastUpdateTime = currentTime;
-
-        }  // if(currentTime-lastUpdateTime>PITZ_DAQ_LIST_UPDATE_DEFAULT_TIME){
-
-        unNumbeOfEntries = validEntries.size();
-        if(unNumbeOfEntries<1){
-            SleepMs(1);
-            return;
+    for(unIndex=0;unIndex<cunEntriesCount;++unIndex){
+        pEntry = static_cast< SingleEntryZmqDoocs* >( a_entries[unIndex] );
+        if(!pEntry->isValid()){
+            pEntry->LoadOrValidateData(pNetZmq->m_pContext);
         }
-
-        i = 0;
-        //for(auto pEntry : validEntries){
-        for(listIter=validEntries.begin(),listIterEnd=validEntries.end(),pEntry=validEntries.front();listIter!=listIterEnd;++listIter,pEntry=*listIter){
-            pNetZmq->m_pItems[i].revents = 0;
-            pNetZmq->m_pItems[i].socket = pEntry->socket();
-            pNetZmq->m_pItems[i].events = ZMQ_POLLIN;
-            ++i;
+        if(pEntry->isValid()){
+            validEntries.push_back(pEntry);
         }
+    }
 
-        nReturn=zmq_poll(pNetZmq->m_pItems,static_cast<int>(unNumbeOfEntries),-1);
+    unValidEntriesCount = validEntries.size();
+    if(unValidEntriesCount<1){return ;}
+    if(!pNetZmq->ResizeItemsCount(unValidEntriesCount)){return;}
 
-        if(nReturn<=0){
-            continue;
-        }
+    for(unIndex=0;unIndex<unValidEntriesCount;++unIndex){
+        pNetZmq->m_pItems[unIndex].fd = 0;
+        pNetZmq->m_pItems[unIndex].revents = 0;
+        pNetZmq->m_pItems[unIndex].socket = validEntries[unIndex]->socket();
+        pNetZmq->m_pItems[unIndex].events = ZMQ_POLLIN;
+    }
 
-        i = 0;
-        listIterEnd=validEntries.end();
-        for(listIter=validEntries.begin();listIter!=listIterEnd;){
-            pEntry=*listIter;
-            if(pNetZmq->m_pItems[i].revents & ZMQ_POLLIN){
-                if( (dataFromNetwork=pEntry->ReadData())){
-                    AddJobForRootThread(dataFromNetwork,pEntry);
-                }
-                else{
-                    // set network error
-                }
-            }
+    nReturn=zmq_poll(pNetZmq->m_pItems,static_cast<int>(unValidEntriesCount),-1);
+    if(nReturn<=0){return ;}
 
-            if(pEntry->resetNetworkLockAndReturnIfDeletable()){
-                listIterTmp = listIter;
-                ++listIterTmp;
-                validEntries.erase(listIter);
-                delete pEntry;
-                listIter = listIterTmp;
+    for(unIndex=0;unIndex<unValidEntriesCount;++unIndex){
+        pEntry=validEntries[unIndex];
+        if(pNetZmq->m_pItems[unIndex].revents & ZMQ_POLLIN){
+            if( (dataFromNetwork=pEntry->ReadData())){
+                AddJobForRootThread(dataFromNetwork,pEntry);
             }
             else{
-                ++listIter;
+                // set network error
+                pEntry->SetError(NETWORK_READ_ERROR, "Unable to get data via zmq");
             }
-            ++i;
+
         }
-    }  // while(shouldWork() && a_pNet->shouldRun()){
+
+    }
 
 }
 
@@ -187,6 +138,8 @@ pitz::daq::SNetworkStructZmqDoocs::SNetworkStructZmqDoocs( EqFctCollector* a_pPa
 
 pitz::daq::SNetworkStructZmqDoocs::~SNetworkStructZmqDoocs()
 {
+    StopThreadThenDeleteAndClearEntries();
+
     free(m_pItems);
 
     if(m_pContext){
@@ -196,36 +149,66 @@ pitz::daq::SNetworkStructZmqDoocs::~SNetworkStructZmqDoocs()
 }
 
 
-void pitz::daq::SNetworkStructZmqDoocs::ResizeItemsCount()
+bool pitz::daq::SNetworkStructZmqDoocs::ResizeItemsCount(size_t a_unNewSize)const
 {
-    const size_t newCount(m_daqEntries.size());
-    if(newCount>m_unCreatedItemsCount){
-        zmq_pollitem_t* pItemsTmp = static_cast<zmq_pollitem_t*>(realloc(m_pItems,sizeof(zmq_pollitem_t)*newCount));
+    if(a_unNewSize>m_unCreatedItemsCount){
+        zmq_pollitem_t* pItemsTmp = static_cast<zmq_pollitem_t*>(realloc(m_pItems,sizeof(zmq_pollitem_t)*a_unNewSize));
         HANDLE_LOW_MEMORY(pItemsTmp);
         m_pItems = pItemsTmp;
-        m_unCreatedItemsCount = newCount;
+        m_unCreatedItemsCount = a_unNewSize;
     }
+
+    return true;
 }
 
 /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+#define SPECIAL_KEY_ENDPOINT           "zmq_endpoint"
+#define SPECIAL_KEY_READ1              "read1"
+#define SPECIAL_KEY_READ2              "read2"
+
 pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
     :
-      SingleEntryDoocs(a_creationType,a_entryLine,a_pHelper)
+      SingleEntryDoocsBase(a_creationType,a_entryLine,a_pHelper),
+      m_zmqEndpoint(SPECIAL_KEY_ENDPOINT)
 {
-    m_hostName = "";
+    //bool bCallIniter = false, bIsAddedByUser = false;
+    bool bCallIniter = false;
+
+    AddNewParameterToEnd(&m_zmqEndpoint,false,false);
+
+    switch(a_creationType)
+    {
+    case entryCreationType::fromOldFile:
+        break;
+    case entryCreationType::fromConfigFile:
+        bCallIniter = true;
+        break;
+    case entryCreationType::fromUser:
+        bCallIniter = true;
+        //bIsAddedByUser = true;
+        break;
+    default:
+        throw errorsFromConstructor::type;
+    }
+
+    if(bCallIniter){
+        //LoadFromLine(a_entryLine,true,bIsAddedByUser);
+        m_zmqEndpoint.FindAndGetFromLine(a_entryLine);
+    }
+
     m_pSocket = NEWNULLPTR;
-    m_expectedReadHeader2 = 0;
-    m_nPort = PITZ_DAQ_UNKNOWN_ZMQ_PORT;
+    m_secondHeaderLength = 0;
+    m_expectedDataLength = 0;
     m_isDataLoaded = 0;
-    m_isValid = 0;
-    m_reserved = 0;
-    m_pBufferForHeader2 = NEWNULLPTR;
+    m_reserved64bit = 0;
+    m_pBufferForSecondHeader = NEWNULLPTR;
 }
 
 
 pitz::daq::SingleEntryZmqDoocs::~SingleEntryZmqDoocs()
 {
-    ::std::cout << __FUNCTION__ << ::std::endl;
+    ::std::cout << __FUNCTION__ << " m_pSocket=" << m_pSocket << ::std::endl;
     if(m_pSocket){
         zmq_close(m_pSocket);
         m_pSocket = NEWNULLPTR;
@@ -239,102 +222,85 @@ void* SingleEntryZmqDoocs::socket()const
 }
 
 
-DEC_OUT_PD(SingleData)* SingleEntryZmqDoocs::ReadData()
+DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
 {
     int nReturn;
     int nDataType;
     dmsg_hdr_t aDcsHeader;
     struct dmsg_header_v1* pHeaderV1;
-    DEC_OUT_PD(SingleData)* pMemory=nullptr;
-
+    DEC_OUT_PD(SingleData2)* pMemory=nullptr;
     size_t     more_size;
     int        more;
+    DEC_OUT_PD(Header) aHeader;
 
-#ifdef USE_ZMQ_MESSAGES
-    zmq_msg_t  aMsg;
-    zmq_msg_init (&aMsg);
-    nReturn=zmq_msg_recv(&aMsg,pItems[0].socket,0);
-    // ...
-#endif
-
-    m_isValid = 0;
 
     nReturn=zmq_recv(this->m_pSocket,&aDcsHeader,sizeof(dmsg_hdr_t),0);
     if(nReturn<4){
-        // todo: set proper error code
-        //return PITZ_DAQ_EV_BASED_DCS_ZMQ_SYNTAX_ERROR;
-        return NEWNULLPTR;
+        goto returnPoint;
     }
 
     if(nReturn != aDcsHeader.size){
         // this is not header give chance for header
-        //return PITZ_DAQ_EV_BASED_DCS_ZMQ_UNKNOWN_HEADER;
-        // todo: set proper error code
-        return NEWNULLPTR;
+        goto returnPoint;
     }
 
     switch(aDcsHeader.vers){
     case 1:
         pHeaderV1 = reinterpret_cast<struct dmsg_header_v1*>(&aDcsHeader);
         nDataType = pHeaderV1->type;
+        aHeader.eventNumber = static_cast<decltype (aHeader.eventNumber)>(pHeaderV1->ident);
+        aHeader.timestampSeconds = static_cast<decltype (aHeader.timestampSeconds)>(pHeaderV1->sec);
         break;
     default:
-        //return PITZ_DAQ_EV_BASED_DCS_ZMQ_UNKNOWN_HEADER;
-        // todo: set proper error code
-        return NEWNULLPTR;
+        goto returnPoint;
     }
 
-    if(nDataType != m_branchInfo.dataType){
-        //return PITZ_DAQ_DATA_TYPE_MISMATCH;
-        // todo: set proper error code
-        return NEWNULLPTR;
+    if(nDataType != m_dataType.value()){
+        SetError(DATA_TYPE_MISMATCH_ERROR,"Data type mismatch");
+        goto returnPoint;
     }
 
-    if(m_expectedReadHeader2){
+    if(m_secondHeaderLength){
         more_size = sizeof(more);
         nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
         if(!more){
-            // todo: set proper error code
-            return NEWNULLPTR;
+            goto returnPoint;
         }
 
-        nReturn=zmq_recv(this->m_pSocket,m_pBufferForHeader2,m_expectedReadHeader2,0);
-        if(nReturn!=static_cast<int>(m_expectedReadHeader2)){
-            // todo: set proper error code
-            return NEWNULLPTR;
+        nReturn=zmq_recv(this->m_pSocket,m_pBufferForSecondHeader,m_secondHeaderLength,0);
+        if(nReturn!=static_cast<int>(m_secondHeaderLength)){
+            goto returnPoint;
         }
     }
 
-    if(m_onlyNetDataBufferSize>0){
-        more_size = sizeof(more);
-        nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
+    pMemory = CreateDataWithOffset2(0);
+    pMemory->data = CreatePitzDaqBuffer(m_expectedDataLength);
+    more_size = sizeof(more);
+    nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
-        if(!more){
-            // todo: set proper error code
-            return NEWNULLPTR;
-        }
-
-        pMemory = this->GetNewMemoryForNetwork();
-        if(!pMemory){
-            ERROR_OUT_APP("Unable to get buffer for network");
-            return NEWNULLPTR;
-        }
-
-        nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromEntry(pMemory),m_onlyNetDataBufferSize,0);
-        if(nReturn!=static_cast<int>(m_onlyNetDataBufferSize)){
-            // todo: set proper error code
-            this->SetMemoryBack(pMemory);
-            return NEWNULLPTR;
-        }
-
-        pMemory->eventNumber = static_cast<decltype (pMemory->eventNumber)>(aDcsHeader.ident);
-        pMemory->timestampSeconds = aDcsHeader.sec;
+    if(!more){
+        this->FreeUsedMemory(pMemory);
+        pMemory = nullptr;
+        goto returnPoint;
     }
 
-    m_isValid = 1;
+    nReturn=zmq_recv(this->m_pSocket,pMemory->data,m_expectedDataLength,0);
+    if(nReturn!=static_cast<int>(m_expectedDataLength)){
+        this->FreeUsedMemory(pMemory);
+        pMemory = nullptr;
+        goto returnPoint;
+    }
 
+
+returnPoint:
+    if(pMemory){
+        pMemory->header = aHeader;
+        SetValid();
+    }
+    else{SetInvalid();}
     return pMemory;
+
 }
 
 
@@ -342,19 +308,35 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 {
     int nReturn;
     int nType;
+    int nPort;
     ::std::string propToSubscribe;
-    ::std::string zmqEndpoint;
+    ::std::string hostName;
     EqCall eqCall;
     EqData dataIn, dataOut;
     EqAdr eqAddr;
+    uint32_t singleItemSize;
+    DEC_OUT_PD(TypeAndCount)      branchInfo={m_dataType.value(),(m_itemsCountPerEntry)};
 
-    eqAddr.adr(m_doocsUrl);
+    eqAddr.adr(m_doocsUrl.value());
+    nReturn = eqCall.get(&eqAddr,&dataIn,&dataOut);
+
+    if(nReturn){
+        // we have error
+        ::std::string errorString = dataOut.get_string();
+        ::std::cerr << errorString << ::std::endl;
+        m_isDataLoaded = 0;
+        return false;
+    }
+    branchInfo.itemsCountPerEntry = dataOut.length();
+    m_itemsCountPerEntry = (branchInfo.itemsCountPerEntry);
+
+    //eqAddr.adr(m_doocsUrl.value());
     propToSubscribe = eqAddr.property();
     eqAddr.set_property("SPN");
     dataIn.set (1, 0.0f, 0.0f, static_cast<time_t>(0), propToSubscribe.c_str(), 0);
 
     nReturn=eqCall.set(&eqAddr,&dataIn,&dataOut);
-    m_isValid = 0;
+    SetInvalid();
     if(nReturn){
         // we have error
         ::std::string errorString = dataOut.get_string();
@@ -372,18 +354,17 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 
     switch(nType){
     case DATA_INT:{
-        this->m_nPort = dataOut.get_int();
+        nPort = dataOut.get_int();
     }break;
     case DATA_A_USTR:{
         float f1, f2;
         time_t tm;
         char         *sp;
-        dataOut.get_ustr (&this->m_nPort, &f1, &f2, &tm, &sp, 0);
-        //this->m_dataType = static_cast<int>(f1);
-        if(this->m_branchInfo.dataType != static_cast<decltype (this->m_branchInfo.dataType)>(f1) ){
-            DEBUG_APP_INFO(0,"Data type for entry %s is changed from %d to %d",
-                           daqName(),static_cast<int>(this->m_branchInfo.dataType),static_cast<int>(f1));
-            this->m_branchInfo.dataType = static_cast<decltype (this->m_branchInfo.dataType)>(f1);
+        dataOut.get_ustr (&nPort, &f1, &f2, &tm, &sp, 0);
+        if(this->m_dataType.value() != static_cast<decltype (branchInfo.type)>(f1) ){
+        //    DEBUG_APP_INFO(0,"Data type for entry %s is changed from %d to %d",
+        //                   daqName(),static_cast<int>(this->m_branchInfo.dataType),static_cast<int>(f1));
+            this->m_dataType.set( (branchInfo.type = static_cast<decltype (branchInfo.type)>(f1)) );
         }
     }break;
     default:
@@ -395,9 +376,9 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         return false;
     }
 
-    this->m_hostName = dataOut.get_string();
+    hostName = dataOut.get_string();
 
-    zmqEndpoint = ::std::string("tcp://") + this->m_hostName + ":" + ::std::to_string(this->m_nPort);
+    m_zmqEndpoint.setValue( ::std::string("tcp://") + hostName + ":" + ::std::to_string(nPort) );
     this->m_pSocket = zmq_socket(a_pContext,ZMQ_SUB);
     if(!this->m_pSocket){
         return false;
@@ -407,20 +388,15 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         return false;
     }
 
-    nReturn = zmq_connect (this->m_pSocket, zmqEndpoint.c_str());
+    nReturn = zmq_connect (this->m_pSocket, m_zmqEndpoint.value().c_str());
     if(nReturn){
         return false;
     }
 
-    if(m_rootFormatStr){
-        if(!this->ApplyEntryInfo(0)){return false;}
-    }
-    else{
-        m_rootFormatStr = this->ApplyEntryInfo(0);
-        if(!m_rootFormatStr){return false;}
-    }
+    if(!PrepareDaqEntryBasedOnType2(0,branchInfo.type,NEWNULLPTR,&branchInfo,&singleItemSize,&m_secondHeaderLength,NEWNULLPTR2,NEWNULLPTR2)){return false;}
 
-    m_isValid = 1;
+    m_expectedDataLength = singleItemSize*static_cast<uint32_t>(branchInfo.itemsCountPerEntry);
+    SetValid();
     m_isDataLoaded = 1;
 
     return true;

@@ -44,7 +44,7 @@
 #include <linux/ioctl.h>
 #endif
 
-#include "MCclass.h"
+#include "../tmp/MCclass.h"
 #include	"ADCDma.h"
 #include "adc_map_helper.h"
 #include	"eq_scopedaq.h"

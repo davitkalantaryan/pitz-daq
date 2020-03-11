@@ -6,35 +6,33 @@
 #ifndef PITZ_DAQ_COLLECTOR_EVENT_BASED_CPP_HPP
 #define PITZ_DAQ_COLLECTOR_EVENT_BASED_CPP_HPP
 
-#include "pitz_daq_singleentrydoocs.hpp"
+#include "pitz_daq_singleentrydoocs_base.hpp"
 #include <string>
 #include <stddef.h>
 #include <zmq.h>
 
 namespace pitz{namespace daq{
 
-class SingleEntryZmqDoocs final: public SingleEntryDoocs
+class SingleEntryZmqDoocs final: public SingleEntryDoocsBase
 {
 public:
     SingleEntryZmqDoocs(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     ~SingleEntryZmqDoocs() OVERRIDE2;
 
-    int zmqPort()const{return m_nPort;}
-    const ::std::string& host()const{return m_hostName;}
     void* socket()const;
 
     bool LoadOrValidateData(void* a_pContext);
-    DEC_OUT_PD(SingleData)* ReadData();
+    DEC_OUT_PD(SingleData2)* ReadData();
+    void SetMemoryBack( DEC_OUT_PD(SingleData2)* );
 
 private:
-    ::std::string   m_hostName;
-    void*           m_pSocket;
-    size_t          m_expectedReadHeader2;
-    int             m_nPort;
-    uint64_t        m_isValid : 1;
-    uint64_t        m_isDataLoaded : 1;
-    uint64_t        m_reserved : 62;
-    char            *m_pBufferForHeader2;
+    void*                           m_pSocket;
+    EntryParams::String             m_zmqEndpoint;
+    uint32_t                        m_secondHeaderLength;
+    uint32_t                        m_expectedDataLength;
+    uint64_t                        m_isDataLoaded : 1;
+    uint64_t                        m_reserved64bit : 63;
+    char                            *m_pBufferForSecondHeader;
 };
 
 
@@ -44,12 +42,13 @@ public:
     SNetworkStructZmqDoocs( EqFctCollector* pParentCollector );
     ~SNetworkStructZmqDoocs() OVERRIDE2 ;
 
-    void ResizeItemsCount();
+    bool ResizeItemsCount(size_t a_unNewCount)const;
 
 public:
-    void*           m_pContext;
-    zmq_pollitem_t* m_pItems;
-    size_t          m_unCreatedItemsCount;
+    void*                   m_pContext;
+    mutable zmq_pollitem_t* m_pItems;
+private:
+    mutable size_t          m_unCreatedItemsCount;
 };
 
 }}

@@ -9,8 +9,11 @@
 #include "mclistener.hpp"
 
 #ifndef SOCKET_ERROR_UNI
-#ifdef WIN32
+#ifdef _WIN32
 #define SOCKET_ERROR_UNI SOCKET_ERROR
+#ifdef _MSC_VER
+#pragma comment(lib, "Ws2_32.lib")
+#endif
 #else
 #define SOCKET_ERROR_UNI -1
 #endif
@@ -23,7 +26,7 @@ MClistener::MClistener()
     :
       m_sock(-1)
 {
-    m_socklen = sizeof(struct sockaddr_in);
+    m_nReserved1 = 0;
 }
 
 
@@ -35,8 +38,7 @@ MClistener::~MClistener()
 
 void MClistener::CloseSock()
 {
-    if(m_sock >= 0)
-    {
+    if(m_sock >= 0){
         ::shutdown(m_sock, 2);
 #ifdef _WIN32
 		::closesocket(m_sock); // discard a socket
@@ -62,10 +64,10 @@ int MClistener::ConnectToTheMGroup(const char* a_schedulerHost)
 	if(nError){return nError;}
 
     // Creating UDP socket
-    m_sock = (int)socket(AF_INET, SOCK_DGRAM, 0);
+    m_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if(m_sock < 0) { return m_sock; }
 
-    nError = setsockopt(m_sock,SOL_SOCKET,SO_REUSEADDR,(char *)&reuse,sizeof(reuse));
+    nError = setsockopt(m_sock,SOL_SOCKET,SO_REUSEADDR,reinterpret_cast<char *>(&reuse),sizeof(reuse));
     if ( nError< 0){
         CloseSock();
         return nError;
@@ -74,7 +76,7 @@ int MClistener::ConnectToTheMGroup(const char* a_schedulerHost)
     /* set up destination address */
     m_saddr.sin_family=AF_INET;
     m_saddr.sin_addr.s_addr=htonl(INADDR_ANY); /* N.B.: differs from sender */
-    m_saddr.sin_port=htons(nPort);
+    m_saddr.sin_port=htons(static_cast<uint16_t>(nPort));
 
     //nError = setsockopt(m_sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopch, sizeof(loopch));
 
@@ -82,7 +84,7 @@ int MClistener::ConnectToTheMGroup(const char* a_schedulerHost)
 
 
     /* bind to receive address */
-    nError = bind(m_sock,(struct sockaddr *) &m_saddr,sizeof(m_saddr));
+    nError = bind(m_sock,reinterpret_cast<struct sockaddr *>( &m_saddr),sizeof(m_saddr));
     if ( nError < 0){
         CloseSock();
         return nError;
@@ -91,26 +93,11 @@ int MClistener::ConnectToTheMGroup(const char* a_schedulerHost)
     aMreq.imr_multiaddr.s_addr=inet_addr(vcMcastGroup);
     aMreq.imr_interface.s_addr=htonl(INADDR_ANY);
 
-    if (setsockopt(m_sock,IPPROTO_IP,IP_ADD_MEMBERSHIP,(char *)&aMreq,sizeof(aMreq)) < 0){
+    if (setsockopt(m_sock,IPPROTO_IP,IP_ADD_MEMBERSHIP,reinterpret_cast<char *>(&aMreq),sizeof(aMreq)) < 0){
         ERR_LOG(" ");
     }
 
-#if 0
-#ifdef	_WIN32
-	unsigned long on = 1;
-	ioctlsocket(m_sock, FIONBIO, &on );
-#else  /* #ifdef	WIN32 */
-	int status;
-	if( ( status = fcntl(m_sock, F_GETFL, 0 ) ) != -1 )
-	{
-		status |= O_NONBLOCK;
-		fcntl(m_sock, F_SETFL, status );
-	}
-#endif  /* #ifdef	WIN32 */
-#endif  // #if 0
-
     return 0;
-
 }
 
 
@@ -118,7 +105,7 @@ int MClistener::SetSocketTimeout(int a_nTimeoutMs)
 {
 
 	char* pInput;
-	int nInputLen;
+    socklen_t nInputLen;
 
 #ifdef _WIN32
 	DWORD dwTimeout = a_nTimeoutMs;
@@ -128,11 +115,11 @@ int MClistener::SetSocketTimeout(int a_nTimeoutMs)
 	struct timeval tv;
 	tv.tv_sec = a_nTimeoutMs/1000;
 	tv.tv_usec = (a_nTimeoutMs % 1000)*1000;
-        pInput = (char*)&tv;
+        pInput = reinterpret_cast<char*>(&tv);
 	nInputLen = sizeof(struct timeval);
 #endif
 
-	if (setsockopt(m_sock, SOL_SOCKET, SO_RCVTIMEO, pInput, nInputLen) < 0) {
+    if (setsockopt(m_sock, SOL_SOCKET, SO_RCVTIMEO, pInput, nInputLen) < 0) {
 		//perror("Error");
 		return -1;
 	}
@@ -141,9 +128,10 @@ int MClistener::SetSocketTimeout(int a_nTimeoutMs)
 }
 
 
-int MClistener::recvC(void* a_buff, int a_buffLen)
+int MClistener::recvC(void* a_buff, int a_buffLen)const
 {
-        return recvfrom(m_sock,(char*)a_buff,a_buffLen,0,(sockaddr *)&m_saddr,&m_socklen);
+    socklen_t	sockLen = sizeof(struct sockaddr_in);
+    return static_cast<int>(recvfrom(m_sock,a_buff,static_cast<size_t>(a_buffLen),0,const_cast<sockaddr*>(reinterpret_cast<const sockaddr *>(&m_saddr)),&sockLen));
 }
 
 
