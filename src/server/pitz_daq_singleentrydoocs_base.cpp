@@ -26,9 +26,14 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
 {
     //bool bCallIniter = false, bIsAddedByUser = false;
     bool bCallIniter = false;
-    uint32_t singleEntrySize;
-    DEC_OUT_PD(TypeAndCount)      branchInfo={-1,-1};
     EqData dataOut;
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	in.dataType = PITZ_DAQ_UNSPECIFIED_DATA_TYPE;
 
     AddNewParameterToBeg(&m_doocsUrl,false,true);
 
@@ -40,13 +45,13 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
             char doocs_url[DOOCS_URI_MAX_LEN],daqName[256];
 
             doocs_url[0]=0;
-            sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&branchInfo.itemsCountPerEntry,&step,&branchInfo.type);
+			sscanf(a_entryLine,"%s %s %d %d %d %d",daqName,doocs_url,&from,&out.inOutSamples,&step,&in.dataType);
 
-            if(branchInfo.itemsCountPerEntry<1){branchInfo.itemsCountPerEntry=1;}
+			if(out.inOutSamples<1){out.inOutSamples=1;}
 
             m_doocsUrl.setValue(doocs_url);
-            m_dataType.set(branchInfo.type);
-            m_itemsCountPerEntry=branchInfo.itemsCountPerEntry;
+			m_dataType.set(in.dataType);
+			m_samples = (out.inOutSamples);
         }
         break;
     case entryCreationType::fromConfigFile:
@@ -64,24 +69,24 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
         //LoadFromLine(a_entryLine,true,bIsAddedByUser);
         m_doocsUrl.FindAndGetFromLine(a_entryLine);
         m_additionalData.setParentDoocsUrl(m_doocsUrl.value());
-        branchInfo.type = m_dataType.value();
-        branchInfo.itemsCountPerEntry = (m_itemsCountPerEntry);
+		in.dataType = m_dataType.value();
+		out.inOutSamples = (m_samples);
     }
 
-    if((branchInfo.type == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(branchInfo.itemsCountPerEntry<1)){
-        if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&branchInfo)){
+	if((in.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(out.inOutSamples<1)){
+		if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples)){
             throw ::std::bad_alloc();
         }
     }
 
-    m_rootFormatStr = PrepareDaqEntryBasedOnType2(1,branchInfo.type,NEWNULLPTR2,&branchInfo,&singleEntrySize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+	m_rootFormatStr = PrepareDaqEntryBasedOnType(&in,&out);
+	m_nSingleItemSize = static_cast<int>(out.oneItemSize);
 
     if(!m_rootFormatStr){
         throw ::std::bad_alloc();
     }
 
-    m_itemsCountPerEntry = (branchInfo.itemsCountPerEntry);
-
+	m_samples = (out.inOutSamples);
 }
 
 

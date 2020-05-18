@@ -82,6 +82,7 @@ struct SStructForFill{
 class EqFctCollector : public EqFct
 {
     friend class SNetworkStruct;
+    friend class SingleEntry;
 
 protected:
     EqFctCollector();
@@ -116,7 +117,7 @@ private:
     void CalculateRemoteDirPathAndFileName(std::string* fileName,std::string* remoteDirPath)STUPID_NON_CONST;
     void CalcLocalDir(std::string* localDirPath)STUPID_NON_CONST;
     void CopyFileToRemoteAndMakeIndexing(const std::string& localFilePath, const std::string& remoteFilePath);
-    void WriteEntriesToConfig()const;
+    void writeEntriesToConfig()const;
     NewTFile*  RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
 
     // thread functions
@@ -153,6 +154,7 @@ private:
     D_loadOldConfig                     m_loadOldConfig;
     D_int                               m_numberOfEntriesInError;
     D_text                              m_entriesInError;
+    D_string                            m_entriesReturnDelimeter;
     ::STDN::thread                      m_threadRoot; // +
     ::STDN::thread                      m_threadLocalFileDeleter;
     ::std::list< SNetworkStruct* >      m_networsList;

@@ -3,8 +3,6 @@
 //
 
 #include <cstdlib>
-#define atoll       atol
-#define strtoull    strtoul
 #include "pitz_daq_collectorproperties.hpp"
 #include "pitz_daq_eqfctcollector.hpp"
 #include <stdarg.h>
@@ -17,7 +15,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <unistd.h>
-
+#include <iostream>
 
 #define EMAIL_BUF_LEN   2047
 #define SUBJ_BUF_LEN    511

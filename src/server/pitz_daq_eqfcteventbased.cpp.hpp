@@ -30,8 +30,6 @@ private:
     EntryParams::String             m_zmqEndpoint;
     uint32_t                        m_secondHeaderLength;
     uint32_t                        m_expectedDataLength;
-    uint64_t                        m_isDataLoaded : 1;
-    uint64_t                        m_reserved64bit : 63;
     char                            *m_pBufferForSecondHeader;
 };
 

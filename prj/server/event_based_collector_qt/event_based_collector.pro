@@ -12,34 +12,36 @@ DEFINES += NEW_GETTER_THREAD
 DEFINES += USE_DOOCS
 
 win32{
-    SOURCES += \
-
+	SOURCES += \
 } else {
-    GCCPATH = $$system(which gcc)
-    message("!!!!!!!!!!! GCCPATH=$$GCCPATH")
-    QMAKE_CXXFLAGS += -std=c++11
-    SOURCES += \
-
+	GCCPATH = $$system(which gcc)
+	message("!!!!!!!!!!! GCCPATH=$$GCCPATH")
+	#QMAKE_CXXFLAGS += -std=c++17 -pedantic -Wextra
+	SOURCES += \
 }
 
 include(../../common/common_qt/daqcollector_event_based_common.pri)
 
+CONFIG += c++14
+
 INCLUDEPATH += $$MYDOOCS/include/zmq
 LIBS += -lzmq
 #LIBS += -L/afs/ifh.de/group/pitz/doocs/data/ers/sys/$$CODENAME/lib
-
 # LIBS += -lMCclass
-SOURCES += \
-    $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp \
-    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.cpp
+
+SOURCES +=	\
+	$${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp		\
+	$${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.cpp
 
 
-HEADERS += \
-    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.hpp \
-    $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp.hpp \
-    $${PWD}/../../../src/server/pitz_daq_eqfcteventbased.hpp
+HEADERS +=	\
+	$${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.hpp		\
+	$${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp.hpp		\
+	$${PWD}/../../../src/server/pitz_daq_eqfcteventbased.hpp
 
-OTHER_FILES += \
-    $${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.cpp \
-    $${PWD}/../../../src/server/pitz_daq_eqfctrr.cpp \
-    $${PWD}/../../../src/examples/zmqget.cc
+OTHER_FILES +=	\
+	$${PWD}/../../../src/server/pitz_daq_eqfctudpmcast.cpp			\
+	$${PWD}/../../../src/server/pitz_daq_eqfctrr.cpp			\
+	$${PWD}/../../../src/examples/zmqget.cc					\
+	$${PWD}/../event_based_collector_mkfl/Makefile		\
+	$${PWD}/../../../README.md

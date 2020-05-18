@@ -50,6 +50,7 @@ LIBS += -L$$SYSTEM_LIB
 #LIBS += -L/doocs/develop/kalantar/programs/cpp/works/sys/$$CODENAME/lib
 #LIBS += -L/doocs/develop/bagrat/doocs.git/amd64_rhel60/lib
 LIBS += -lDOOCSapi
+LIBS += -lgul14
 LIBS += -lldap
 LIBS += -lrt
 

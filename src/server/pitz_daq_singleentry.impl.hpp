@@ -37,7 +37,7 @@ bool pitz::daq::EntryParams::IntParam<IntType>::GetDataFromLine(const char* a_en
 
 
 template <typename IntType>
-size_t pitz::daq::EntryParams::IntParam<IntType>::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+size_t pitz::daq::EntryParams::IntParam<IntType>::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
 {
     return static_cast<size_t>(snprintf(a_entryLineBuffer,a_unBufferSize,"%lld",static_cast<long long int>(m_value)));
 }

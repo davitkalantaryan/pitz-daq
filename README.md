@@ -22,7 +22,8 @@ combined spectra in such a way that is easy to read and to compare their behavio
 The LILI interface is able to show each event (which comes every 0.1 sec during the
 normal gun operation) as well as a combination of several events. The combined events
 option helps to see a sequence of pulses (presented by different colors) and in case of
-an IL event, to understand its origin if there were a few IL detectors triggered.  <br />
+an IL event, to understand its origin if there were a few IL detectors triggered.
+  <br />
 
 <br />
 
@@ -40,5 +41,9 @@ Some additional information can be obtained from the files from 'doc' directory 
 [DESY bitbucket](https://github.com/davitkalantaryan/pitz-daq)	<br />  
 [todo list](https://docs.google.com/document/d/1iTEdPX8mgdXXk3oF4MCKzOL8G_-i_1ULmwTxfbOzHnk/edit?usp=sharing)  
 [binaries](https://desycloud.desy.de/index.php/s/zrrx5ePfa4WPExx?path=%2F)  
+[root formats](https://root.cern.ch/doc/master/classTTree.html#a7fdd71ed8f39c76c9a32d6b936a9737a)
+[variablarray size](https://root.cern.ch/root/html/tutorials/tree/tree3.C.html)
 
+## Assumptions
+ 1.  Additional data size is not changed
 

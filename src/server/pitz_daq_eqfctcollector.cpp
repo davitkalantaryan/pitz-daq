@@ -12,6 +12,8 @@
 #include <sys/time.h>
 #include <time.h>
 #include <pitz_daq_data_collector_getter_common.h>
+#include <iostream>
+#include <ios>
 
 #define CONF_FILE_VERSION_START "DAQ_VERSION="
 static const size_t s_cunDaqVersionForConfigLen = strlen(CONF_FILE_VERSION_START);
@@ -57,7 +59,8 @@ pitz::daq::EqFctCollector::EqFctCollector()
           m_removeEntry("DELETE.ENTRY",this),
           m_loadOldConfig("LOAD.OLD.CONFIG",this),
           m_numberOfEntriesInError("NUMBER.OF.ENTRIES.IN.ERROR",this),
-          m_entriesInError("ENTRIES.IN.ERROR",this)
+          m_entriesInError("ENTRIES.IN.ERROR",this),
+          m_entriesReturnDelimeter("ENTRIES.RETURN.DELIMETER valid delimeters '\t' '\n' ' ' ',' ';'",this)
 {
     m_pNextNetworkToAdd = NEWNULLPTR2;
 
@@ -134,7 +137,7 @@ int pitz::daq::EqFctCollector::write(fstream &a_fprt)
 {
     int nReturn = EqFct::write(a_fprt);
     NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard(&m_lockForEntries);
-    WriteEntriesToConfig();
+    writeEntriesToConfig();
     return nReturn;
 }
 
@@ -435,7 +438,7 @@ int pitz::daq::EqFctCollector::parse_old_config(const std::string& a_daqConfFile
     nReturn = 0;
 
 returnPoint:
-    WriteEntriesToConfig();
+    writeEntriesToConfig();
     aSharedGuard.UnlockShared();
     return nReturn;
 
@@ -456,7 +459,7 @@ void pitz::daq::EqFctCollector::AddNewEntryNotLocked(entryCreationType::Type a_c
     }
 
     m_pNextNetworkToAdd->AddNewEntry(pCurEntry);
-    add_property(pCurEntry);
+    add_property(pCurEntry); pCurEntry->m_pParent = this;
     nextIterator = m_pNextNetworkToAdd->m_thisIter;
     if( (++nextIterator)==m_networsList.end() ){
         nextIterator = m_networsList.begin();
@@ -477,7 +480,7 @@ CLEAR_RET_TYPE pitz::daq::EqFctCollector::CLEAR_FUNC_NAME(void)
     m_shouldWork = 0;
 
     aSharedGuard.LockShared(&m_lockForEntries);
-    WriteEntriesToConfig();
+    writeEntriesToConfig();
     aSharedGuard.UnlockShared();
 
     m_semaForRootThread.post();
@@ -503,7 +506,7 @@ CLEAR_RET_TYPE pitz::daq::EqFctCollector::CLEAR_FUNC_NAME(void)
 
 
 // this api is not safe, should be synchronized
-void pitz::daq::EqFctCollector::WriteEntriesToConfig()const
+void pitz::daq::EqFctCollector::writeEntriesToConfig()const
 {
     FILE* fpConfig;
     char vcNewConfFileName[512];
@@ -522,7 +525,7 @@ void pitz::daq::EqFctCollector::WriteEntriesToConfig()const
             pIterEnd = pList->end();
             for(pIter=pList->begin();pIter!=pIterEnd;++pIter){
                 pCurEntry = *pIter;
-                pCurEntry->WriteContentToTheFile(fpConfig); // this takes care whether entry is deleted or not
+                pCurEntry->writeContentToTheFile(fpConfig); // this takes care whether entry is deleted or not
             }
         }
 
@@ -732,7 +735,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
             pCurEntry = *pIter;
             if(pCurEntry->isPresentInLastFile()){
                 sprintf(vcBuffer,"/doocs/data/DAQdata/INDEX/%s.idx",pCurEntry->daqName());
-                index_fl.open(vcBuffer,ios_base::out | ios_base::app);
+		index_fl.open(vcBuffer, ::std::ios_base::out | ::std::ios_base::app);
                 if(index_fl.is_open()){
                     sprintf(vcBuffer,"%d:%02d,%d:%02d,%s",
                             pCurEntry->firstSecond(),pCurEntry->firstEventNumber(),

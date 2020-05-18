@@ -64,3 +64,6 @@ OBJECTS_DIR = ../../../$$SYSTEM_PATH/.objects
 # greaterThan(QT_MAJOR_VERSION, 4):QT += widgets
 #QT -= core
 #QT -= gui
+
+OTHER_FILES +=	\
+	$${PWD}/../common_mkfl/sys_common.Makefile

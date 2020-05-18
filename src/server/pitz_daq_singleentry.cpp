@@ -17,6 +17,7 @@
 #include <pitz_daq_data_handling_daqdev.h>
 #include <pitz_daq_data_collector_getter_common.h>
 #include <algorithm>
+#include <iostream>
 
 #define DATA_SIZE_TO_SAVE   50000  // 40 kB
 #define MIN_NUMBER_OF_FILLS 20
@@ -53,17 +54,20 @@ static ::std::string GetPropertyName(const char* a_entryLine, TypeConstCharPtr* 
 pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
         D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2),
-        m_numberInCurrentFile(NUM_IN_CUR_FL_KEY_STR),
-        m_numberInAllFiles(NUM_OF_FILES_IN_KEY_STR),
-        m_expirationTime(EXPIRATION_STR),
-        m_creationTime(CREATION_STR),
-        m_collectionMask(MASK_COLLECTION_KEY_STR),
-        m_errorMask(MASK_ERRORS_KEY_STR),
-        m_errorWithString(ERROR_KEY_STR),
-        m_additionalData(SPECIAL_KEY_ADDITIONAL_DATA),
-        m_dataType(SPECIAL_KEY_DATA_TYPE),
-        m_itemsCountPerEntry(SPECIAL_KEY_DATA_SAMPLES)
+        m_numberInCurrentFile("entriesInCurFile"),
+        m_entriesNumberInAllFiles("entriesInAllFiles"),
+        m_numberOfAllFiles("allFilesNumber"),
+        m_expirationTime("expiration"),
+        m_creationTime("creation"),
+        m_collectionMask("maskCollection"),
+        m_errorMask("maskErrors"),
+        m_errorWithString("error"),
+        m_additionalData("additionalData"),
+        m_dataType("type"),
+		m_samples("samples")
 {
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
     bool bCallIniter = false, bIsAddedByUser = false;
     time_t tmCurrentTime;
     TypeConstCharPtr& pLine = *a_pHelper;
@@ -74,9 +78,10 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     m_bitwise64Reserved = 0;
 
     AddNewParameterToEnd(m_dataType.thisPtr(),false,true);
-    AddNewParameterToEnd(&m_itemsCountPerEntry,false,true);
+	AddNewParameterToEnd(&m_samples,false,false);
     AddNewParameterToEnd(&m_numberInCurrentFile,false,false);
-    AddNewParameterToEnd(&m_numberInAllFiles,false,true);
+    AddNewParameterToEnd(&m_entriesNumberInAllFiles,false,true);
+    AddNewParameterToEnd(&m_numberOfAllFiles,false,true);
     AddNewParameterToEnd(&m_expirationTime,true,true);
     AddNewParameterToEnd(&m_creationTime,false,true);
     AddNewParameterToEnd(&m_collectionMask,true,true);
@@ -87,7 +92,7 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     m_errorMask.SetParentAndClbk(this,[](EntryParams::Base* a_pErrMask, void* a_pThis){
         EntryParams::Mask* pErrorMask = static_cast<EntryParams::Mask*>(a_pErrMask);
         if(pErrorMask->isMasked()){
-            static_cast<SingleEntry*>(a_pThis)->SetError(0,"ok");
+            static_cast<SingleEntry*>(a_pThis)->ResetAllErrors();
         }
     });
 
@@ -124,6 +129,13 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
         LoadFromLine(pLine,true,bIsAddedByUser);
     }
 
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	in.dataType = m_dataType.value();
+	PrepareDaqEntryBasedOnType(&in,&out);
+	m_nSingleItemSize = static_cast<int>(out.oneItemSize);
+
     return;
 
 reurnPoint:
@@ -155,7 +167,8 @@ void pitz::daq::SingleEntry::LoadFromLine(const char* a_entryLine, bool a_isInit
             time_t tmCurrentTime;
             m_creationTime.setDateSeconds(time(&tmCurrentTime));
             m_numberInCurrentFile=(0);
-            m_numberInAllFiles=(0);
+            m_entriesNumberInAllFiles=(0);
+            m_numberOfAllFiles = (0);
         }
     }
     else{
@@ -297,21 +310,9 @@ pitz::daq::SNetworkStruct* pitz::daq::SingleEntry::networkParent()
 }
 
 
-uint64_t pitz::daq::SingleEntry::isValid()const
+uint64_t pitz::daq::SingleEntry::isDataLoaded() const
 {
-    return m_isValid ;
-}
-
-
-void pitz::daq::SingleEntry::SetValid()
-{
-    m_isValid = 1;
-}
-
-
-void pitz::daq::SingleEntry::SetInvalid()
-{
-    m_isValid = 0;
+	return m_isDataLoaded ;
 }
 
 
@@ -353,14 +354,14 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int 
     if(!m_pTreeOnRoot){
 
         char vcBufferData[4096];
-        snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_COUNT "%d",m_dataType.value(),static_cast<int>(m_itemsCountPerEntry));
+		snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d",m_dataType.value());
 
         m_pTreeOnRoot = new TreeForSingleEntry(this);
 
-        m_pHeaderBranch =m_pTreeOnRoot->Branch(HEADERS_HEADER,nullptr,"seconds/I:gen_event/I");
-        if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
+		m_pHeaderBranch =m_pTreeOnRoot->Branch(HEADERS_HEADER,nullptr,"seconds/I:gen_event/I:samples/I");
+        if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return ;}
         m_pDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
-        if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;SetError(ROOT_ERROR,"Unable to create root branch");return ;}
+        if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return ;}
         m_additionalData.setRootBranchIfEnabled(m_pTreeOnRoot);
     }
 
@@ -384,20 +385,20 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int 
         m_isPresentInLastFile = 1;
         m_firstHeader = a_pNewMemory->header;
         m_numberInCurrentFile = (0);
+        ++m_numberOfAllFiles;
     }
 
     ++m_numberInCurrentFile;
-    ++m_numberInAllFiles;
+    ++m_entriesNumberInAllFiles;
 
-    // todo: set only root part to null
-    SetError(0, "No error");
+    DecrementError(ROOT_ERROR);
 
     m_lastHeader = a_pNewMemory->header;
     FreeUsedMemory(a_pNewMemory);
 }
 
 
-void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
+void pitz::daq::SingleEntry::writeContentToTheFile(FILE* a_fpFile)const
 {
     if(!(m_willBeDeletedOrIsUsedAtomic64&DELETER_ALL)){
         //char vcBufForCrt[32],vcBufForExp[32],vcBufForMask[32];
@@ -407,7 +408,7 @@ void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
         size_t nWritten;
 
         for( auto pParam : m_permanentParams){
-            nWritten=pParam->WriteToLineBuffer(pcBufToWrite,nBufLen);
+            nWritten=pParam->writeToLineBuffer(pcBufToWrite,nBufLen,';');
             if(nBufLen<=(nWritten+1)){return;}
             nBufLen -= nWritten;
             pcBufToWrite += nWritten;
@@ -421,21 +422,73 @@ void pitz::daq::SingleEntry::WriteContentToTheFile(FILE* a_fpFile)const
 }
 
 
+// '\t' '\n' ' ' ',' ';'
+static inline char FindDelimeterFromString(char a_cDelimeterInitial, const char* a_cpcDelim)
+{
+    char cDelimeter=a_cDelimeterInitial;
+
+    size_t unDelimStrLen = strlen(a_cpcDelim);
+    if(unDelimStrLen>0){
+        switch(a_cpcDelim[0]){
+        case '\t': case '\n': case ',': case ';' : case ' ':
+            cDelimeter = a_cpcDelim[0];
+            break;
+        case '\\':
+            if(unDelimStrLen>1){
+                switch(a_cpcDelim[1]){
+                case 'n':
+                    cDelimeter='\n';
+                    break;
+                case 't':
+                    cDelimeter='\t';
+                    break;
+                case 's':
+                    cDelimeter=' ';
+                    break;
+                default:
+                    break;
+                }  // switch(cpcDelim[1]){
+            }  // if(unDelimStrLen>1){
+            break;
+        default:
+            break;
+        }  // switch(cpcDelim[0]){
+    }  // if(unDelimStrLen>0){
+
+    return cDelimeter;
+}
+
+
 void pitz::daq::SingleEntry::get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/)
 {
-    char vcBuffer[4096];
+#define INITIAL_BUF_SIZE    4095
+    char vcBuffer[INITIAL_BUF_SIZE+1];
     char vcFromUser[1024];
     char* pcBufToWrite(vcBuffer);
-    size_t nWritten,nBufLen(4096);
+    size_t nWritten,nBufLen(INITIAL_BUF_SIZE);
     bool bReadAll;
+    char cDelimeter='\n';
+    EntryParams::String aDelimeter("delimeter");
 
     a_dataFromUser->get_string(vcFromUser,1023);
     if(vcFromUser[0]==0){bReadAll=true;}
     else{ bReadAll=true; }
 
+    // '\t' '\n' ' ' ',' ';'
+    if(aDelimeter.FindAndGetFromLine(vcFromUser)){
+        cDelimeter = FindDelimeterFromString('\n',aDelimeter.value().c_str());
+    }
+    else{
+        //EqFctCollector* pClc = static_cast<EqFctCollector*>(get_eqfct());
+        EqFctCollector* pClc = m_pParent;
+        const char* cpcDelim = pClc->m_entriesReturnDelimeter.value();
+        cDelimeter = FindDelimeterFromString('\n',cpcDelim);
+    }
+
+    nWritten=0;
     if(bReadAll){
         for( auto pParam : m_allParams){
-            nWritten=pParam->WriteToLineBuffer(pcBufToWrite,nBufLen);
+            nWritten=pParam->writeToLineBuffer(pcBufToWrite,nBufLen,cDelimeter);
             if(nBufLen<=nWritten){goto returnPoint;}
             nBufLen -= nWritten;
             pcBufToWrite += nWritten;
@@ -444,7 +497,7 @@ void pitz::daq::SingleEntry::get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, E
     else{
         for( auto pParam : m_allParams){
             if(strstr(vcFromUser,pParam->paramName())){
-                nWritten=pParam->WriteToLineBuffer(pcBufToWrite,nBufLen);
+                nWritten=pParam->writeToLineBuffer(pcBufToWrite,nBufLen,cDelimeter);
                 if(nBufLen<=nWritten){goto returnPoint;}
                 nBufLen -= nWritten;
                 pcBufToWrite += nWritten;
@@ -452,29 +505,56 @@ void pitz::daq::SingleEntry::get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, E
         }
     }
 
+
+    if(nBufLen>0){*pcBufToWrite=0;--nBufLen;}
+    if(nBufLen>0){*pcBufToWrite=0;--nBufLen;}  // this isif we swith to unicode
+
 returnPoint:
     a_dataToUser->set(vcBuffer);
     return;
 }
 
 
-void pitz::daq::SingleEntry::SetError(int a_error, const ::std::string& a_errorString)
+void pitz::daq::SingleEntry::IncrementError(uint8_t a_errorMask, const ::std::string& a_errorString)
 {
-    EqFctCollector* pClc = static_cast<EqFctCollector*>(get_eqfct());
+    //EqFctCollector* pClc = static_cast<EqFctCollector*>(get_eqfct());
+    EqFctCollector* pClc = m_pParent;
 
     if(m_errorMask.isMasked()&&m_errorWithString.value()){
         if(pClc){pClc->DecrementErrors(m_daqName);}
-        m_errorWithString.setError(0,"ok");
+        m_errorWithString.ResetAllErrors();
         return;
     }
-    else if(a_error&&(!m_errorWithString.value())){
+    else if(!m_errorWithString.value()){
         if(pClc){pClc->IncrementErrors(m_daqName);}
     }
-    else if((a_error==0)&&(m_errorWithString.value())){
+
+    m_errorWithString.AddError(a_errorMask,a_errorString);
+
+}
+
+
+void pitz::daq::SingleEntry::DecrementError(uint8_t a_errorMask)
+{
+    m_errorWithString.ResetError(a_errorMask);
+    if(!m_errorWithString.value()){
+        //EqFctCollector* pClc = static_cast<EqFctCollector*>(get_eqfct());
+        EqFctCollector* pClc = m_pParent;
         if(pClc){pClc->DecrementErrors(m_daqName);}
     }
+}
 
-    m_errorWithString.setError(a_error,a_errorString);
+
+void pitz::daq::SingleEntry::ResetAllErrors()
+{
+    //EqFctCollector* pClc = static_cast<EqFctCollector*>(get_eqfct());
+    EqFctCollector* pClc = m_pParent;
+
+    if(m_errorWithString.value()){
+        if(pClc){pClc->DecrementErrors(m_daqName);}
+        m_errorWithString.ResetAllErrors();
+        return;
+    }
 }
 
 
@@ -585,7 +665,7 @@ const char* pitz::daq::EntryParams::Base::paramName()const
 }
 
 
-size_t pitz::daq::EntryParams::Base::WriteToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+size_t pitz::daq::EntryParams::Base::writeToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize, char a_cDelimeter)const
 {
     size_t unStrLen;
 
@@ -599,9 +679,9 @@ size_t pitz::daq::EntryParams::Base::WriteToLineBuffer(char* a_entryLineBuffer, 
         a_entryLineBuffer[unStrLen++]='=';
         a_unBufferSize -= unStrLen;
         a_entryLineBuffer += unStrLen;
-        unDataStrLen=this->WriteDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
+        unDataStrLen=this->writeDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
         if(a_unBufferSize>unDataStrLen){
-            a_entryLineBuffer[unDataStrLen++]=';';
+            a_entryLineBuffer[unDataStrLen++]=a_cDelimeter;
         }
         unStrLen += unDataStrLen;
     }
@@ -640,36 +720,41 @@ void pitz::daq::EntryParams::Base::SetParentAndClbk(void* a_pParent, TypeClbk a_
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-pitz::daq::EntryParams::SomeInts::SomeInts(const char* a_entryParamName)
+template <typename Int32Type>
+pitz::daq::EntryParams::SomeInts<Int32Type>::SomeInts(const char* a_entryParamName)
     :
-      IntParam<int>(a_entryParamName)
+	  IntParam<Int32Type>(a_entryParamName)
 {
-    m_value = 0;
+	IntParam<Int32Type>::m_value = 0;
 }
 
 
-pitz::daq::EntryParams::SomeInts::~SomeInts()
+template <typename Int32Type>
+pitz::daq::EntryParams::SomeInts<Int32Type>::~SomeInts()
 {
     //
 }
 
 
-int pitz::daq::EntryParams::SomeInts::value()const
+template <typename Int32Type>
+Int32Type pitz::daq::EntryParams::SomeInts<Int32Type>::value()const
 {
-    return m_value;
+	return IntParam<Int32Type>::m_value;
 }
 
 
-pitz::daq::EntryParams::Base* pitz::daq::EntryParams::SomeInts::thisPtr()
+template <typename Int32Type>
+pitz::daq::EntryParams::Base* pitz::daq::EntryParams::SomeInts<Int32Type>::thisPtr()
 {
     return this;
 }
 
 
-size_t pitz::daq::EntryParams::SomeInts::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+template <typename Int32Type>
+size_t pitz::daq::EntryParams::SomeInts<Int32Type>::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
 {
     ::std::string strAdditionalString = this->additionalString();
-    size_t unReturn = IntParam<int32_t>::WriteDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
+	size_t unReturn = IntParam<Int32Type>::writeDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
     size_t unStrLen = strAdditionalString.length();
 
     if(unStrLen){
@@ -690,30 +775,65 @@ size_t pitz::daq::EntryParams::SomeInts::WriteDataToLineBuffer(char* a_entryLine
 
 pitz::daq::EntryParams::Error::Error(const char* a_entryParamName)
     :
-      SomeInts(a_entryParamName)
+	  SomeInts<uint32_t>(a_entryParamName)
 {
 }
 
 
-void pitz::daq::EntryParams::Error::setError(int a_error, const ::std::string& a_errorString)
+void pitz::daq::EntryParams::Error::AddError(uint8_t a_errorMask, const ::std::string& a_errorString)
 {
-    switch(a_error){
-    case 0:
-        m_errorString = "ok";
-        break;
-    default:
-        if(!(a_error & value())){
-            m_errorString += ";";
-            m_errorString += a_errorString;
-        }
-        break;
+    if(a_errorMask>=m_snMaxNumber){return;}
+
+    uint32_t unMask = 1<<a_errorMask;
+    uint32_t unCurrentValue = value();
+
+    if(!(unMask&unCurrentValue)){
+        m_errorStrings[a_errorMask]=a_errorString;
+        unCurrentValue |= unMask;
+        m_value = unCurrentValue;
     }
+}
+
+
+void pitz::daq::EntryParams::Error::ResetError(uint8_t a_errorMask)
+{
+    if(a_errorMask>=m_snMaxNumber){return;}
+
+    uint32_t unMask = 1<<a_errorMask;
+    uint32_t unCurrentValue = value();
+
+    if(unMask&unCurrentValue){
+        uint32_t unAntiMask = ~unMask;
+        unCurrentValue &= unAntiMask;
+        m_value = unCurrentValue;
+    }
+}
+
+
+void pitz::daq::EntryParams::Error::ResetAllErrors()
+{
+    m_value = 0;
 }
 
 
 ::std::string pitz::daq::EntryParams::Error::additionalString() const
 {
-    return m_errorString;
+    ::std::string strToReturn;
+    uint32_t unCurrentValue = value();
+
+    if(!unCurrentValue){
+        strToReturn = "ok";
+    }
+    else{
+        for(uint8_t i(0);i<m_snMaxNumber;++i){
+            if((1<<i)&unCurrentValue){
+                strToReturn += m_errorStrings[i];
+                strToReturn += ";";
+            }
+        }
+    }
+
+    return strToReturn;
 }
 
 
@@ -721,7 +841,7 @@ void pitz::daq::EntryParams::Error::setError(int a_error, const ::std::string& a
 
 pitz::daq::EntryParams::AdditionalData::AdditionalData(const char* a_entryParamName)
     :
-      SomeInts(a_entryParamName),
+	  SomeInts<uint32_t>(a_entryParamName),
       m_pCore(nullptr)
 {
     m_value = 0;
@@ -745,7 +865,7 @@ void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTr
     if(!m_pCore){return ;}
     if((!m_pCore->isInited)&&(!InitDataStuff())){return;}
     char vcBufferData[4096];
-    snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_COUNT "%d",static_cast<int>(m_pCore->entryInfo.type),static_cast<int>(m_pCore->entryInfo.itemsCountPerEntry));
+	snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d" ADD_DATA_HEADER_COUNT "%d",m_pCore->dataType,m_pCore->samples);
     m_pCore->rootBranch = a_pTreeOnRoot->Branch( vcBufferData,nullptr,m_pCore->rootFormatString);
     if(m_pCore->rootBranch){
         void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData,nullptr,nullptr);
@@ -814,8 +934,14 @@ void pitz::daq::EntryParams::AdditionalData::setParentDoocsUrl( const ::std::str
 
 bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
 {
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+
     if(!m_pCore){return false;}
     if(m_pCore->isInited){return true;}
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
 
     ptrdiff_t nCount = ::std::count(m_pCore->doocsUrl2.begin(),m_pCore->doocsUrl2.end(),'/');
 
@@ -839,11 +965,13 @@ bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
         fullAddr = m_pCore->doocsUrl2;
     }
 
-    if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&m_pCore->entryInfo) ){return false;}
+	if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&m_pCore->dataType,&m_pCore->samples) ){return false;}
     m_pCore->parentAndFinalDoocsUrl = fullAddr;
 
-    m_pCore->rootFormatString = PrepareDaqEntryBasedOnType2(1,m_pCore->entryInfo.type,NEWNULLPTR2,
-                                                            &m_pCore->entryInfo,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2);
+	in.dataType = m_pCore->dataType;
+	in.shouldDupString = 1;
+	out.inOutSamples = m_pCore->samples;
+	m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
     if(!(m_pCore->rootFormatString)){
         return false;
     }
@@ -902,7 +1030,7 @@ bool pitz::daq::EntryParams::AdditionalData::GetDataFromLine(const char* a_entry
 
 pitz::daq::EntryParams::DataType::DataType(const char* a_entryParamName)
     :
-      SomeInts(a_entryParamName)
+	  SomeInts<int32_t>(a_entryParamName)
 {
 }
 
@@ -917,7 +1045,7 @@ void pitz::daq::EntryParams::DataType::set(int32_t a_type)
 {
     EqData eqData;
     //std::string strForReturn = eqData.type_string(value());
-    return eqData.type_string(value());
+    return eqData.type_string(static_cast<int>(value()));
 }
 
 
@@ -945,7 +1073,7 @@ bool pitz::daq::EntryParams::Date::GetDataFromLine(const char* a_entryLine)
 static const size_t s_cunNonExpireStrLen = strlen(NON_EXPIRE_STRING);
 
 
-size_t pitz::daq::EntryParams::Date::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+size_t pitz::daq::EntryParams::Date::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
 {
     size_t unReturn(0);
     switch(m_epochSeconds){
@@ -1004,7 +1132,7 @@ bool pitz::daq::EntryParams::Mask::GetDataFromLine(const char* a_entryLine)
 }
 
 
-size_t pitz::daq::EntryParams::Mask::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+size_t pitz::daq::EntryParams::Mask::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
 {
     size_t unReturn(0);
     switch(m_epochSeconds){
@@ -1028,7 +1156,7 @@ size_t pitz::daq::EntryParams::Mask::WriteDataToLineBuffer(char* a_entryLineBuff
         memcpy(a_entryLineBuffer,"true(",5);
         a_entryLineBuffer += 5;
         a_unBufferSize -= 5;
-        unReturn = 5 + Date::WriteDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
+        unReturn = 5 + Date::writeDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
         a_entryLineBuffer[unReturn++]=')';
         break;
     }
@@ -1072,7 +1200,7 @@ bool pitz::daq::EntryParams::String::GetDataFromLine(const char* a_entryLine)
 }
 
 
-size_t pitz::daq::EntryParams::String::WriteDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+size_t pitz::daq::EntryParams::String::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
 {
     size_t unStrLen = m_string.length();
     unStrLen = (unStrLen>a_unBufferSize)?a_unBufferSize:unStrLen;
@@ -1141,7 +1269,7 @@ static size_t EPOCH_TO_STRING(const time_t& a_epoch, char* a_buffer, size_t a_bu
 }
 
 
-bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_doocsUrl, DEC_OUT_PD(TypeAndCount)* a_pEntryInfo )
+bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_doocsUrl, int* a_pType, int* a_pSamples )
 {
     int nReturn;
     EqCall eqCall;
@@ -1157,8 +1285,8 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
         return false;
     }
 
-    a_pEntryInfo->type = a_pEqDataOut->type();
-    a_pEntryInfo->itemsCountPerEntry = a_pEqDataOut->length();
+	*a_pType = a_pEqDataOut->type();
+	*a_pSamples = a_pEqDataOut->length();
 
     //return GetDataPointerFromEqData(a_pEqDataOut)?true:false;
     return true;
