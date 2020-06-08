@@ -17,6 +17,27 @@
 
 namespace pitz{namespace daq{
 
+namespace EntryParams{
+
+class AdditionalDataDoocs : public AdditionalData
+{
+public:
+	AdditionalDataDoocs(const ::std::string& parentDoocsUrl);
+	~AdditionalDataDoocs() OVERRIDE2;
+
+	virtual void Fill() OVERRIDE2;
+
+private:
+	bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
+	bool   ShouldSkipProviding() const OVERRIDE2;
+	size_t writeDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize) const OVERRIDE2;
+
+private:
+	::std::string						m_parentDoocsUrl;
+};
+
+} // namespace EntryParams{
+
 class SingleEntryDoocsBase : public SingleEntry
 {
 public:

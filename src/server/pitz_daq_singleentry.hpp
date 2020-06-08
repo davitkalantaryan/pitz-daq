@@ -16,6 +16,7 @@
 #include <list>
 #include <TTree.h>
 #include <sys/timeb.h>
+#include <vector>
 
 #define ENTRY_IN_ERROR                  STATIC_CAST2(unsigned int,1)
 
@@ -68,6 +69,7 @@ class EqData;
 namespace pitz{ namespace daq{
 
 class SNetworkStruct;
+class SingleEntryAdd;
 class SingleEntry;
 class EqFctCollector;
 class TreeForSingleEntry;
@@ -220,137 +222,147 @@ protected:
 };
 
 
-class AdditionalData : public SomeInts<uint32_t>
+class AdditionalData : public Base
 {
-    struct Core{
-        std::string                 parentAndFinalDoocsUrl;
-        std::string                 doocsUrl2;
-        EqData                      doocsData;
-		int32_t						dataType;
-		int32_t						samples;
-        char*                       rootFormatString;
-        TBranch*                    rootBranch;
-        struct timeb                lastUpdateTime;
-        uint64_t                    isInited : 1;
-        uint64_t                    reserved64Bit : 63;
-        Core(){rootFormatString=nullptr;rootBranch=nullptr;lastUpdateTime.time=0;isInited=reserved64Bit=0;}
-    };
 public:
-    AdditionalData(const char* entryParamName);
-    ~AdditionalData() OVERRIDE2;
+	AdditionalData();
+	virtual ~AdditionalData() OVERRIDE2;
 
-    void setRootBranchIfEnabled(TTree* a_pTreeOnRoot);
-    void checkIfFillTimeAndFillIfYes();
-    void initTimeAndRoot();
-    void setParentDoocsUrl( const ::std::string& parentDoocsUrl );
+	void SetRootBranch(TTree* a_pTreeOnRoot);
+	void InitRoot();
+	virtual void Fill() = 0;
 
 private:
-    bool  InitDataStuff();
     bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
-    ::std::string additionalString()const OVERRIDE2;
     bool   ShouldSkipProviding() const OVERRIDE2;
+	size_t writeDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize) const OVERRIDE2;
 
-private:
-    Core*   m_pCore;
+protected:
+	::std::vector< SingleEntryAdd* >	m_additionalEntries;
 };
 
 } // namespace EntryParams{
 
 
 
-class SingleEntry : protected D_BASE_FOR_STR
+class SingleEntryBase
 {
-    friend class SNetworkStruct;
-    friend class TreeForSingleEntry;
-    friend class EqFctCollector;
 public:
-    SingleEntry( entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
-    virtual ~SingleEntry() OVERRIDE2;
+	SingleEntryBase( );
+	virtual ~SingleEntryBase() ;
 
     virtual const char* rootFormatString()const=0;
     virtual void        FreeUsedMemory(DEC_OUT_PD(SingleData2)* usedMemory);
-	uint64_t			isDataLoaded()const;
-    SNetworkStruct*     networkParent();
-    bool                markEntryForDeleteAndReturnIfPossibleNow();
-    bool                lockEntryForRoot();
-    bool                lockEntryForCurrentFile();
-    bool                lockEntryForNetwork();
-    bool                lockEntryForRootFile();
-    bool                resetRootLockAndReturnIfDeletable();
-    bool                resetNetworkLockAndReturnIfDeletable();
-    bool                resetRooFileLockAndReturnIfDeletable();
-    bool                isLockedForAnyAction()const;
-    void                Fill(DEC_OUT_PD(SingleData2)* pNewMemory);
-    const char*         daqName()const{return m_daqName;}
-    int                 firstSecond()const{return m_firstHeader.timestampSeconds;}
-    int                 firstEventNumber()const{return m_firstHeader.eventNumber;}
-    int                 lastSecond()const{return m_lastHeader.timestampSeconds;}
-    int                 lastEventNumber()const{return m_lastHeader.eventNumber;}
-    uint64_t            isPresentInLastFile()const{return m_isPresentInLastFile;}
-    void                writeContentToTheFile(FILE* fpFile)const;
-    void                IncrementError(uint8_t errorMask, const ::std::string& a_errorString);
-    void                DecrementError(uint8_t errorMask);
-    void                ResetAllErrors();
-
-    // This API will be used only by inheritors (childs, grandchilds etc.)
-protected:
-    void                LoadFromLine(const char* a_entryLine, bool isIniting, bool isInitingByUserSet);
-    void                AddNewParameterToEnd(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
-    void                AddNewParameterToBeg(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
-
-private:
-    // DOOCS callbacks
-    void                get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
-    void                set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
-    void                write (fstream &) OVERRIDE2;
         
-private:
-    ::std::list< SingleEntry* >::iterator   m_thisIter;
+protected:
     ::std::list<EntryParams::Base*>         m_allParams;
     ::std::list<EntryParams::Base*>         m_userSetableParams;
     ::std::list<EntryParams::Base*>         m_permanentParams;
-    EntryParams::IntParam<int>              m_numberInCurrentFile;
-    EntryParams::IntParam<int>              m_entriesNumberInAllFiles;
-    EntryParams::IntParam<int>              m_numberOfAllFiles;
-    EntryParams::Date                       m_expirationTime;
-    EntryParams::Date                       m_creationTime;
-    EntryParams::Mask                       m_collectionMask;
-    EntryParams::Mask                       m_errorMask;
-    EntryParams::Error                      m_errorWithString;
+
+	TBranch*                                m_pRootBranch;
+
+	int                                     m_nSingleItemSize;
+	int                                     m_nReserved0;
+
+};
+
+class SingleEntryAdd : public SingleEntryBase
+{
+public:
+	virtual void SetRootBranch(TTree* a_pTreeOnRoot);
+	virtual void FillIfTime() = 0;
+};
+
+
+
+class SingleEntry : protected D_BASE_FOR_STR, public SingleEntryBase
+{
+	friend class SNetworkStruct;
+	friend class TreeForSingleEntry;
+	friend class EqFctCollector;
+public:
+	SingleEntry( entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
+	virtual ~SingleEntry() OVERRIDE2;
+
+	uint64_t			isDataLoaded()const;
+	SNetworkStruct*     networkParent();
+	bool                markEntryForDeleteAndReturnIfPossibleNow();
+	bool                lockEntryForRoot();
+	bool                lockEntryForCurrentFile();
+	bool                lockEntryForNetwork();
+	bool                lockEntryForRootFile();
+	bool                resetRootLockAndReturnIfDeletable();
+	bool                resetNetworkLockAndReturnIfDeletable();
+	bool                resetRooFileLockAndReturnIfDeletable();
+	bool                isLockedForAnyAction()const;
+	void                Fill(DEC_OUT_PD(SingleData2)* pNewMemory);
+	const char*         daqName()const{return m_daqName;}
+	int                 firstSecond()const{return m_firstHeader.timestampSeconds;}
+	int                 firstEventNumber()const{return m_firstHeader.eventNumber;}
+	int                 lastSecond()const{return m_lastHeader.timestampSeconds;}
+	int                 lastEventNumber()const{return m_lastHeader.eventNumber;}
+	uint64_t            isPresentInLastFile()const{return m_isPresentInLastFile;}
+	void                writeContentToTheFile(FILE* fpFile)const;
+	void                IncrementError(uint8_t errorMask, const ::std::string& a_errorString);
+	void                DecrementError(uint8_t errorMask);
+	void                ResetAllErrors();
+
+	// This API will be used only by inheritors (childs, grandchilds etc.)
+protected:
+	void                LoadFromLine(const char* a_entryLine, bool isIniting, bool isInitingByUserSet);
+	void                AddNewParameterToEnd(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
+	void                AddNewParameterToBeg(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
+
+private:
+	// DOOCS callbacks
+	void                get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
+	void                set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
+	void                write (fstream &) OVERRIDE2;
+
+private:
+	::std::list< SingleEntry* >::iterator   m_thisIter;
+	EntryParams::IntParam<int>              m_numberInCurrentFile;
+	EntryParams::IntParam<int>              m_entriesNumberInAllFiles;
+	EntryParams::IntParam<int>              m_numberOfAllFiles;
+	EntryParams::Date                       m_expirationTime;
+	EntryParams::Date                       m_creationTime;
+	EntryParams::Mask                       m_collectionMask;
+	EntryParams::Mask                       m_errorMask;
+	EntryParams::Error                      m_errorWithString;
 
 protected:
-    EntryParams::AdditionalData             m_additionalData;
-    EntryParams::DataType                   m_dataType;
+	EntryParams::AdditionalData*            m_pAdditionalData;
+	EntryParams::DataType                   m_dataType;
 	EntryParams::IntParam<int32_t>          m_samples;
 
-    // the story is following
-    // everihhing, that is not nullable is set before the member m_nReserved
-    // everything that should not be set to 0, should be declared before this line
+	// the story is following
+	// everihhing, that is not nullable is set before the member m_nReserved
+	// everything that should not be set to 0, should be declared before this line
 private:
-    char*                                   m_daqName;
-    DEC_OUT_PD(Header)                      m_firstHeader;
-    DEC_OUT_PD(Header)                      m_lastHeader;
-    //time_t                                  m_lastReadTime;
-    SNetworkStruct*                         m_pNetworkParent;
-    TTree*                                  m_pTreeOnRoot;
-    TBranch*                                m_pHeaderBranch;
-    TBranch*                                m_pDataBranch;
+	char*                                   m_daqName;
+	DEC_OUT_PD(Header)                      m_firstHeader;
+	DEC_OUT_PD(Header)                      m_lastHeader;
+	//time_t                                  m_lastReadTime;
+	SNetworkStruct*                         m_pNetworkParent;
+	TTree*                                  m_pTreeOnRoot;
+	TBranch*                                m_pHeaderBranch;
+	TBranch*                                m_pDataBranch;
 
-    mutable uint64_t                        m_willBeDeletedOrIsUsedAtomic64 ;
+	mutable uint64_t                        m_willBeDeletedOrIsUsedAtomic64 ;
 
-    uint64_t                                m_isPresentInLastFile : 1;
+	uint64_t                                m_isPresentInLastFile : 1;
 
 protected:
 	uint64_t                                m_isDataLoaded : 1;
 	uint64_t                                m_bitwise64Reserved : 62;
 
-    EqFctCollector*                         m_pParent;  // hope will be deleted
+	EqFctCollector*                         m_pParent;  // hope will be deleted
 
-	int                                     m_nSingleItemSize;
-    int                                     m_nReserved2;
+	int                                     m_nReserved1;
+	int                                     m_nReserved2;
 
 private:
-    SingleEntry(const SingleEntry&) = delete ;
+	SingleEntry(const SingleEntry&) = delete ;
 };
 
 

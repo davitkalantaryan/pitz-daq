@@ -51,9 +51,34 @@ static ::std::string GetPropertyName(const char* a_entryLine, TypeConstCharPtr* 
 }}  // namespace pitz{ namespace daq{
 
 
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+pitz::daq::SingleEntryBase::SingleEntryBase()
+{
+	//
+}
+
+
+pitz::daq::SingleEntryBase::~SingleEntryBase()
+{
+	//
+}
+
+
+void pitz::daq::SingleEntryBase::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedMemory)
+{
+	FreePitzDaqBuffer(a_usedMemory->data);a_usedMemory->data=NEWNULLPTR2;
+	FreePitzDaqBuffer(a_usedMemory->additionalDataPtr);a_usedMemory->additionalDataPtr=NEWNULLPTR2;
+	FreeDataWithOffset2(a_usedMemory,0);
+}
+
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
 pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
         D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2),
+		SingleEntryBase(),
         m_numberInCurrentFile("entriesInCurFile"),
         m_entriesNumberInAllFiles("entriesInAllFiles"),
         m_numberOfAllFiles("allFilesNumber"),
@@ -62,7 +87,7 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
         m_collectionMask("maskCollection"),
         m_errorMask("maskErrors"),
         m_errorWithString("error"),
-        m_additionalData("additionalData"),
+		m_pAdditionalData(NEWNULLPTR2),
         m_dataType("type"),
 		m_samples("samples")
 {
@@ -87,7 +112,7 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     AddNewParameterToEnd(&m_collectionMask,true,true);
     AddNewParameterToEnd(&m_errorMask,true,true);
     AddNewParameterToEnd(m_errorWithString.thisPtr(),false,false);
-    AddNewParameterToEnd(m_additionalData.thisPtr(),false,true);
+	//AddNewParameterToEnd(&m_additionalData,false,true);
 
     m_errorMask.SetParentAndClbk(this,[](EntryParams::Base* a_pErrMask, void* a_pThis){
         EntryParams::Mask* pErrorMask = static_cast<EntryParams::Mask*>(a_pErrMask);
@@ -337,14 +362,6 @@ void pitz::daq::SingleEntry::write (fstream &)
 #endif
 }
 
-
-void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedMemory)
-{
-    FreePitzDaqBuffer(a_usedMemory->data);a_usedMemory->data=NEWNULLPTR2;
-    FreePitzDaqBuffer(a_usedMemory->additionalDataPtr);a_usedMemory->additionalDataPtr=NEWNULLPTR2;
-    FreeDataWithOffset2(a_usedMemory,0);
-}
-
 #include "pitz_daq_collectorproperties.hpp"
 
 void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
@@ -362,7 +379,7 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int 
         if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return ;}
         m_pDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
         if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return ;}
-        m_additionalData.setRootBranchIfEnabled(m_pTreeOnRoot);
+		if(m_pAdditionalData){m_pAdditionalData->SetRootBranch(m_pTreeOnRoot);}
     }
 
     // handle possible gen event errors
@@ -378,7 +395,7 @@ void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int 
 
     m_pHeaderBranch->SetAddress(&(a_pNewMemory->header));
     m_pDataBranch->SetAddress( a_pNewMemory->data);
-    m_additionalData.checkIfFillTimeAndFillIfYes();
+	if(m_pAdditionalData){m_pAdditionalData->Fill();}
     m_pTreeOnRoot->Fill();
 
     if(!m_isPresentInLastFile){
@@ -631,7 +648,7 @@ pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
 {
     m_pParentEntry->m_pHeaderBranch = NEWNULLPTR2;
     m_pParentEntry->m_pDataBranch = NEWNULLPTR2;
-    m_pParentEntry->m_additionalData.initTimeAndRoot();
+	if(m_pParentEntry->m_pAdditionalData){m_pParentEntry->m_pAdditionalData->InitRoot();}
     m_pParentEntry->m_pTreeOnRoot = NEWNULLPTR2;
     if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
         SingleEntry* pParentEntry( m_pParentEntry );
@@ -839,38 +856,35 @@ void pitz::daq::EntryParams::Error::ResetAllErrors()
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-pitz::daq::EntryParams::AdditionalData::AdditionalData(const char* a_entryParamName)
+pitz::daq::EntryParams::AdditionalData::AdditionalData(/*const char* a_entryParamName*/)
     :
-	  SomeInts<uint32_t>(a_entryParamName),
-      m_pCore(nullptr)
+	  Base(/*a_entryParamName*/ "additionalData" )
 {
-    m_value = 0;
 }
 
 
 pitz::daq::EntryParams::AdditionalData::~AdditionalData()
 {
-    delete m_pCore;
+	//delete m_pCore;
 }
 
 
 bool pitz::daq::EntryParams::AdditionalData::ShouldSkipProviding() const
 {
-    return m_value ? false : true;
+	//return m_value ? false : true;
+	// todo: implement better way
+	return m_additionalEntries.size()<1;
 }
 
 
-void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTreeOnRoot)
+void pitz::daq::EntryParams::AdditionalData::SetRootBranch(TTree *a_pTreeOnRoot)
 {
-    if(!m_pCore){return ;}
-    if((!m_pCore->isInited)&&(!InitDataStuff())){return;}
-    char vcBufferData[4096];
-	snprintf(vcBufferData,4095,ADDITIONAL_HEADER_START DATA_HEADER_TYPE "%d" ADD_DATA_HEADER_COUNT "%d",m_pCore->dataType,m_pCore->samples);
-    m_pCore->rootBranch = a_pTreeOnRoot->Branch( vcBufferData,nullptr,m_pCore->rootFormatString);
-    if(m_pCore->rootBranch){
-        void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData,nullptr,nullptr);
-        m_pCore->rootBranch->SetAddress( pAddress );
-    }
+	const size_t cunAdditionalDataNumber ( m_additionalEntries.size() );
+	size_t unIndex ;
+
+	for(unIndex=0;unIndex<cunAdditionalDataNumber;++unIndex){
+		m_additionalEntries[unIndex]->SetRootBranch(a_pTreeOnRoot);
+	}
 }
 
 
@@ -881,148 +895,120 @@ void pitz::daq::EntryParams::AdditionalData::setRootBranchIfEnabled(TTree* a_pTr
     ( static_cast<int64_t>(((_timeFinal).time-(_timeInit).time)*1000)+static_cast<int64_t>((_timeFinal).millitm-(_timeInit).millitm)  )
 
 
-void pitz::daq::EntryParams::AdditionalData::checkIfFillTimeAndFillIfYes()
+void pitz::daq::EntryParams::AdditionalData::Fill()
 {
-    if((!m_pCore)||(!m_pCore->isInited)||(!m_pCore->rootBranch)){return ;}
-
-    struct timeb timeNow;
-    const int64_t  maxTime = static_cast<int64_t>(m_value);
-
-    ftime(&timeNow);
-
-    if( FTIMES_TO_MS_DIFF(m_pCore->lastUpdateTime,timeNow)>maxTime){
-        EqData dataIn, dataOut;
-        EqAdr doocsAdr;
-        EqCall doocsCaller;
-
-        m_pCore->doocsData.init();
-        doocsAdr.adr(m_pCore->parentAndFinalDoocsUrl);
-
-        if(doocsCaller.get(&doocsAdr,&dataIn,&dataOut)){
-            ::std::string errorString = m_pCore->doocsData.get_string();
-            ::std::cerr << errorString << ::std::endl;
-            return;
-        }
-        m_pCore->doocsData.copy_from(&dataOut);
-
-        void* pAddress = GetDataPointerFromEqData(&m_pCore->doocsData,nullptr,nullptr);
-        if(pAddress){
-            m_pCore->rootBranch->SetAddress( pAddress );
-            m_pCore->lastUpdateTime = timeNow;
-        }
-    }
 }
 
 
-void pitz::daq::EntryParams::AdditionalData::initTimeAndRoot()
+void pitz::daq::EntryParams::AdditionalData::InitRoot()
 {
-    if(m_pCore){
-        m_pCore->lastUpdateTime = {0,0,0,0};
-        m_pCore->rootBranch = nullptr;
-    }
+	//if(m_pCore){
+	//    m_pCore->lastUpdateTime = {0,0,0,0};
+	//    m_pCore->rootBranch = nullptr;
+	//}
 }
 
 
-void pitz::daq::EntryParams::AdditionalData::setParentDoocsUrl( const ::std::string& a_parentDoocsUrl )
-{
-    if(m_pCore){
-        m_pCore->parentAndFinalDoocsUrl = a_parentDoocsUrl;
-        InitDataStuff();
-    }
-}
+//void pitz::daq::EntryParams::AdditionalData::setParentDoocsUrl( const ::std::string& a_parentDoocsUrl )
+//{
+//    if(m_pCore){
+//        m_pCore->parentAndFinalDoocsUrl = a_parentDoocsUrl;
+//        InitDataStuff();
+//    }
+//}
 
 
-bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
-{
-	struct PrepareDaqEntryInputs in;
-	struct PrepareDaqEntryOutputs out;
+//bool pitz::daq::EntryParams::AdditionalData::InitDataStuff()
+//{
+//	struct PrepareDaqEntryInputs in;
+//	struct PrepareDaqEntryOutputs out;
+//
+//    if(!m_pCore){return false;}
+//    if(m_pCore->isInited){return true;}
+//
+//	memset(&in,0,sizeof(in));
+//	memset(&out,0,sizeof(out));
+//
+//    ptrdiff_t nCount = ::std::count(m_pCore->doocsUrl2.begin(),m_pCore->doocsUrl2.end(),'/');
+//
+//    if(nCount>3){return false;}
+//
+//    ::std::string fullAddr;
+//
+//    if(nCount<3){
+//        ptrdiff_t nParentCount = ::std::count(m_pCore->parentAndFinalDoocsUrl.begin(),m_pCore->parentAndFinalDoocsUrl.end(),'/');
+//        const ptrdiff_t cnNumberToRecover = (3-nCount);
+//        if(nParentCount<cnNumberToRecover){return false;}
+//        size_t unIndex=0;
+//        for(ptrdiff_t i(0);i<cnNumberToRecover;++i){
+//            unIndex = m_pCore->parentAndFinalDoocsUrl.find("/",unIndex+1);
+//        }
+//
+//        fullAddr = ::std::string(m_pCore->parentAndFinalDoocsUrl.c_str(),unIndex+1)+m_pCore->doocsUrl2;
+//
+//    }
+//    else{
+//        fullAddr = m_pCore->doocsUrl2;
+//    }
+//
+//	if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&m_pCore->dataType,&m_pCore->samples) ){return false;}
+//    m_pCore->parentAndFinalDoocsUrl = fullAddr;
+//
+//	in.dataType = m_pCore->dataType;
+//	in.shouldDupString = 1;
+//	out.inOutSamples = m_pCore->samples;
+//	m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
+//    if(!(m_pCore->rootFormatString)){
+//        return false;
+//    }
+//
+//    if(m_value<100){m_value=100;}
+//
+//    m_pCore->isInited = 1;
+//    return true;
+//}
 
-    if(!m_pCore){return false;}
-    if(m_pCore->isInited){return true;}
 
-	memset(&in,0,sizeof(in));
-	memset(&out,0,sizeof(out));
-
-    ptrdiff_t nCount = ::std::count(m_pCore->doocsUrl2.begin(),m_pCore->doocsUrl2.end(),'/');
-
-    if(nCount>3){return false;}
-
-    ::std::string fullAddr;
-
-    if(nCount<3){
-        ptrdiff_t nParentCount = ::std::count(m_pCore->parentAndFinalDoocsUrl.begin(),m_pCore->parentAndFinalDoocsUrl.end(),'/');
-        const ptrdiff_t cnNumberToRecover = (3-nCount);
-        if(nParentCount<cnNumberToRecover){return false;}
-        size_t unIndex=0;
-        for(ptrdiff_t i(0);i<cnNumberToRecover;++i){
-            unIndex = m_pCore->parentAndFinalDoocsUrl.find("/",unIndex+1);
-        }
-
-        fullAddr = ::std::string(m_pCore->parentAndFinalDoocsUrl.c_str(),unIndex+1)+m_pCore->doocsUrl2;
-
-    }
-    else{
-        fullAddr = m_pCore->doocsUrl2;
-    }
-
-	if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&m_pCore->dataType,&m_pCore->samples) ){return false;}
-    m_pCore->parentAndFinalDoocsUrl = fullAddr;
-
-	in.dataType = m_pCore->dataType;
-	in.shouldDupString = 1;
-	out.inOutSamples = m_pCore->samples;
-	m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
-    if(!(m_pCore->rootFormatString)){
-        return false;
-    }
-
-    if(m_value<100){m_value=100;}
-
-    m_pCore->isInited = 1;
-    return true;
-}
-
-
-::std::string pitz::daq::EntryParams::AdditionalData::additionalString()const
-{
-    if((m_value<1)||(!m_pCore)){return "no";}
-
-    return m_pCore->doocsUrl2;
-}
+//::std::string pitz::daq::EntryParams::AdditionalData::additionalString()const
+//{
+//    if((m_value<1)||(!m_pCore)){return "no";}
+//
+//    return m_pCore->doocsUrl2;
+//}
 
 
 bool pitz::daq::EntryParams::AdditionalData::GetDataFromLine(const char* a_entryLine)
 {
-    if(!SomeInts::GetDataFromLine(a_entryLine)){return false;}
-    if(m_value<1){
-        m_value = 0;
-        delete m_pCore;
-        m_pCore = nullptr;
-        return false;
-    }
-    const char* cpcStringStart = strchr(a_entryLine,'(');
-    if(!cpcStringStart){
-        m_value = 0;
-        delete m_pCore;
-        m_pCore = nullptr;
-        return false;
-    }
-
-    const char* cpcStringEnd = strchr(cpcStringStart,')');
-    if((!cpcStringEnd) || ((cpcStringEnd-cpcStringStart)<4)){
-        m_value = 0;
-        delete m_pCore;
-        m_pCore = nullptr;
-        return false;
-    }
-
-    if(!m_pCore){
-        m_pCore = new Core;
-    }
-
-    m_pCore->doocsUrl2 = ::std::string(cpcStringStart+1,static_cast<size_t>((cpcStringEnd-cpcStringStart)-1));
-
-    return InitDataStuff();
+	//if(!SomeInts::GetDataFromLine(a_entryLine)){return false;}
+	//if(m_value<1){
+	//    m_value = 0;
+	//    delete m_pCore;
+	//    m_pCore = nullptr;
+	//    return false;
+	//}
+	//const char* cpcStringStart = strchr(a_entryLine,'(');
+	//if(!cpcStringStart){
+	//    m_value = 0;
+	//    delete m_pCore;
+	//    m_pCore = nullptr;
+	//    return false;
+	//}
+	//
+	//const char* cpcStringEnd = strchr(cpcStringStart,')');
+	//if((!cpcStringEnd) || ((cpcStringEnd-cpcStringStart)<4)){
+	//    m_value = 0;
+	//    delete m_pCore;
+	//    m_pCore = nullptr;
+	//    return false;
+	//}
+	//
+	//if(!m_pCore){
+	//    m_pCore = new Core;
+	//}
+	//
+	//m_pCore->doocsUrl2 = ::std::string(cpcStringStart+1,static_cast<size_t>((cpcStringEnd-cpcStringStart)-1));
+	//
+	//return InitDataStuff();
 }
 
 

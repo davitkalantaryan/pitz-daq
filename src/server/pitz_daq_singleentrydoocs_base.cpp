@@ -68,7 +68,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
     if(bCallIniter){
         //LoadFromLine(a_entryLine,true,bIsAddedByUser);
         m_doocsUrl.FindAndGetFromLine(a_entryLine);
-        m_additionalData.setParentDoocsUrl(m_doocsUrl.value());
+		m_pAdditionalData = new EntryParams::AdditionalDataDoocs(m_doocsUrl.value());
 		in.dataType = m_dataType.value();
 		out.inOutSamples = (m_samples);
     }
@@ -93,6 +93,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
 pitz::daq::SingleEntryDoocsBase::~SingleEntryDoocsBase()
 {
     free(m_rootFormatStr);
+	delete m_pAdditionalData;
 }
 
 
