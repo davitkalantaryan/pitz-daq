@@ -14,6 +14,7 @@
 #include <pitz_daq_data_collector_getter_common.h>
 #include <iostream>
 #include <ios>
+#include "pitz_daq_singleentry.cpp.hpp"
 
 #define CONF_FILE_VERSION_START "DAQ_VERSION="
 static const size_t s_cunDaqVersionForConfigLen = strlen(CONF_FILE_VERSION_START);
@@ -610,7 +611,7 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 
 extern int g_nIsZombieFile;
 
-NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
+pitz::daq::NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
     Int_t nVersion = PITZ_DAQ_CURRENT_VERSION;
     int64_t llnCurFileSize;
@@ -618,6 +619,18 @@ NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLoc
     TTree* pTreeForVersion;
     TBranch *pBranchVersion;
     std::string localDirPath, remoteDirPath, fileName;
+	::std::vector<SingleEntry*> vectorEntries;
+
+	{
+		NewSharedLockGuard< ::STDN::shared_mutex > aGuard(&m_lockForEntries);
+		for(const auto& aNetStrucs : m_networsList){
+			for(SingleEntry* pNextEntry : aNetStrucs->daqEntries()){
+				if(pNextEntry->lockEntryForRootFile()){
+					vectorEntries.push_back(pNextEntry);
+				}
+			}
+		}
+	}
 
     CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
     CalcLocalDir(&localDirPath);
@@ -628,7 +641,7 @@ NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLoc
     mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
     mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
 
-    pRootFile = new NewTFile(a_pFilePathLocal->c_str());// SetCompressionLevel(1)
+	pRootFile = new NewTFile(a_pFilePathLocal->c_str(), vectorEntries);// SetCompressionLevel(1)
     if ((!pRootFile) || pRootFile->IsZombie()){
         g_nIsZombieFile = 1;
         fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
@@ -678,7 +691,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
             m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
 
             if(llnCurFileSize>=llnMaxFileSize){ // close root file
-                pRootFile->SaveAllTrees();
+				pRootFile->FinalizeAndSaveAllTrees();
                 pRootFile->TDirectory::DeleteAll();
                 pRootFile->TDirectory::Close();
                 delete pRootFile;
@@ -692,7 +705,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
     } // while( this->shouldWork() )
 
     if(pRootFile){
-        pRootFile->SaveAllTrees();
+		pRootFile->FinalizeAndSaveAllTrees();
         pRootFile->cd();gFile = pRootFile;
         pRootFile->TDirectory::DeleteAll();
         pRootFile->TDirectory::Close();
@@ -735,7 +748,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
             pCurEntry = *pIter;
             if(pCurEntry->isPresentInLastFile()){
                 sprintf(vcBuffer,"/doocs/data/DAQdata/INDEX/%s.idx",pCurEntry->daqName());
-		index_fl.open(vcBuffer, ::std::ios_base::out | ::std::ios_base::app);
+				index_fl.open(vcBuffer, ::std::ios_base::out | ::std::ios_base::app);
                 if(index_fl.is_open()){
                     sprintf(vcBuffer,"%d:%02d,%d:%02d,%s",
                             pCurEntry->firstSecond(),pCurEntry->firstEventNumber(),
@@ -745,12 +758,12 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
                     index_fl.close();
                 } // if(index_fl.open(vcBuffer)){
                 //pCurEntry->isPresent = false; // This is done automatically with SetTree(...) function
-                if(pCurEntry->resetRootLockAndReturnIfDeletable()){
+				if(pCurEntry->resetRootLockAndReturnIfDeletable()||pCurEntry->resetRooFileLockAndReturnIfDeletable()){
                     pIterToRemove = pIter++;
                     TryToRemoveEntryNotLocked(pCurEntry);
                     pList->erase(pIterToRemove);
                 }
-                else{++pIter;}
+				else{++pIter;}
             } // if(pCurEntry->isPresentInLastFile){
             else{++pIter;}
         }
@@ -786,20 +799,24 @@ bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData2)* a_d
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 
-NewTFile::NewTFile(const char* a_filePath)
+pitz::daq::NewTFile::NewTFile(const char* a_filePath, const ::std::vector< SingleEntry* >& a_list)
     :
       TFile(a_filePath,"UPDATE","DATA",1)
 {
+	gFile = this;
+	for(auto& pEntry : a_list){
+		pEntry->InitializeRootTree();
+	}
 }
 
 
-NewTFile::~NewTFile()
+pitz::daq::NewTFile::~NewTFile()
 {
     gFile=nullptr;
 }
 
 
-void NewTFile::SaveAllTrees()
+void pitz::daq::NewTFile::FinalizeAndSaveAllTrees()
 {
     //TList* keyList=GetListOfKeys();
     //if(keyList){
@@ -816,13 +833,14 @@ void NewTFile::SaveAllTrees()
     const size_t cunTreesNumber(m_trees.size());
 
     for(size_t i(0);i<cunTreesNumber;++i){
+		m_trees[i]->Finalize();
         m_trees[i]->AutoSave("SaveSelf");
     }
 
 }
 
 
-void NewTFile::AddNewTree(TTree* a_pNewTree)
+void pitz::daq::NewTFile::AddNewTree(TreeForSingleEntry* a_pNewTree)
 {
     m_trees.push_back(a_pNewTree);
 }

@@ -4,19 +4,9 @@
 # This file can be used to produce Makefile for daqadcreceiver application
 # for PITZ
 
-win32{
-    SOURCES += \
-
-} else {
-    GCCPATH = $$system(which gcc)
-    message("!!!!!!!!!!! GCCPATH=$$GCCPATH")
-    QMAKE_CXXFLAGS += -std=c++11
-    SOURCES += \
-
-}
 
 #DEFINES += DEBUG_APP
-include(../../common/common_qt/daqcollector_common.pri)
+include($${PWD}/../../common/common_qt/daqcollector_event_based_common.pri)
 
 # LIBS += -lMCclass
 SOURCES += \

@@ -26,6 +26,7 @@
 #include "common_daq_definations.h"
 //#include "alog.h"
 #include <TPluginManager.h> // https://root.cern.ch/phpBB3/viewtopic.php?t=9816
+#include <iostream>
 #ifdef _TEST_GUI_
 #include <simple_plotter_c.h>
 #endif

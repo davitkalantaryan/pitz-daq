@@ -19,7 +19,9 @@ public:
     TreeForSingleEntry( SingleEntry* pEntry );
     ~TreeForSingleEntry() OVERRIDE2;
 
-public:
+	void Finalize();
+
+private:
     SingleEntry*    m_pParentEntry;
 };
 

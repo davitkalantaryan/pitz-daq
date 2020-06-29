@@ -10,20 +10,26 @@
 #include <TFile.h>
 #include <vector>
 
-class TTree;
+
+namespace pitz{namespace daq{
+
+class TreeForSingleEntry;
+class SingleEntry;
 
 // if we will decide to rewrite tfile
-class NewTFile : public TFile
+class NewTFile : public ::TFile
 {
 public:
-    NewTFile(const char* filePath);
+	NewTFile(const char* filePath, const ::std::vector< SingleEntry* >& a_list);
     ~NewTFile() OVERRIDE2;
 
-    void SaveAllTrees();
-    void AddNewTree(TTree* a_pNewTree);
+	void FinalizeAndSaveAllTrees();
+	void AddNewTree(TreeForSingleEntry* a_pNewTree);
 
 private:
-    ::std::vector< TTree* > m_trees;
+	::std::vector< TreeForSingleEntry* > m_trees;
 };
+
+}}  // namespace pitz{namespace daq{
 
 #endif  // #ifndef PITZ_DAQ_EQFCTCOLLECTOR_CPP_HPP

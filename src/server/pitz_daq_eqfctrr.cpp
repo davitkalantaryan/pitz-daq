@@ -38,6 +38,10 @@ public:
 
     void GetDataAndFill();
 
+private:
+	int m_itemsCountPerEntry;
+	int m_reserved;
+
 };
 }}
 
@@ -107,6 +111,8 @@ pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,c
         :
         SingleEntryDoocsBase(a_creationType, a_entryLine,a_pHelper)
 {
+	m_itemsCountPerEntry = 0;
+	m_reserved = 0;
 }
 
 
@@ -120,33 +126,41 @@ void pitz::daq::SingleEntryRR::GetDataAndFill()
     void* pDoocsData;
     size_t expectedDataLength;
     int64_t timeSeconds, genEvent;
-    uint32_t oneItemSize;
     DEC_OUT_PD(TypeAndCount) entryInfo;
     EqData dataOut;
+	int nSamples;
     DEC_OUT_PD(SingleData2)* pNewMemory;
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
 
-    if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&entryInfo)){
-        SetError(NETWORK_READ_ERROR,"DOOCS RR error");
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&entryInfo.type,&nSamples)){
+		IncrementError(NETWORK_READ_ERROR,"DOOCS RR error");
         return;
     }
 
-    if(!PrepareDaqEntryBasedOnType2(0,entryInfo.type,NEWNULLPTR2,&entryInfo,&oneItemSize,NEWNULLPTR2,NEWNULLPTR2,NEWNULLPTR2)){
-        SetError(UNABLE_TO_PREPARE_DATA,"nable to prepare data");
+	in.dataType = entryInfo.type;
+	out.inOutSamples = nSamples;
+
+	if(!PrepareDaqEntryBasedOnType(&in,&out)){
+		IncrementError(UNABLE_TO_PREPARE_DATA,"unable to prepare data");
         return ;
     }
 
-    if((m_dataType.value()!=entryInfo.type)||((m_itemsCountPerEntry)!=entryInfo.itemsCountPerEntry)){
-        SetError(DATA_TYPE_MISMATCH,"data type mismatch");
+	if((m_dataType.value()!=entryInfo.type)||(m_itemsCountPerEntry!=out.inOutSamples)){
+		IncrementError(DATA_TYPE_MISMATCH,"data type mismatch");
         return ;
     }
 
     pDoocsData=GetDataPointerFromEqData(&dataOut,&timeSeconds,&genEvent);
     if(!pDoocsData){
-        SetError(UNABLE_TO_GET_DOOCS_DATA,"unable to get doocs data");
+		IncrementError(UNABLE_TO_GET_DOOCS_DATA,"unable to get doocs data");
         return ;
     }
 
-    expectedDataLength = oneItemSize*static_cast<uint32_t>(entryInfo.itemsCountPerEntry);
+	expectedDataLength = out.oneItemSize*static_cast<uint32_t>(out.inOutSamples);
     //pNewMemory =CreateDataWithOffset2(0,expectedDataLength);
     pNewMemory =CreateDataWithOffset2(0);
     pNewMemory->data = CreatePitzDaqBuffer(expectedDataLength);

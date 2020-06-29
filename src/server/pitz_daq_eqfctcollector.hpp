@@ -34,9 +34,9 @@
 #define CAST_CLEAR_RET(_retValue)
 #endif
 
-class NewTFile;
-
 namespace pitz{namespace daq{
+
+class NewTFile;
 
 template <typename QueueType>
 class ProtectedQueue : private ::std::queue<QueueType>

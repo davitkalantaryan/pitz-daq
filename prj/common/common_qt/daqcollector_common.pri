@@ -4,6 +4,16 @@
 # This file can be used to produce Makefile for daqadcreceiver application
 # for PITZ
 message("!!! daqcollector_common.pri:")
+
+win32{
+	SOURCES += \
+} else {
+	GCCPATH = $$system(which gcc)
+	message("!!!!!!!!!!! GCCPATH=$$GCCPATH")
+	#QMAKE_CXXFLAGS += -std=c++17 -pedantic -Wextra
+	SOURCES += \
+}
+
 include(../../common/common_qt/root_no_gui_common.pri)
 DEFINES += ROOT_APP
 
@@ -32,14 +42,14 @@ else:equals(CODENAME,"bionic") {
     #QMAKE_CXXFLAGS += -std=c++0x
     DEFINES += PLUGIN_MANAGER_LOADING_DISABLE
 }
-INCLUDEPATH += ../../../include
-INCLUDEPATH += ../../../contrib/cpp-raft/include
-INCLUDEPATH += ../../../src/tools
-INCLUDEPATH += ../../../contrib/data_handling/include
+INCLUDEPATH += $${PWD}/../../../include
+INCLUDEPATH += $${PWD}/../../../contrib/cpp-raft/include
+INCLUDEPATH += $${PWD}/../../../src/tools
+INCLUDEPATH += $${PWD}/../../../contrib/data_handling/include
 
-# these two lines are just for inteligence
+# these two lines are just for intelicence
 #INCLUDEPATH += /afs/ifh.de/@sys/products/root64/5.20.00/include
-INCLUDEPATH += /doocs/lib/include
+#INCLUDEPATH += /doocs/lib/include
 
 SOURCES += \
     $${PWD}/../../../src/server/pitz_daq_collectorproperties.cpp                            \

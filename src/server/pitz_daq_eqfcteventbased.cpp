@@ -13,6 +13,7 @@
 #include <common/inthash.hpp>
 #include <pitz_daq_data_handling_types.h>
 #include <iostream>
+#include "pitz_daq_singleentry.cpp.hpp"
 
 #ifndef HANDLE_LOW_MEMORY
 #define HANDLE_LOW_MEMORY(_memory,...) do{if(!(_memory)){exit(1);}}while(0)
@@ -415,3 +416,67 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 }
 
 
+void SingleEntryZmqDoocs::InitializeRootTree()
+{
+	if(!CheckBranchExistanceAndCreateIfNecessary()){return;}
+
+	if(m_expectedDataLength>0){
+		void* pPointer;
+		int64_t timeSeconds, macroPulse;
+		EqData dataIn, dataOut;
+		EqAdr doocsAdr;
+		EqCall doocsCall;
+		int nError;
+
+		doocsAdr.adr(m_doocsUrl.value());
+		if( (nError=doocsCall.get(&doocsAdr,&dataIn,&dataOut)) ){
+			printftostderr(__FUNCTION__,nError,"DOOCS error (code:%d,str:\"%s\")",nError,dataOut.get_string().c_str());
+			return;
+		}
+
+		pPointer = GetDataPointerFromEqData(&dataOut,&timeSeconds,&macroPulse);
+		if(pPointer){
+			DEC_OUT_PD(SingleData2) aDataToFill;
+			aDataToFill.data = pPointer;
+			aDataToFill.header.eventNumber = static_cast< decltype (aDataToFill.header.eventNumber) >(macroPulse);
+			aDataToFill.header.timestampSeconds = static_cast< decltype (aDataToFill.header.timestampSeconds) >(timeSeconds);
+			aDataToFill.header.samples = (m_samples);
+			if(aDataToFill.header.eventNumber<1){
+				aDataToFill.header.eventNumber = static_cast< decltype (aDataToFill.header.eventNumber) >(GetEventNumberFromTime(timeSeconds));
+			}
+			this->FillRaw(&aDataToFill);
+		}
+	}
+}
+
+
+void SingleEntryZmqDoocs::FinalizeRootTree()
+{
+	if(m_expectedDataLength>0){
+		void* pPointer;
+		int64_t timeSeconds, macroPulse;
+		EqData dataIn, dataOut;
+		EqAdr doocsAdr;
+		EqCall doocsCall;
+		int nError;
+
+		doocsAdr.adr(m_doocsUrl.value());
+		if( (nError=doocsCall.get(&doocsAdr,&dataIn,&dataOut)) ){
+			printftostderr(__FUNCTION__,nError,"DOOCS error (code:%d,str:\"%s\")",nError,dataOut.get_string().c_str());
+			return;
+		}
+
+		pPointer = GetDataPointerFromEqData(&dataOut,&timeSeconds,&macroPulse);
+		if(pPointer){
+			DEC_OUT_PD(SingleData2) aDataToFill;
+			aDataToFill.data = pPointer;
+			aDataToFill.header.eventNumber = static_cast< decltype (aDataToFill.header.eventNumber) >(macroPulse);
+			aDataToFill.header.timestampSeconds = static_cast< decltype (aDataToFill.header.timestampSeconds) >(timeSeconds);
+			aDataToFill.header.samples = (m_samples);
+			if(aDataToFill.header.eventNumber<1){
+				aDataToFill.header.eventNumber = static_cast< decltype (aDataToFill.header.eventNumber) >(GetEventNumberFromTime(timeSeconds));
+			}
+			this->FillRaw(&aDataToFill);
+		}
+	}
+}

@@ -8,28 +8,16 @@
 #QMAKE_CXXFLAGS += "-include types.h"
 #DEFINES += u_int=unsigned
 
-win32{
-    SOURCES += \
-
-} else {
-    GCCPATH = $$system(which gcc)
-    message("!!!!!!!!!!! GCCPATH=$$GCCPATH")
-    #QMAKE_CXXFLAGS += -std=c++0x
-    QMAKE_CXXFLAGS += -std=c++11
-    SOURCES += \
-
-}
-
 #DEFINES += DEBUG_APP
+
+include($${PWD}/../../common/common_qt/daqcollector_doocs_based_props_common.pri)
 include( $${PWD}/../../common/common_qt/daqcollector_common.pri )
 
 INCLUDEPATH += $${PWD}/../../../contrib/matlab/include
 
 SOURCES += \
-    $${PWD}/../../../src/server/pitz_daq_eqfctrr.cpp                \
-    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.cpp
+	$${PWD}/../../../src/server/pitz_daq_eqfctrr.cpp
 
 HEADERS += \
-    $${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.hpp \
     $${PWD}/../../../src/server/pitz_daq_eqfctrr.hpp
 

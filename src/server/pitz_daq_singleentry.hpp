@@ -81,25 +81,48 @@ namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,d
 
 bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, int* pType, int* pSamples );
 void* GetDataPointerFromEqData(EqData* a_pData,int64_t* a_pTimeeconds, int64_t* a_pMacroPulse);
+int64_t GetEventNumberFromTime(int64_t a_time);
 
 #define D_BASE_FOR_STR  D_text
+
+class RootBase
+{
+public:
+	RootBase();
+	virtual ~RootBase();
+	virtual const char* rootFormatString() const = 0;
+protected:
+	TBranch*                     m_pBranch;
+};
 
 namespace EntryParams{
 
 class Base;
+class Vector;
 
 typedef void (*TypeClbk)(Base*,void*);
+class Vector ;
 
-class Base
+class Base : public RootBase
 {
+	friend class Vector ;
 public:
     Base(const char* entryParamName);
-    virtual ~Base();
+	virtual ~Base() OVERRIDE2 ;
 
     const char* paramName()const;
     bool        FindAndGetFromLine(const char* entryLine);
     size_t      writeToLineBuffer(char* entryLineBuffer, size_t unBufferSize, char cDelimeter)const;
     void        SetParentAndClbk(void* pParent, TypeClbk fpClbk);
+
+	virtual const char* rootFormatString()const OVERRIDE2 {return "";}
+	virtual void SetRootBranch(const char* a_cpcParentBranchname, TTree* /*a_pTreeOnRoot*/);
+	virtual void InitRoot();
+	virtual void Fill(){}
+	virtual void Refresh(){}
+	virtual int	 dataType() const {return DATA_NULL;}
+
+	static Base* FindAndCreateEntryParamFromLine(const char* a_paramName, const char* entryLine);
 
 private:
     virtual bool   GetDataFromLine(const char* entryLine)=0;
@@ -107,7 +130,7 @@ private:
     virtual bool   ShouldSkipProviding()const{return false;}
 
 protected:
-    const char* m_paramName;
+	char*		m_paramName;
     TypeClbk    m_fpClbk;
     void*       m_pParent;
 };
@@ -132,6 +155,7 @@ protected:
 template <typename Int32Type>
 class SomeInts : protected IntParam<Int32Type>
 {
+	friend class Vector;
 public:
     SomeInts(const char* entryParamName);
     virtual ~SomeInts() OVERRIDE2 ;
@@ -139,7 +163,12 @@ public:
 	Int32Type value()const;
     Base* thisPtr();
     size_t writeDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
-    virtual ::std::string additionalString()const=0;
+	virtual ::std::string additionalString()const{return "";}
+
+protected:
+	virtual void Fill() OVERRIDE2 ;
+	virtual const char* rootFormatString()const OVERRIDE2 ;
+	virtual int	 dataType() const OVERRIDE2;
 
 };
 
@@ -218,64 +247,94 @@ public:
     void setValue(const ::std::string& newValue);
 
 protected:
+	virtual void Fill() OVERRIDE2 ;
+	virtual const char* rootFormatString()const OVERRIDE2 ;
+	virtual int	 dataType() const OVERRIDE2 ;
+
+protected:
     ::std::string m_string;
 };
 
 
-class AdditionalData : public Base
+class Doocs : public String
 {
 public:
-	AdditionalData();
-	virtual ~AdditionalData() OVERRIDE2;
+	Doocs(const char* entryParamName);
+	virtual ~Doocs() OVERRIDE2 ;
 
-	void SetRootBranch(TTree* a_pTreeOnRoot);
-	void InitRoot();
-	virtual void Fill() = 0;
+	virtual bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
+	virtual size_t writeDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
+	void SetParentDoocsAddres(const ::std::string& parentDoocsAddress);
+	virtual void Refresh() OVERRIDE2;
+
+private:
+	void Initialize();
+	virtual const char* rootFormatString()const OVERRIDE2 ;
+	virtual void Fill() OVERRIDE2 ;
+	virtual int	 dataType() const OVERRIDE2;
+
+private:
+	char*			m_rootFormatStr;
+	EqData			m_data;
+	::std::string	m_doocsAddress;
+	::std::string	m_parentDoocsAddress;
+	int				m_dataType;
+};
+
+
+//template <typename PlatformType, typename EntryParamType>
+//class AddDataItem : public PlatformType, public EntryParamType
+//{
+//public:
+//	template <class... Args >
+//	AddDataItem(const char* entryParamName,Args&&... args);
+//	virtual ~AddDataItem() OVERRIDE2;
+//
+//protected:
+//	TBranch*       m_pBranch;
+//};
+
+
+class Vector : public Base
+{
+public:
+	Vector(const char* entryParamName);
+	Vector(Vector* a_pContentToMove);
+	virtual ~Vector() OVERRIDE2;
+
+	//virtual void push_back(Base* newEntry);
+
+	void SetRootBranch(const char* a_cpcParentBranchname, TTree* a_pTreeOnRoot) OVERRIDE2;
+	void InitRoot() OVERRIDE2;
+	virtual void Fill() OVERRIDE2;
+	virtual bool timeToRefresh()const{return true;}
+
+	void GetItemsFromLine(const char* entryLine);
 
 private:
     bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
     bool   ShouldSkipProviding() const OVERRIDE2;
 	size_t writeDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize) const OVERRIDE2;
+	bool GetComponentsLine( const char* entryLine, ::std::string* a_pComponentsLine);
 
 protected:
-	::std::vector< SingleEntryAdd* >	m_additionalEntries;
+	::std::vector< Base* >	m_vectorOfEntries;
 };
 
 } // namespace EntryParams{
 
 
 
-class SingleEntryBase
-{
-public:
-	SingleEntryBase( );
-	virtual ~SingleEntryBase() ;
-
-    virtual const char* rootFormatString()const=0;
-    virtual void        FreeUsedMemory(DEC_OUT_PD(SingleData2)* usedMemory);
-        
-protected:
-    ::std::list<EntryParams::Base*>         m_allParams;
-    ::std::list<EntryParams::Base*>         m_userSetableParams;
-    ::std::list<EntryParams::Base*>         m_permanentParams;
-
-	TBranch*                                m_pRootBranch;
-
-	int                                     m_nSingleItemSize;
-	int                                     m_nReserved0;
-
-};
-
-class SingleEntryAdd : public SingleEntryBase
-{
-public:
-	virtual void SetRootBranch(TTree* a_pTreeOnRoot);
-	virtual void FillIfTime() = 0;
-};
+//class SingleEntryAdd : public SingleEntryBase
+//{
+//public:
+//	virtual void SetRootBranch(TTree* a_pTreeOnRoot);
+//	virtual void FillIfTime() = 0;
+//};
 
 
 
-class SingleEntry : protected D_BASE_FOR_STR, public SingleEntryBase
+class SingleEntry : protected D_BASE_FOR_STR
 {
 	friend class SNetworkStruct;
 	friend class TreeForSingleEntry;
@@ -283,6 +342,11 @@ class SingleEntry : protected D_BASE_FOR_STR, public SingleEntryBase
 public:
 	SingleEntry( entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
 	virtual ~SingleEntry() OVERRIDE2;
+
+	virtual const char* rootFormatString()const=0;
+	virtual void        FreeUsedMemory(DEC_OUT_PD(SingleData2)* usedMemory);
+	virtual void		InitializeRootTree(){}
+	virtual void		FinalizeRootTree(){}
 
 	uint64_t			isDataLoaded()const;
 	SNetworkStruct*     networkParent();
@@ -312,6 +376,8 @@ protected:
 	void                LoadFromLine(const char* a_entryLine, bool isIniting, bool isInitingByUserSet);
 	void                AddNewParameterToEnd(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
 	void                AddNewParameterToBeg(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
+	bool				CheckBranchExistanceAndCreateIfNecessary();
+	void                FillRaw(DEC_OUT_PD(SingleData2)* pNewMemory);
 
 private:
 	// DOOCS callbacks
@@ -321,6 +387,11 @@ private:
 
 private:
 	::std::list< SingleEntry* >::iterator   m_thisIter;
+
+	::std::list<EntryParams::Base*>         m_allParams;
+	::std::list<EntryParams::Base*>         m_userSetableParams;
+	::std::list<EntryParams::Base*>         m_permanentParams;
+
 	EntryParams::IntParam<int>              m_numberInCurrentFile;
 	EntryParams::IntParam<int>              m_entriesNumberInAllFiles;
 	EntryParams::IntParam<int>              m_numberOfAllFiles;
@@ -331,20 +402,22 @@ private:
 	EntryParams::Error                      m_errorWithString;
 
 protected:
-	EntryParams::AdditionalData*            m_pAdditionalData;
+	EntryParams::Vector*					m_pAdditionalData;
 	EntryParams::DataType                   m_dataType;
 	EntryParams::IntParam<int32_t>          m_samples;
 
 	// the story is following
 	// everihhing, that is not nullable is set before the member m_nReserved
 	// everything that should not be set to 0, should be declared before this line
-private:
+
 	char*                                   m_daqName;
 	DEC_OUT_PD(Header)                      m_firstHeader;
 	DEC_OUT_PD(Header)                      m_lastHeader;
+
+private:
 	//time_t                                  m_lastReadTime;
 	SNetworkStruct*                         m_pNetworkParent;
-	TTree*                                  m_pTreeOnRoot;
+	TreeForSingleEntry*                     m_pTreeOnRoot;
 	TBranch*                                m_pHeaderBranch;
 	TBranch*                                m_pDataBranch;
 
@@ -358,6 +431,8 @@ protected:
 
 	EqFctCollector*                         m_pParent;  // hope will be deleted
 
+	int                                     m_nSingleItemSize;
+	int                                     m_nReserved0;
 	int                                     m_nReserved1;
 	int                                     m_nReserved2;
 

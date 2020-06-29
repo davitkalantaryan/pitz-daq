@@ -53,19 +53,9 @@ static ::std::string GetPropertyName(const char* a_entryLine, TypeConstCharPtr* 
 
 /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-pitz::daq::SingleEntryBase::SingleEntryBase()
-{
-	//
-}
 
 
-pitz::daq::SingleEntryBase::~SingleEntryBase()
-{
-	//
-}
-
-
-void pitz::daq::SingleEntryBase::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedMemory)
+void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedMemory)
 {
 	FreePitzDaqBuffer(a_usedMemory->data);a_usedMemory->data=NEWNULLPTR2;
 	FreePitzDaqBuffer(a_usedMemory->additionalDataPtr);a_usedMemory->additionalDataPtr=NEWNULLPTR2;
@@ -78,7 +68,7 @@ void pitz::daq::SingleEntryBase::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedM
 pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
         D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2),
-		SingleEntryBase(),
+		//SingleEntryBase(),
         m_numberInCurrentFile("entriesInCurFile"),
         m_entriesNumberInAllFiles("entriesInAllFiles"),
         m_numberOfAllFiles("allFilesNumber"),
@@ -178,6 +168,8 @@ reurnPoint:
 
 pitz::daq::SingleEntry::~SingleEntry()
 {
+	delete m_pAdditionalData;
+	m_pAdditionalData = nullptr;
     free(this->m_daqName);
 }
 
@@ -364,54 +356,68 @@ void pitz::daq::SingleEntry::write (fstream &)
 
 #include "pitz_daq_collectorproperties.hpp"
 
-void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
+bool pitz::daq::SingleEntry::CheckBranchExistanceAndCreateIfNecessary()
 {
-    int32_t nGenEventNormalized = a_pNewMemory->header.eventNumber%s_H_count;
-    if(!lockEntryForRoot()){return;}
-    if(!m_pTreeOnRoot){
+	if(!m_pTreeOnRoot){
 
-        char vcBufferData[4096];
+		char vcBufferData[4096];
 		snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d",m_dataType.value());
 
-        m_pTreeOnRoot = new TreeForSingleEntry(this);
+		m_pTreeOnRoot = new TreeForSingleEntry(this);
 
 		m_pHeaderBranch =m_pTreeOnRoot->Branch(HEADERS_HEADER,nullptr,"seconds/I:gen_event/I:samples/I");
-        if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return ;}
-        m_pDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
-        if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return ;}
-		if(m_pAdditionalData){m_pAdditionalData->SetRootBranch(m_pTreeOnRoot);}
-    }
+		if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return false;}
+		m_pDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
+		if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return false;}
+		if(m_pAdditionalData){m_pAdditionalData->SetRootBranch("",m_pTreeOnRoot);}
+	}
 
-    // handle possible gen event errors
-    if((a_pNewMemory->header.eventNumber<0)||(a_pNewMemory->header.eventNumber<m_lastHeader.timestampSeconds)){
-        // we have gen event error handle it
-    }
-    if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->header.eventNumber){
-        a_pNewMemory->header.timestampSeconds = g_shareptr[nGenEventNormalized].seconds;
-    }
+	return true;
+}
 
 
-    //if(g_shareptr[a_pNewMemory->eventNumber].gen_event)
-
-    m_pHeaderBranch->SetAddress(&(a_pNewMemory->header));
-    m_pDataBranch->SetAddress( a_pNewMemory->data);
-	if(m_pAdditionalData){m_pAdditionalData->Fill();}
-    m_pTreeOnRoot->Fill();
-
-    if(!m_isPresentInLastFile){
-        m_isPresentInLastFile = 1;
-        m_firstHeader = a_pNewMemory->header;
-        m_numberInCurrentFile = (0);
-        ++m_numberOfAllFiles;
-    }
-
-    ++m_numberInCurrentFile;
-    ++m_entriesNumberInAllFiles;
-
-    DecrementError(ROOT_ERROR);
-
-    m_lastHeader = a_pNewMemory->header;
+void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
+{
+	FillRaw(a_pNewMemory);
     FreeUsedMemory(a_pNewMemory);
+}
+
+
+void pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
+{
+	int32_t nGenEventNormalized = a_pNewMemory->header.eventNumber%s_H_count;
+	if(!lockEntryForRoot()){return;}
+	if(!CheckBranchExistanceAndCreateIfNecessary()){return;}
+
+	// handle possible gen event errors
+	if((a_pNewMemory->header.eventNumber<0)||(a_pNewMemory->header.eventNumber<m_lastHeader.timestampSeconds)){
+		// we have gen event error handle it
+	}
+	if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->header.eventNumber){
+		a_pNewMemory->header.timestampSeconds = g_shareptr[nGenEventNormalized].seconds;
+	}
+
+
+	//if(g_shareptr[a_pNewMemory->eventNumber].gen_event)
+
+	m_pHeaderBranch->SetAddress(&(a_pNewMemory->header));
+	m_pDataBranch->SetAddress( a_pNewMemory->data);
+	if(m_pAdditionalData){m_pAdditionalData->Fill();}
+	m_pTreeOnRoot->Fill();
+
+	if(!m_isPresentInLastFile){
+		m_isPresentInLastFile = 1;
+		m_firstHeader = a_pNewMemory->header;
+		m_numberInCurrentFile = (0);
+		++m_numberOfAllFiles;
+	}
+
+	++m_numberInCurrentFile;
+	++m_entriesNumberInAllFiles;
+
+	DecrementError(ROOT_ERROR);
+
+	m_lastHeader = a_pNewMemory->header;
 }
 
 
@@ -658,13 +664,32 @@ pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
 }
 
 
+void pitz::daq::TreeForSingleEntry::Finalize()
+{
+	m_pParentEntry->FinalizeRootTree();
+}
+
+
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+pitz::daq::RootBase::RootBase()
+{
+	m_pBranch = nullptr;
+}
+
+
+pitz::daq::RootBase::~RootBase()
+{
+	//
+}
+
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 static void DefaultClbk(pitz::daq::EntryParams::Base*,void*){}
 
 pitz::daq::EntryParams::Base::Base( const char* a_entryParamName)
     :
-      m_paramName(a_entryParamName),
+	  m_paramName(strdup(a_entryParamName)),
       m_fpClbk(&DefaultClbk),
       m_pParent(nullptr)
 {
@@ -673,6 +698,7 @@ pitz::daq::EntryParams::Base::Base( const char* a_entryParamName)
 
 pitz::daq::EntryParams::Base::~Base()
 {
+	free(m_paramName);
 }
 
 
@@ -711,6 +737,28 @@ size_t pitz::daq::EntryParams::Base::writeToLineBuffer(char* a_entryLineBuffer, 
 }
 
 
+pitz::daq::EntryParams::Base* pitz::daq::EntryParams::Base::FindAndCreateEntryParamFromLine(const char* a_paramName, const char* a_entryLine)
+{
+	const char* pcNext = strstr(a_entryLine,a_paramName);
+	if(pcNext){
+		// todo: check other cases, than only vector
+		const char* cpcListStart = strchr(pcNext,'(');
+		if(cpcListStart){
+			const char* cpcListEnd = strchr(++cpcListStart,')');
+			if(cpcListEnd){
+				//::std::string strEntryLine = ::std::string(cpcListStart,static_cast<size_t>(cpcListEnd-cpcListStart));
+				Vector* pReturn = new Vector(a_paramName);
+				pcNext += strlen(a_paramName);
+				pReturn->GetItemsFromLine(pcNext);
+				return pReturn;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+
 bool pitz::daq::EntryParams::Base::FindAndGetFromLine(const char* a_entryLine)
 {
     bool bReturn(false);
@@ -735,56 +783,25 @@ void pitz::daq::EntryParams::Base::SetParentAndClbk(void* a_pParent, TypeClbk a_
 }
 
 
-/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
-
-template <typename Int32Type>
-pitz::daq::EntryParams::SomeInts<Int32Type>::SomeInts(const char* a_entryParamName)
-    :
-	  IntParam<Int32Type>(a_entryParamName)
+void pitz::daq::EntryParams::Base::SetRootBranch(const char* a_cpcParentBranchName, TTree* a_pTreeOnRoot)
 {
-	IntParam<Int32Type>::m_value = 0;
+	const char* cpcRootFormatString = this->rootFormatString();
+	if(cpcRootFormatString && cpcRootFormatString[0]){
+		::std::string rootBranchName = a_cpcParentBranchName + ::std::string("_") + paramName() +
+				::std::string("_") + ::std::to_string( this->dataType() );
+		m_pBranch =a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,this->rootFormatString());
+
+		//TBranch* pParentBranch = a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,static_cast<char*>(nullptr)); // crash
+
+		//TBranch* pParentBranch = a_pTreeOnRoot->Branch("addData",nullptr,"rate/I");
+		//m_pBranch = new TBranch(pParentBranch,rootBranchName.c_str(),nullptr,this->rootFormatString());
+	}
 }
 
 
-template <typename Int32Type>
-pitz::daq::EntryParams::SomeInts<Int32Type>::~SomeInts()
+void pitz::daq::EntryParams::Base::InitRoot()
 {
-    //
-}
-
-
-template <typename Int32Type>
-Int32Type pitz::daq::EntryParams::SomeInts<Int32Type>::value()const
-{
-	return IntParam<Int32Type>::m_value;
-}
-
-
-template <typename Int32Type>
-pitz::daq::EntryParams::Base* pitz::daq::EntryParams::SomeInts<Int32Type>::thisPtr()
-{
-    return this;
-}
-
-
-template <typename Int32Type>
-size_t pitz::daq::EntryParams::SomeInts<Int32Type>::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
-{
-    ::std::string strAdditionalString = this->additionalString();
-	size_t unReturn = IntParam<Int32Type>::writeDataToLineBuffer(a_entryLineBuffer,a_unBufferSize);
-    size_t unStrLen = strAdditionalString.length();
-
-    if(unStrLen){
-        if((unReturn+unStrLen+2)<=a_unBufferSize){
-            a_entryLineBuffer[unReturn++]='(';
-            memcpy(a_entryLineBuffer+unReturn,strAdditionalString.c_str(),unStrLen);
-            unReturn += unStrLen;
-            a_entryLineBuffer[unReturn++]=')';
-        }
-    }
-
-    return unReturn;
-
+	m_pBranch = nullptr;
 }
 
 
@@ -856,34 +873,53 @@ void pitz::daq::EntryParams::Error::ResetAllErrors()
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-pitz::daq::EntryParams::AdditionalData::AdditionalData(/*const char* a_entryParamName*/)
+// "additionalData"
+
+pitz::daq::EntryParams::Vector::Vector(const char* a_entryParamName)
     :
-	  Base(/*a_entryParamName*/ "additionalData" )
+	  Base(a_entryParamName)
 {
 }
 
 
-pitz::daq::EntryParams::AdditionalData::~AdditionalData()
+pitz::daq::EntryParams::Vector::Vector(Vector* a_pContentToMove)
+	:
+	  Base(a_pContentToMove->paramName()),
+	  m_vectorOfEntries( ::std::move(a_pContentToMove->m_vectorOfEntries) )
 {
-	//delete m_pCore;
 }
 
 
-bool pitz::daq::EntryParams::AdditionalData::ShouldSkipProviding() const
+pitz::daq::EntryParams::Vector::~Vector()
+{
+	for(auto pBase : m_vectorOfEntries){
+		delete pBase;
+	}
+}
+
+
+bool pitz::daq::EntryParams::Vector::ShouldSkipProviding() const
 {
 	//return m_value ? false : true;
 	// todo: implement better way
-	return m_additionalEntries.size()<1;
+	return m_vectorOfEntries.size()<1;
 }
 
 
-void pitz::daq::EntryParams::AdditionalData::SetRootBranch(TTree *a_pTreeOnRoot)
+//void pitz::daq::EntryParams::Vector::push_back(Base* a_newEntry)
+//{
+//	m_vectorOfEntries.push_back(a_newEntry);
+//}
+
+
+void pitz::daq::EntryParams::Vector::SetRootBranch(const char* , TTree *a_pTreeOnRoot)
 {
-	const size_t cunAdditionalDataNumber ( m_additionalEntries.size() );
+	const char* cpcParamName = paramName();
+	const size_t cunAdditionalDataNumber ( m_vectorOfEntries.size() );
 	size_t unIndex ;
 
 	for(unIndex=0;unIndex<cunAdditionalDataNumber;++unIndex){
-		m_additionalEntries[unIndex]->SetRootBranch(a_pTreeOnRoot);
+		m_vectorOfEntries[unIndex]->SetRootBranch(cpcParamName,a_pTreeOnRoot);
 	}
 }
 
@@ -895,17 +931,53 @@ void pitz::daq::EntryParams::AdditionalData::SetRootBranch(TTree *a_pTreeOnRoot)
     ( static_cast<int64_t>(((_timeFinal).time-(_timeInit).time)*1000)+static_cast<int64_t>((_timeFinal).millitm-(_timeInit).millitm)  )
 
 
-void pitz::daq::EntryParams::AdditionalData::Fill()
+void pitz::daq::EntryParams::Vector::Fill()
 {
+	if(this->timeToRefresh()){
+		for( auto pParam : m_vectorOfEntries){
+			pParam->Refresh();
+			pParam->Fill();
+		}
+	}
+	else{
+		for( auto pParam : m_vectorOfEntries){
+			pParam->Fill();
+		}
+	}
 }
 
 
-void pitz::daq::EntryParams::AdditionalData::InitRoot()
+void pitz::daq::EntryParams::Vector::InitRoot()
 {
-	//if(m_pCore){
-	//    m_pCore->lastUpdateTime = {0,0,0,0};
-	//    m_pCore->rootBranch = nullptr;
-	//}
+	for( auto pParam : m_vectorOfEntries){
+		pParam->InitRoot();
+	}
+}
+
+
+size_t pitz::daq::EntryParams::Vector::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize) const
+{
+	size_t unWritten, unReturn=0;
+	const size_t cunArraySize(m_vectorOfEntries.size());
+
+	if(a_unBufferSize<2){return 0;}
+
+	a_entryLineBuffer[0]='(';
+	++a_entryLineBuffer;
+	--a_unBufferSize;
+	unReturn = 1;
+
+	for(size_t i=0; (a_unBufferSize>1)&&(i<cunArraySize);++i){
+		unWritten = m_vectorOfEntries[i]->writeToLineBuffer(a_entryLineBuffer,(a_unBufferSize-1),';');
+		a_unBufferSize -= unWritten;
+		a_entryLineBuffer += unWritten;
+		unReturn += unWritten;
+	}
+
+	a_entryLineBuffer[0]=')';
+
+	return ++unReturn;
+
 }
 
 
@@ -977,8 +1049,104 @@ void pitz::daq::EntryParams::AdditionalData::InitRoot()
 //}
 
 
-bool pitz::daq::EntryParams::AdditionalData::GetDataFromLine(const char* a_entryLine)
+bool pitz::daq::EntryParams::Vector::GetComponentsLine( const char* a_entryLine, ::std::string* a_pComponentsLine)
 {
+	const char* cpcBegin = strchr(a_entryLine,'(');
+	const char* cpcEnd;
+	::std::string& innerLine = *a_pComponentsLine;
+
+	if(!cpcBegin){return false;}
+	cpcEnd = strchr(++cpcBegin,')');
+	if(!cpcEnd){return false;}
+
+	innerLine = ::std::string(cpcBegin,static_cast<size_t>(cpcEnd-cpcBegin));
+	return innerLine.size()>0;
+}
+
+static inline void ltrim(std::string* a_pStr)
+{
+	a_pStr->erase(a_pStr->begin(), std::find_if(a_pStr->begin(), a_pStr->end(), [](int ch) {
+		return !std::isspace(ch);
+	}));
+}
+
+
+void pitz::daq::EntryParams::Vector::GetItemsFromLine(const char* a_entryLine)
+{
+	::std::string innerLine;
+	::std::string propNameStr;
+	const char *cpcLineToScan, *cpcTmp;
+	bool bContinue=true;
+	Base* pNext;
+	int nNumber;
+	if(!GetComponentsLine(a_entryLine,&innerLine)){
+		return ;
+	}
+
+	ltrim(&innerLine);
+
+	cpcLineToScan = innerLine.c_str();
+	cpcTmp = strchr(cpcLineToScan,'=');
+
+	while(cpcTmp && bContinue){
+		propNameStr = ::std::string(cpcLineToScan,static_cast<size_t>(cpcTmp-cpcLineToScan));
+
+		if((!(*(++cpcTmp)))/*||(!(*(++cpcTmp)))*/){
+			break;
+		}
+
+		cpcLineToScan=strchr(cpcTmp,';');
+		if(!cpcLineToScan){bContinue=false;}
+
+		pNext = nullptr;
+		if(strncmp(cpcTmp,"doocs:",6)==0){
+			pNext = new Doocs(propNameStr.c_str());
+			if(bContinue){static_cast<String*>(pNext)->setValue( ::std::string(cpcTmp+6,static_cast<size_t>(cpcLineToScan-cpcTmp-6)) );}
+			else{static_cast<String*>(pNext)->setValue( cpcTmp+6 );}
+		}
+		else{
+			if(isdigit(*cpcTmp)){
+				nNumber = atoi(cpcTmp);
+				pNext = new SomeInts<int>(propNameStr.c_str());
+				*static_cast<IntParam<int>*>(pNext) = (nNumber);
+			}
+			else{
+				pNext = new String(propNameStr.c_str());
+				if(bContinue){static_cast<String*>(pNext)->setValue( ::std::string(cpcTmp,static_cast<size_t>(cpcLineToScan-cpcTmp)) );}
+				else{static_cast<String*>(pNext)->setValue( cpcTmp );}
+			}
+		}
+
+		if(pNext){
+			m_vectorOfEntries.push_back(pNext);
+		}
+
+		if(cpcLineToScan){cpcTmp = strchr(++cpcLineToScan,'=');}
+
+	}  // while(cpcTmp && bContinue){
+
+}
+
+
+bool pitz::daq::EntryParams::Vector::GetDataFromLine(const char* a_entryLine)
+{
+	const char* entryLine;
+	::std::string innerLine;
+
+	if(!GetComponentsLine(a_entryLine,&innerLine)){
+		return false;
+	}
+
+	entryLine = innerLine.c_str();
+
+	for( auto pParam : m_vectorOfEntries){
+		if(!pParam->FindAndGetFromLine(entryLine)){
+			return false;
+		}
+	}
+
+	return true;
+
 	//if(!SomeInts::GetDataFromLine(a_entryLine)){return false;}
 	//if(m_value<1){
 	//    m_value = 0;
@@ -1204,6 +1372,160 @@ const ::std::string& pitz::daq::EntryParams::String::value()const
 void pitz::daq::EntryParams::String::setValue(const ::std::string& a_newValue)
 {
     m_string = a_newValue;
+}
+
+
+void pitz::daq::EntryParams::String::Fill()
+{
+	m_pBranch->SetAddress(const_cast<char*>(m_string.c_str()));
+}
+
+
+const char* pitz::daq::EntryParams::String::rootFormatString()const
+{
+	return "data/C";
+}
+
+
+int	pitz::daq::EntryParams::String::dataType() const
+{
+	return DATA_STRING;
+}
+
+
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+
+pitz::daq::EntryParams::Doocs::Doocs(const char* a_entryParamName)
+	:
+	  String(a_entryParamName)
+{
+	m_rootFormatStr = nullptr;
+	m_dataType = DATA_NULL;
+}
+
+
+pitz::daq::EntryParams::Doocs::~Doocs()
+{
+	free(m_rootFormatStr);
+}
+
+
+void pitz::daq::EntryParams::Doocs::Initialize()
+{
+	if((m_string.size()>1)&&(m_parentDoocsAddress.size()>0)){
+		size_t unIndex=0;
+		::std::string strLastPart;
+		ptrdiff_t nCount;
+		ptrdiff_t nParentCount = ::std::count(m_parentDoocsAddress.begin(),m_parentDoocsAddress.end(),'/');
+		ptrdiff_t i, nNumberToFindInParent;
+		struct PrepareDaqEntryInputs in;
+		struct PrepareDaqEntryOutputs out;
+
+		memset(&in,0,sizeof(in));
+		memset(&out,0,sizeof(out));
+
+		if(m_string.at(0)!='/'){strLastPart=m_string;}
+		else{strLastPart=m_string.c_str()+1;}
+		nCount = ::std::count(strLastPart.begin(),strLastPart.end(),'/');
+
+		if((nCount>=3)||((nCount+nParentCount)<2)){
+			return;
+		}
+
+		nNumberToFindInParent = 3-nCount;
+		for(i=0;i<nNumberToFindInParent;++i){
+			unIndex = m_parentDoocsAddress.find("/",unIndex+1);
+		}
+
+		m_doocsAddress = ::std::string(m_parentDoocsAddress.c_str(),unIndex);
+		m_doocsAddress.push_back('/');
+		m_doocsAddress += strLastPart;
+
+		m_data.init();
+		GetEntryInfoFromDoocsServer(&m_data,m_doocsAddress,&in.dataType,&out.inOutSamples);
+		in.shouldDupString = 1;
+		m_dataType = in.dataType;
+		m_rootFormatStr = PrepareDaqEntryBasedOnType(&in,&out);
+	}
+}
+
+
+const char* pitz::daq::EntryParams::Doocs::rootFormatString()const
+{
+	return m_rootFormatStr ? m_rootFormatStr : "";
+}
+
+
+void pitz::daq::EntryParams::Doocs::Fill()
+{
+	void* pAddress = GetDataPointerFromEqData(&m_data,nullptr,nullptr);
+	if(pAddress){
+		m_pBranch->SetAddress( pAddress );
+		m_pBranch->Fill();
+	}
+}
+
+
+int	pitz::daq::EntryParams::Doocs::dataType() const
+{
+	return m_dataType;
+}
+
+
+bool pitz::daq::EntryParams::Doocs::GetDataFromLine(const char* a_entryLine)
+{
+	size_t unStrLen = strcspn(a_entryLine," \n\t;");
+	::std::string stringInit = ::std::string(a_entryLine,unStrLen);
+
+	if(stringInit.find("doocs:",0)==0){
+		m_string = stringInit.c_str()+6;
+		Initialize();
+		return true;
+	}
+
+	return false;
+}
+
+
+size_t pitz::daq::EntryParams::Doocs::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
+{
+	if(a_unBufferSize>6){
+		memcpy(a_entryLineBuffer,"doocs:",6);
+		a_entryLineBuffer += 6;
+		a_unBufferSize -= 6;
+		size_t unStrLen = m_string.length();
+		unStrLen = (unStrLen>a_unBufferSize)?a_unBufferSize:unStrLen;
+		memcpy(a_entryLineBuffer,m_string.data(),unStrLen);
+		return unStrLen+6;
+	}
+
+	return 0;
+}
+
+
+void pitz::daq::EntryParams::Doocs::SetParentDoocsAddres(const ::std::string& a_parent)
+{
+	m_parentDoocsAddress = a_parent;
+	Initialize();
+}
+
+
+void pitz::daq::EntryParams::Doocs::Refresh()
+{
+	EqData dataIn, dataOut;
+	EqAdr doocsAdr;
+	EqCall doocsCaller;
+
+	doocsAdr.adr(m_doocsAddress);
+	if(doocsCaller.get(&doocsAdr,&dataIn,&dataOut)){
+		::std::string errorString = dataOut.get_string();
+		::std::cerr << "error for DOOCS address:"<<m_doocsAddress<<".error is: "<<errorString << ::std::endl;
+		return;
+	}
+
+	m_data.init();
+	m_data.copy_from(&dataOut);
 }
 
 

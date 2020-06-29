@@ -5,8 +5,11 @@
 # for PITZ
 
 message("!!! daqcollector_event_based_common.pri:")
-include($${PWD}/../../common/common_qt/daqcollector_common.pri)
 
-SOURCES +=
+#include($${PWD}/../../common/common_qt/daqcollector_common.pri)
 
-HEADERS +=
+SOURCES +=	\
+	$${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.cpp
+
+HEADERS +=	\
+	$${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.hpp

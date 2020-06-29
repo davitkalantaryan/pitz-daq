@@ -6,23 +6,14 @@
 
 
 DEFINES += DMSG
-#DEFINES += DEBUG_APP
+DEFINES += DEBUG_APP
 DEFINES += NEW_GETTER_THREAD
 #DEFINES += CPP11_THREADS_IMPLEMENT_HERE
 DEFINES += USE_DOOCS
 
-win32{
-	SOURCES += \
-} else {
-	GCCPATH = $$system(which gcc)
-	message("!!!!!!!!!!! GCCPATH=$$GCCPATH")
-	#QMAKE_CXXFLAGS += -std=c++17 -pedantic -Wextra
-	SOURCES += \
-}
 
-include(../../common/common_qt/daqcollector_event_based_common.pri)
-
-CONFIG += c++14
+include($${PWD}/../../common/common_qt/daqcollector_doocs_based_props_common.pri)
+include($${PWD}/../../common/common_qt/daqcollector_event_based_common.pri)
 
 INCLUDEPATH += $$MYDOOCS/include/zmq
 LIBS += -lzmq
@@ -30,12 +21,10 @@ LIBS += -lzmq
 # LIBS += -lMCclass
 
 SOURCES +=	\
-	$${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp		\
-	$${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.cpp
+	$${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp
 
 
 HEADERS +=	\
-	$${PWD}/../../../src/server/pitz_daq_singleentrydoocs_base.hpp		\
 	$${PWD}/../../../src/server/pitz_daq_eqfcteventbased.cpp.hpp		\
 	$${PWD}/../../../src/server/pitz_daq_eqfcteventbased.hpp
 

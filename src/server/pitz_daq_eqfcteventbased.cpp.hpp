@@ -26,6 +26,10 @@ public:
     void SetMemoryBack( DEC_OUT_PD(SingleData2)* );
 
 private:
+	void		InitializeRootTree() OVERRIDE2;
+	void		FinalizeRootTree() OVERRIDE2;
+
+private:
     void*                           m_pSocket;
     EntryParams::String             m_zmqEndpoint;
     uint32_t                        m_secondHeaderLength;

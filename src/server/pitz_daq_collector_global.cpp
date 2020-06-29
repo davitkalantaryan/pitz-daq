@@ -33,6 +33,24 @@ static void CleanupFunction(void)
     }
 }
 
+namespace pitz{ namespace daq{
+
+int64_t GetEventNumberFromTime(int64_t a_time)
+{
+	if(g_shareptr){
+		for(int i(0);i<s_H_count;++i){
+			if(static_cast<int64_t>(g_shareptr[i].seconds) == a_time){
+				return g_shareptr[i].gen_event;
+			}
+		}
+	}
+
+	return 0;
+}
+
+}} // namespace pitz{ namespace daq{
+
+
 void eq_init_prolog() 	// called once before init of all EqFct's
 {
 

@@ -23,7 +23,8 @@ SYSTEM_LIB = $$MYDOOCS/system_arch/$$CODENAME/lib
 
 # message ("!!!!! No cpp 11 used") # todo: calculate in the sys_common.pri
 # DOOCS always requires cpp 14
-QMAKE_CXXFLAGS += -std=c++0x
+#QMAKE_CXXFLAGS += -std=c++0x
+CONFIG += c++14
 
 equals(CODENAME,"Boron") {
     INCLUDEPATH += $$SYSTEM_LIB/include

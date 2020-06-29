@@ -66,11 +66,23 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
     }
 
     if(bCallIniter){
+		EntryParams::Base* pBase;
         //LoadFromLine(a_entryLine,true,bIsAddedByUser);
         m_doocsUrl.FindAndGetFromLine(a_entryLine);
-		m_pAdditionalData = new EntryParams::AdditionalDataDoocs(m_doocsUrl.value());
 		in.dataType = m_dataType.value();
+		//in.dataType = static_cast<int>(m_dataType) ;
 		out.inOutSamples = (m_samples);
+		pBase = EntryParams::Base::FindAndCreateEntryParamFromLine("additionalData",a_entryLine);
+		if(pBase){
+			EntryParams::Vector* pAddData = dynamic_cast<EntryParams::Vector*>(pBase);
+			if(pAddData){
+				m_pAdditionalData = new EntryParams::AdditionalDataDoocs(pAddData,m_doocsUrl.value());
+				if(m_pAdditionalData){
+					AddNewParameterToEnd(m_pAdditionalData,false,true);
+				}
+			}
+			delete pBase;
+		}
     }
 
 	if((in.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(out.inOutSamples<1)){
@@ -79,6 +91,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
         }
     }
 
+	in.shouldDupString = 1;
 	m_rootFormatStr = PrepareDaqEntryBasedOnType(&in,&out);
 	m_nSingleItemSize = static_cast<int>(out.oneItemSize);
 
@@ -93,7 +106,6 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
 pitz::daq::SingleEntryDoocsBase::~SingleEntryDoocsBase()
 {
     free(m_rootFormatStr);
-	delete m_pAdditionalData;
 }
 
 
@@ -107,3 +119,138 @@ const char* pitz::daq::SingleEntryDoocsBase::rootFormatString()const
 {
     return m_rootFormatStr;
 }
+
+
+/*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+pitz::daq::EntryParams::AdditionalDataDoocs::AdditionalDataDoocs( Vector* a_pContentToMove, const std::string& a_parentDoocsUrl)
+	:
+	  Vector ( a_pContentToMove ),
+	  m_parentDoocsUrl(a_parentDoocsUrl)
+{
+	const size_t cunVectorSize( m_vectorOfEntries.size() );
+	//size_t unIndexToDelete = cunVectorSize+1;
+	IntParam<int>* pRateParam=nullptr;
+	Doocs* pDoocsParam;
+
+	m_rateForFill = 0;
+	m_lastFillTime = 0;
+	for(size_t unIndex(0); unIndex<cunVectorSize;++unIndex){
+		pDoocsParam = dynamic_cast<Doocs*>(m_vectorOfEntries[unIndex]);
+		if(pDoocsParam){
+			pDoocsParam->SetParentDoocsAddres(a_parentDoocsUrl);
+		}
+		else if( strcmp(m_vectorOfEntries[unIndex]->paramName(),"rate")==0){
+			pRateParam = dynamic_cast< IntParam<int>* >(m_vectorOfEntries[unIndex]);
+			if(pRateParam){
+				//unIndexToDelete = unIndex;
+				m_rateForFill = static_cast< decltype (m_rateForFill) >( *pRateParam );
+			}
+		}  // if( strcmp(m_vectorOfEntries[unIndex]->paramName(),"rate")==0){
+
+	}  // for(size_t unIndex(0); unIndex<cunVectorSize;++unIndex){
+
+	if(m_rateForFill<3){
+		m_rateForFill = 10;
+	}
+
+	//if(unIndexToDelete<cunVectorSize){
+	//	m_vectorOfEntries.erase(m_vectorOfEntries.begin() + static_cast<ptrdiff_t>(unIndexToDelete));
+	//	delete pRateParam;
+	//}
+}
+
+
+pitz::daq::EntryParams::AdditionalDataDoocs::~AdditionalDataDoocs( )
+{
+}
+
+
+//void pitz::daq::EntryParams::AdditionalDataDoocs::Fill()
+//{
+//	//
+//}
+
+bool pitz::daq::EntryParams::AdditionalDataDoocs::timeToRefresh()const
+{
+	bool bRefresh = false;
+	time_t timeNow;
+
+	timeNow = time(&timeNow);
+
+	if((timeNow-m_lastFillTime)>m_rateForFill){
+		bRefresh = true;
+		m_lastFillTime = timeNow;
+	}
+
+	return bRefresh;
+}
+
+
+//void pitz::daq::EntryParams::AdditionalDataDoocs::push_back(Base* a_newEntry)
+//{
+//	AddDataItem<DoocsEntryPlatform,DoocsAddressString>* pDoocsAddressItem = dynamic_cast<AddDataItem<DoocsEntryPlatform,DoocsAddressString>*>(a_newEntry);
+//	if(pDoocsAddressItem){
+//		pDoocsAddressItem->SetParentDoocsAddres(m_parentDoocsUrl);
+//
+//			//std::string doocsAddrValue = pDoocsAddressItem->value();
+//			//
+//			//
+//			//struct PrepareDaqEntryInputs in;
+//			//struct PrepareDaqEntryOutputs out;
+//			//
+//			//if(!m_pCore){return false;}
+//			//if(m_pCore->isInited){return true;}
+//			//
+//			//memset(&in,0,sizeof(in));
+//			//memset(&out,0,sizeof(out));
+//			//
+//			//ptrdiff_t nCount = ::std::count(m_pCore->doocsUrl2.begin(),m_pCore->doocsUrl2.end(),'/');
+//			//
+//			//if(nCount>3){return false;}
+//			//
+//			//::std::string fullAddr;
+//			//
+//			//if(nCount<3){
+//			//	ptrdiff_t nParentCount = ::std::count(m_pCore->parentAndFinalDoocsUrl.begin(),m_pCore->parentAndFinalDoocsUrl.end(),'/');
+//			//	const ptrdiff_t cnNumberToRecover = (3-nCount);
+//			//	if(nParentCount<cnNumberToRecover){return false;}
+//			//	size_t unIndex=0;
+//			//	for(ptrdiff_t i(0);i<cnNumberToRecover;++i){
+//			//		unIndex = m_pCore->parentAndFinalDoocsUrl.find("/",unIndex+1);
+//			//	}
+//			//
+//			//	fullAddr = ::std::string(m_pCore->parentAndFinalDoocsUrl.c_str(),unIndex+1)+m_pCore->doocsUrl2;
+//			//
+//			//}
+//			//else{
+//			//	fullAddr = m_pCore->doocsUrl2;
+//			//}
+//			//
+//			//if( !GetEntryInfoFromDoocsServer(&m_pCore->doocsData,fullAddr,&m_pCore->dataType,&m_pCore->samples) ){return false;}
+//			//m_pCore->parentAndFinalDoocsUrl = fullAddr;
+//			//
+//			//in.dataType = m_pCore->dataType;
+//			//in.shouldDupString = 1;
+//			//out.inOutSamples = m_pCore->samples;
+//			//m_pCore->rootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
+//			//if(!(m_pCore->rootFormatString)){
+//			//	return false;
+//			//}
+//			//
+//			//if(m_value<100){m_value=100;}
+//			//
+//			//m_pCore->isInited = 1;
+//			//return true;
+//
+//
+//	}
+//	else{
+//	}
+//
+//	Vector::push_back(a_newEntry);
+//
+//	//// attention: be sure what is below
+//	//DoocsEntryPlatform* pPlatform = reinterpret_cast<DoocsEntryPlatform*>(a_newEntry);
+//	//if(pPlatform->m_bIsDoocsAdress){
+//	//}
+//}

@@ -2,6 +2,7 @@
 *~
 *.obj
 *.pro.user*
+*.autosave
 .tmp/*
 
 /prj/*/build-*

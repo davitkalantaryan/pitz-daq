@@ -19,20 +19,30 @@ namespace pitz{namespace daq{
 
 namespace EntryParams{
 
-class AdditionalDataDoocs : public AdditionalData
+class DoocsEntryPlatform
 {
 public:
-	AdditionalDataDoocs(const ::std::string& parentDoocsUrl);
+	DoocsEntryPlatform(){this->nonDoocsDataPointer = nullptr;}
+	EqData			data;
+	void*			nonDoocsDataPointer;
+};
+
+
+class AdditionalDataDoocs : public Vector
+{
+public:
+	AdditionalDataDoocs( Vector* a_pContentToMove, const ::std::string& parentDoocsUrl);
 	~AdditionalDataDoocs() OVERRIDE2;
 
-	virtual void Fill() OVERRIDE2;
+	//void Fill() OVERRIDE2;
+	//void push_back(Base* newEntry) OVERRIDE2;
 
 private:
-	bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
-	bool   ShouldSkipProviding() const OVERRIDE2;
-	size_t writeDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize) const OVERRIDE2;
+	bool timeToRefresh()const OVERRIDE2;
 
 private:
+	time_t								m_rateForFill;
+	mutable time_t						m_lastFillTime;
 	::std::string						m_parentDoocsUrl;
 };
 
