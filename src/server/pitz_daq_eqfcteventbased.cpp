@@ -201,7 +201,8 @@ pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_cr
 
     m_pSocket = NEWNULLPTR;
     m_secondHeaderLength = 0;
-    m_expectedDataLength = 0;
+	m_expectedDataLength = 0;
+	m_nextExpectedDataLength = 0;
     m_isDataLoaded = 0;
 	m_bitwise64Reserved = 0;
     m_pBufferForSecondHeader = NEWNULLPTR;
@@ -282,7 +283,7 @@ DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
     }
 
     pMemory = CreateDataWithOffset2(0);
-    pMemory->data = CreatePitzDaqBuffer(m_expectedDataLength);
+	pMemory->data = CreatePitzDaqBuffer(m_expectedDataLength);
     more_size = sizeof(more);
     nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -290,22 +291,25 @@ DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
 		goto errorReturn;
     }
 
-    nReturn=zmq_recv(this->m_pSocket,pMemory->data,m_expectedDataLength,0);
+	nReturn=zmq_recv(this->m_pSocket,pMemory->data,m_expectedDataLength,0);
 
 	if(nReturn<1){
 		goto errorReturn;
 	}
-	else if(nReturn < static_cast<int>(m_expectedDataLength)){
-		m_expectedDataLength = static_cast<decltype (m_expectedDataLength)>(nReturn);
-	}
-	else if(nReturn > static_cast<int>(m_expectedDataLength)) {
-		// this one we will not handle, lets delete this buffer and wait for next
-		m_expectedDataLength = static_cast<decltype (m_expectedDataLength)>(nReturn);
-		ResizePitzDaqBuffer(pMemory->data,m_expectedDataLength);
+	//else if(nReturn < static_cast<int>(m_expectedDataLength2)){
+	//	m_nextExpectedDataLength = static_cast<decltype (m_nextExpectedDataLength)>(nReturn);
+	//}
+	//else if(nReturn > static_cast<int>(m_expectedDataLength2)) {
+	//	// this one we will not handle, lets delete this buffer and wait for next
+	//	m_nextExpectedDataLength = static_cast<decltype (m_nextExpectedDataLength)>(nReturn);
+	//	ResizePitzDaqBuffer(pMemory->data,m_expectedDataLength);
+	//}
+	else if(nReturn != static_cast<int>(m_expectedDataLength)){
+		m_nextExpectedDataLength = static_cast<decltype (m_nextExpectedDataLength)>(nReturn);
 	}
 
 	pMemory->header = aHeader;
-	pMemory->header.samples = nReturn/m_nSingleItemSize;
+	pMemory->header.samples = static_cast<decltype (pMemory->header.samples)>(m_expectedDataLength)/m_nSingleItemSize;
 
     return pMemory;
 
@@ -418,6 +422,12 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 
 void SingleEntryZmqDoocs::InitializeRootTree()
 {
+	if(m_expectedDataLength!=m_nextExpectedDataLength){
+		SingleEntryDoocsBase::InitializeRootTree();
+		m_expectedDataLength = m_nextExpectedDataLength;
+		//ResizePitzDaqBuffer(pMemory->data,m_expectedDataLength);
+	}
+
 	if(!CheckBranchExistanceAndCreateIfNecessary()){return;}
 
 	if(m_expectedDataLength>0){
@@ -452,7 +462,14 @@ void SingleEntryZmqDoocs::InitializeRootTree()
 
 void SingleEntryZmqDoocs::FinalizeRootTree()
 {
-	if(m_expectedDataLength>0){
+	bool bEqualLengths=true;
+	if(m_expectedDataLength!=m_nextExpectedDataLength){
+		SingleEntryDoocsBase::InitializeRootTree();
+		m_expectedDataLength = m_nextExpectedDataLength;
+	}
+
+	// if we have non correspondend root format string then not possible to save last data
+	if((m_expectedDataLength>0)&&bEqualLengths){
 		void* pPointer;
 		int64_t timeSeconds, macroPulse;
 		EqData dataIn, dataOut;

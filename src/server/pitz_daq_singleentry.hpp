@@ -121,6 +121,7 @@ public:
 	virtual void Fill(){}
 	virtual void Refresh(){}
 	virtual int	 dataType() const {return DATA_NULL;}
+	virtual int	 samples() const {return 0;}
 
 	static Base* FindAndCreateEntryParamFromLine(const char* a_paramName, const char* entryLine);
 
@@ -169,6 +170,7 @@ protected:
 	virtual void Fill() OVERRIDE2 ;
 	virtual const char* rootFormatString()const OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2;
+	virtual int	 samples() const OVERRIDE2;
 
 };
 
@@ -250,6 +252,7 @@ protected:
 	virtual void Fill() OVERRIDE2 ;
 	virtual const char* rootFormatString()const OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2 ;
+	virtual int	 samples() const OVERRIDE2;
 
 protected:
     ::std::string m_string;
@@ -272,6 +275,7 @@ private:
 	virtual const char* rootFormatString()const OVERRIDE2 ;
 	virtual void Fill() OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2;
+	virtual int	 samples() const OVERRIDE2;
 
 private:
 	char*			m_rootFormatStr;
@@ -279,6 +283,7 @@ private:
 	::std::string	m_doocsAddress;
 	::std::string	m_parentDoocsAddress;
 	int				m_dataType;
+	int				m_samples;
 };
 
 

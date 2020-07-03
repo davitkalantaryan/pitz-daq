@@ -33,7 +33,8 @@ private:
     void*                           m_pSocket;
     EntryParams::String             m_zmqEndpoint;
     uint32_t                        m_secondHeaderLength;
-    uint32_t                        m_expectedDataLength;
+	uint32_t                        m_expectedDataLength;
+	uint32_t                        m_nextExpectedDataLength;
     char                            *m_pBufferForSecondHeader;
 };
 

@@ -361,7 +361,7 @@ bool pitz::daq::SingleEntry::CheckBranchExistanceAndCreateIfNecessary()
 	if(!m_pTreeOnRoot){
 
 		char vcBufferData[4096];
-		snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d",m_dataType.value());
+		snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_COUNT "%d",m_dataType.value(),static_cast<int>(m_samples));
 
 		m_pTreeOnRoot = new TreeForSingleEntry(this);
 
@@ -788,7 +788,7 @@ void pitz::daq::EntryParams::Base::SetRootBranch(const char* a_cpcParentBranchNa
 	const char* cpcRootFormatString = this->rootFormatString();
 	if(cpcRootFormatString && cpcRootFormatString[0]){
 		::std::string rootBranchName = a_cpcParentBranchName + ::std::string("_") + paramName() +
-				::std::string("_") + ::std::to_string( this->dataType() );
+				::std::string("_") + DATA_HEADER_TYPE + ::std::to_string( this->dataType() ) + DATA_HEADER_COUNT + ::std::to_string( this->samples() );
 		m_pBranch =a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,this->rootFormatString());
 
 		//TBranch* pParentBranch = a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,static_cast<char*>(nullptr)); // crash
@@ -1393,6 +1393,12 @@ int	pitz::daq::EntryParams::String::dataType() const
 }
 
 
+int	pitz::daq::EntryParams::String::samples() const
+{
+	return 1;
+}
+
+
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 
@@ -1402,6 +1408,7 @@ pitz::daq::EntryParams::Doocs::Doocs(const char* a_entryParamName)
 {
 	m_rootFormatStr = nullptr;
 	m_dataType = DATA_NULL;
+	m_samples = 0;
 }
 
 
@@ -1446,7 +1453,10 @@ void pitz::daq::EntryParams::Doocs::Initialize()
 		GetEntryInfoFromDoocsServer(&m_data,m_doocsAddress,&in.dataType,&out.inOutSamples);
 		in.shouldDupString = 1;
 		m_dataType = in.dataType;
+		free(m_rootFormatStr);
+		m_rootFormatStr = nullptr;
 		m_rootFormatStr = PrepareDaqEntryBasedOnType(&in,&out);
+		m_samples = out.inOutSamples;
 	}
 }
 
@@ -1470,6 +1480,12 @@ void pitz::daq::EntryParams::Doocs::Fill()
 int	pitz::daq::EntryParams::Doocs::dataType() const
 {
 	return m_dataType;
+}
+
+
+int	pitz::daq::EntryParams::Doocs::samples() const
+{
+	return m_samples;
 }
 
 

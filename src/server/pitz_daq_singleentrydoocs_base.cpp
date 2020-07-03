@@ -34,6 +34,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
 	memset(&out,0,sizeof(out));
 
 	in.dataType = PITZ_DAQ_UNSPECIFIED_DATA_TYPE;
+	m_nSingleItemSize = -1;
 
     AddNewParameterToBeg(&m_doocsUrl,false,true);
 
@@ -85,27 +86,60 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
 		}
     }
 
-	if((in.dataType == PITZ_DAQ_UNSPECIFIED_DATA_TYPE)||(out.inOutSamples<1)){
-		if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples)){
-            throw ::std::bad_alloc();
-        }
-    }
-
-	in.shouldDupString = 1;
-	m_rootFormatStr = PrepareDaqEntryBasedOnType(&in,&out);
-	m_nSingleItemSize = static_cast<int>(out.oneItemSize);
-
-    if(!m_rootFormatStr){
-        throw ::std::bad_alloc();
-    }
-
-	m_samples = (out.inOutSamples);
+	if(!InitializeDoocsEntryFromServer()){
+		throw ::std::bad_alloc();
+	}
 }
 
 
 pitz::daq::SingleEntryDoocsBase::~SingleEntryDoocsBase()
 {
     free(m_rootFormatStr);
+}
+
+
+bool pitz::daq::SingleEntryDoocsBase::InitializeDoocsEntryFromServer()
+{
+	char* pcReturnFromPrepare;
+	int nSingleItemSize;
+	EqData dataOut;
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples)){
+		return false;
+	}
+
+	in.shouldDupString = 0;
+	pcReturnFromPrepare = PrepareDaqEntryBasedOnType(&in,&out);
+	if(!pcReturnFromPrepare){return false;}
+	nSingleItemSize = static_cast<int>(out.oneItemSize);
+
+	if((m_nSingleItemSize>=0)&&(m_nSingleItemSize!=nSingleItemSize)){
+		printftostderr(__FUNCTION__,"Data item size mismatch (%d=>%d)",m_nSingleItemSize,nSingleItemSize);
+		return false;
+	}
+
+	if(out.inOutSamples!=(m_samples)){
+		in.shouldDupString = 1;
+		free(m_rootFormatStr);
+		m_rootFormatStr = PrepareDaqEntryBasedOnType(&in,&out);
+		if(!m_rootFormatStr){
+			return false;
+		}
+		m_samples = (out.inOutSamples);
+	}
+
+	return true;
+}
+
+
+void pitz::daq::SingleEntryDoocsBase::InitializeRootTree()
+{
+	InitializeDoocsEntryFromServer();
 }
 
 

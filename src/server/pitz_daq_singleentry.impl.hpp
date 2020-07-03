@@ -159,4 +159,11 @@ int pitz::daq::EntryParams::SomeInts<Int32Type>::dataType()const
 	return DATA_INT;
 }
 
+
+template <typename Int32Type>
+int	pitz::daq::EntryParams::SomeInts<Int32Type>::samples() const
+{
+	return 1;
+}
+
 #endif // #ifndef PITZ_DAQ_SINGLEENTRY_IMPL_HPP
