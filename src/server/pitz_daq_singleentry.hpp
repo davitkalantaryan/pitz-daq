@@ -17,6 +17,7 @@
 #include <TTree.h>
 #include <sys/timeb.h>
 #include <vector>
+#include <pitz_daq_eqdata.hpp>
 
 #define ENTRY_IN_ERROR                  STATIC_CAST2(unsigned int,1)
 
@@ -73,6 +74,7 @@ class SingleEntryAdd;
 class SingleEntry;
 class EqFctCollector;
 class TreeForSingleEntry;
+class NewTFile;
 
 typedef const char* TypeConstCharPtr;
 
@@ -80,7 +82,7 @@ namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknow
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
 bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, int* pType, int* pSamples );
-void* GetDataPointerFromEqData(EqData* a_pData,int64_t* a_pTimeeconds, int64_t* a_pMacroPulse);
+DEC_OUT_PD(Header)* GetDataPointerFromEqData2(uint32_t a_nExpectedDataLen, EqData* a_pData,int64_t* a_pTimeeconds, int64_t* a_pMacroPulse, bool* a_pbFreeFillData);
 int64_t GetEventNumberFromTime(int64_t a_time);
 
 #define D_BASE_FOR_STR  D_text
@@ -118,7 +120,7 @@ public:
 	virtual const char* rootFormatString()const OVERRIDE2 {return "";}
 	virtual void SetRootBranch(const char* a_cpcParentBranchname, TTree* /*a_pTreeOnRoot*/);
 	virtual void InitRoot();
-	virtual void Fill(){}
+	virtual void Fill(DEC_OUT_PD(Header)*){}
 	virtual void Refresh(){}
 	virtual int	 dataType() const {return DATA_NULL;}
 	virtual int	 samples() const {return 0;}
@@ -145,8 +147,8 @@ public:
     virtual bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
     virtual size_t writeDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
     operator const IntType&()const;
-    void operator=(const IntType& newValue);
-    void operator++();
+	const IntType& operator=(const IntType& newValue);
+	const IntType& operator++();
 
 protected:
     IntType    m_value;
@@ -167,7 +169,7 @@ public:
 	virtual ::std::string additionalString()const{return "";}
 
 protected:
-	virtual void Fill() OVERRIDE2 ;
+	virtual void Fill(DEC_OUT_PD(Header)* pNewMemory) OVERRIDE2 ;
 	virtual const char* rootFormatString()const OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2;
 	virtual int	 samples() const OVERRIDE2;
@@ -249,7 +251,7 @@ public:
     void setValue(const ::std::string& newValue);
 
 protected:
-	virtual void Fill() OVERRIDE2 ;
+	virtual void Fill(DEC_OUT_PD(Header)* pNewMemory) OVERRIDE2 ;
 	virtual const char* rootFormatString()const OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2 ;
 	virtual int	 samples() const OVERRIDE2;
@@ -273,17 +275,24 @@ public:
 private:
 	void Initialize();
 	virtual const char* rootFormatString()const OVERRIDE2 ;
-	virtual void Fill() OVERRIDE2 ;
+	virtual void Fill(DEC_OUT_PD(Header)* pNewMemory) OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2;
 	virtual int	 samples() const OVERRIDE2;
 
 private:
-	char*			m_rootFormatStr;
-	EqData			m_data;
-	::std::string	m_doocsAddress;
-	::std::string	m_parentDoocsAddress;
-	int				m_dataType;
-	int				m_samples;
+	char*					m_rootFormatStr;
+	DEC_OUT_PD(Header)*		m_pFillData;
+	uint64_t				m_deleteFillData : 1;
+	uint64_t				m_reserved64bit01 : 63;
+	EqData					m_data;
+	::std::string			m_doocsAddress;
+	::std::string			m_parentDoocsAddress;
+	int						m_dataType;
+	int						m_samples;
+	int						m_nNextDataMaxSamples;
+	int						m_nSingleItemSize;
+	uint32_t				m_expectedDataLength;
+	uint32_t				m_reserved1;
 };
 
 
@@ -311,7 +320,7 @@ public:
 
 	void SetRootBranch(const char* a_cpcParentBranchname, TTree* a_pTreeOnRoot) OVERRIDE2;
 	void InitRoot() OVERRIDE2;
-	virtual void Fill() OVERRIDE2;
+	virtual void Fill(DEC_OUT_PD(Header)* pNewMemory) OVERRIDE2;
 	virtual bool timeToRefresh()const{return true;}
 
 	void GetItemsFromLine(const char* entryLine);
@@ -349,7 +358,7 @@ public:
 	virtual ~SingleEntry() OVERRIDE2;
 
 	virtual const char* rootFormatString()const=0;
-	virtual void        FreeUsedMemory(DEC_OUT_PD(SingleData2)* usedMemory);
+	virtual void        FreeUsedMemory(DEC_OUT_PD(Header)* usedMemory)=0;
 	virtual void		InitializeRootTree(){}
 	virtual void		FinalizeRootTree(){}
 
@@ -364,17 +373,18 @@ public:
 	bool                resetNetworkLockAndReturnIfDeletable();
 	bool                resetRooFileLockAndReturnIfDeletable();
 	bool                isLockedForAnyAction()const;
-	void                Fill(DEC_OUT_PD(SingleData2)* pNewMemory);
+	void                Fill(DEC_OUT_PD(Header)* pNewMemory);
 	const char*         daqName()const{return m_daqName;}
-	int                 firstSecond()const{return m_firstHeader.timestampSeconds;}
-	int                 firstEventNumber()const{return m_firstHeader.eventNumber;}
-	int                 lastSecond()const{return m_lastHeader.timestampSeconds;}
-	int                 lastEventNumber()const{return m_lastHeader.eventNumber;}
+	int                 firstSecond()const{return m_firstHeader.seconds;}
+	int                 firstEventNumber()const{return m_firstHeader.gen_event;}
+	int                 lastSecond()const{return m_lastHeader.seconds;}
+	int                 lastEventNumber()const{return m_lastHeader.gen_event;}
 	uint64_t            isPresentInLastFile()const{return m_isPresentInLastFile;}
 	void                writeContentToTheFile(FILE* fpFile)const;
 	void                IncrementError(uint8_t errorMask, const ::std::string& a_errorString);
 	void                DecrementError(uint8_t errorMask);
 	void                ResetAllErrors();
+	NewTFile*			GetCurrentFile() const;
 
 	// This API will be used only by inheritors (childs, grandchilds etc.)
 protected:
@@ -382,7 +392,7 @@ protected:
 	void                AddNewParameterToEnd(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
 	void                AddNewParameterToBeg(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
 	bool				CheckBranchExistanceAndCreateIfNecessary();
-	void                FillRaw(DEC_OUT_PD(SingleData2)* pNewMemory);
+	void                FillRaw(DEC_OUT_PD(Header)* pNewMemory);
 
 private:
 	// DOOCS callbacks
@@ -423,8 +433,7 @@ private:
 	//time_t                                  m_lastReadTime;
 	SNetworkStruct*                         m_pNetworkParent;
 	TreeForSingleEntry*                     m_pTreeOnRoot;
-	TBranch*                                m_pHeaderBranch;
-	TBranch*                                m_pDataBranch;
+	TBranch*                                m_pHeaderAndDataBranch;
 
 	mutable uint64_t                        m_willBeDeletedOrIsUsedAtomic64 ;
 
@@ -437,7 +446,7 @@ protected:
 	EqFctCollector*                         m_pParent;  // hope will be deleted
 
 	int                                     m_nSingleItemSize;
-	int                                     m_nReserved0;
+	int                                     m_nNextDataMaxSamples;
 	int                                     m_nReserved1;
 	int                                     m_nReserved2;
 

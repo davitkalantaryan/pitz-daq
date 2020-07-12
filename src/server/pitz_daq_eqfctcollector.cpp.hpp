@@ -20,8 +20,11 @@ class SingleEntry;
 class NewTFile : public ::TFile
 {
 public:
-	NewTFile(const char* filePath, const ::std::vector< SingleEntry* >& a_list);
+	NewTFile(const char* filePath);
     ~NewTFile() OVERRIDE2;
+
+	void Initialize(const ::std::vector< SingleEntry* >& a_list);
+	void Cleanup();
 
 	void FinalizeAndSaveAllTrees();
 	void AddNewTree(TreeForSingleEntry* a_pNewTree);

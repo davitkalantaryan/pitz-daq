@@ -57,11 +57,6 @@ public:
     const char* rootFormatString()const OVERRIDE2;
     const ::std::string& doocsUrl()const ;
 
-	bool InitializeDoocsEntryFromServer();
-
-protected:
-	virtual void		InitializeRootTree() OVERRIDE2 ;
-
 protected:
     EntryParams::String             m_doocsUrl;
     char*                           m_rootFormatStr;

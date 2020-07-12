@@ -51,16 +51,17 @@ pitz::daq::EntryParams::IntParam<IntType>::operator const IntType&()const
 
 
 template <typename IntType>
-void pitz::daq::EntryParams::IntParam<IntType>::operator=(const IntType& a_newValue)
+const IntType& pitz::daq::EntryParams::IntParam<IntType>::operator=(const IntType& a_newValue)
 {
     m_value=a_newValue;
+	return m_value;
 }
 
 
 template <typename IntType>
-void pitz::daq::EntryParams::IntParam<IntType>::operator++()
+const IntType& pitz::daq::EntryParams::IntParam<IntType>::operator++()
 {
-    ++m_value;
+	return ++m_value;
 }
 
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
@@ -136,7 +137,7 @@ size_t pitz::daq::EntryParams::SomeInts<Int32Type>::writeDataToLineBuffer(char* 
 
 
 template <typename Int32Type>
-void pitz::daq::EntryParams::SomeInts<Int32Type>::Fill()
+void pitz::daq::EntryParams::SomeInts<Int32Type>::Fill(DEC_OUT_PD(Header)*)
 {
 	IntParam<Int32Type>::m_pBranch->SetAddress(&(IntParam<Int32Type>::m_value));
 }

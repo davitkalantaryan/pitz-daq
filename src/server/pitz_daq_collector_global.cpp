@@ -23,15 +23,6 @@ static int mkdir_p_raw(const char *a_path, mode_t a_mode);
 struct H_struct* g_shareptr = NEWNULLPTR2;
 
 const char* object_name = "daqcollector";
-extern int g_nIsZombieFile;
-int g_nIsZombieFile = 0;
-
-static void CleanupFunction(void)
-{
-    if(g_nIsZombieFile){
-        printf("exiting app, because of zombie!\n");
-    }
-}
 
 namespace pitz{ namespace daq{
 
@@ -60,8 +51,6 @@ void eq_init_prolog() 	// called once before init of all EqFct's
     printf("Press any key, then press Enter to continue\n");fflush(stdout);
     getchar();
 #endif
-
-    atexit(CleanupFunction);
 
     if(s_SHMKEY){return;}
 

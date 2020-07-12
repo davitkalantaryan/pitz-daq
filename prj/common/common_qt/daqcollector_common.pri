@@ -3,6 +3,7 @@
 # Created by : Davit Kalantaryan (davit.kalantaryan@desy.de)
 # This file can be used to produce Makefile for daqadcreceiver application
 # for PITZ
+
 message("!!! daqcollector_common.pri:")
 
 win32{
@@ -15,16 +16,14 @@ win32{
 }
 
 include(../../common/common_qt/root_no_gui_common.pri)
-DEFINES += ROOT_APP
-
 include($${PWD}/../../../contrib/data_handling/contrib/matlab/prj/common/common_qt/matlab_matrix_without_libs_common.pri)
-DEFINES += USE_NEW_MATLB_NAMES
 
+DEFINES += ROOT_APP
+DEFINES += USE_NEW_MATLB_NAMES
 DEFINES += R__NULLPTR
 DEFINES += ROOT_APP
+DEFINES += SERVER_APP
 
-SOURCES += \
-    $${PWD}/../../../contrib/data_handling/src/libs/common_libs_matlab_independent_functions.cpp
 
 # call qmake CONFIG+=test
 optionsTest = $$find(CONFIG, "1test")
@@ -46,72 +45,89 @@ INCLUDEPATH += $${PWD}/../../../include
 INCLUDEPATH += $${PWD}/../../../contrib/cpp-raft/include
 INCLUDEPATH += $${PWD}/../../../src/tools
 INCLUDEPATH += $${PWD}/../../../contrib/data_handling/include
+INCLUDEPATH += $${PWD}/../../../contrib/data_handling/src/include_p
 
 # these two lines are just for intelicence
 #INCLUDEPATH += /afs/ifh.de/@sys/products/root64/5.20.00/include
 #INCLUDEPATH += /doocs/lib/include
 
 SOURCES += \
-    $${PWD}/../../../src/server/pitz_daq_collectorproperties.cpp                            \
-    $${PWD}/../../../src/tools/mailsender.cpp                                               \
-    $${PWD}/../../../contrib/cpp-raft/common/cpp11+/thread_cpp11.cpp                        \
-    $${PWD}/../../../contrib/cpp-raft/common/cpp11+/mutex_cpp11.cpp                         \
-    $${PWD}/../../../contrib/cpp-raft/common/cpp11+/shared_mutex_cpp14.cpp                  \
-    $${PWD}/../../../src/tools/pitz_daq_data_memory_base.cpp                                \
-    $${PWD}/../../../src/tools/pitz_daq_data_memory_forserver.cpp                           \
-    $${PWD}/../../../src/server/pitz_daq_singleentry.cpp                                    \
-    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp                                 \
-    $${PWD}/../../../src/server/pitz_daq_collector_global.cpp                               \
-    $${PWD}/../../../src/tools/pitz_daq_data_entryinfo.cpp
-
-INCLUDEPATH += ../../../contrib/data_handling/src/include_p
-SOURCES += \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling.cpp              \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling_types.cpp        \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_indexing.cpp
+	$${PWD}/../../../contrib/data_handling/src/libs/common_libs_matlab_independent_functions.cpp	\
+	$${PWD}/../../../src/server/pitz_daq_collectorproperties.cpp									\
+	$${PWD}/../../../src/tools/mailsender.cpp														\
+	$${PWD}/../../../contrib/cpp-raft/common/cpp11+/thread_cpp11.cpp								\
+	$${PWD}/../../../contrib/cpp-raft/common/cpp11+/mutex_cpp11.cpp									\
+	$${PWD}/../../../contrib/cpp-raft/common/cpp11+/shared_mutex_cpp14.cpp							\
+	$${PWD}/../../../src/tools/pitz_daq_data_memory_base.cpp										\
+	$${PWD}/../../../src/tools/pitz_daq_data_memory_forserver.cpp									\
+	$${PWD}/../../../src/server/pitz_daq_singleentry.cpp											\
+	$${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp											\
+	$${PWD}/../../../src/server/pitz_daq_collector_global.cpp										\
+	$${PWD}/../../../src/tools/pitz_daq_data_entryinfo.cpp											\
+	\
+	$${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling.cpp						\
+	$${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling_types.cpp				\
+	$${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_indexing.cpp						\
+	$${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_eqdata.cpp
 
 HEADERS += \
-    $${PWD}/../../../src/server/pitz_daq_collectorproperties.hpp                            \
-    $${PWD}/../../../src/tools/mailsender.h                                                 \
-    $${PWD}/../../../contrib/cpp-raft/include/cpp11+/thread_cpp11.impl.hpp                  \
-    $${PWD}/../../../contrib/cpp-raft/include/cpp11+/thread_cpp11.hpp                       \
-    $${PWD}/../../../contrib/cpp-raft/include/cpp11+/common_defination.h                    \
-    $${PWD}/../../../contrib/cpp-raft/include/cpp11+/mutex_cpp11.hpp                        \
-    $${PWD}/../../../contrib/cpp-raft/include/common/common_unnamedsemaphorelite.hpp        \
-    $${PWD}/../../../contrib/cpp-raft/include/common/impl.common_fifofast.hpp               \
-    $${PWD}/../../../contrib/cpp-raft/include/common/common_fifofast.hpp                    \
-    $${PWD}/../../../contrib/cpp-raft/include/common/lists.hpp                              \
-    $${PWD}/../../../contrib/cpp-raft/include/common/impl.lists.hpp                         \
-    $${PWD}/../../../contrib/cpp-raft/include/cpp11+/shared_mutex_cpp14.hpp                 \
-    $${PWD}/../../../src/server/pitz_daq_singleentry.hpp                                    \
-    $${PWD}/../../../src/server/pitz_daq_singleentry.impl.hpp                               \
-    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.hpp                                 \
-    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.impl.hpp                            \
-    $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
-    $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp                             \
-    $${PWD}/../../../include/pitz_daq_internal.h                                            \
-    $${PWD}/../../../src/server/pitz_daq_singleentry.cpp.hpp                                \
-    $${PWD}/../../../include/common/inthash.hpp                                             \
-    $${PWD}/../../../include/common/inthash.impl.hpp                                        \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_types.h           \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling.h                 \
-    $${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp.hpp                             \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_daqdev.h          \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_collector_getter_common.h
+	$${PWD}/../../../src/server/pitz_daq_collectorproperties.hpp									\
+	$${PWD}/../../../src/server/pitz_daq_singleentry.hpp											\
+	$${PWD}/../../../src/server/pitz_daq_singleentry.impl.hpp										\
+	$${PWD}/../../../src/server/pitz_daq_eqfctcollector.hpp											\
+	$${PWD}/../../../src/server/pitz_daq_eqfctcollector.impl.hpp									\
+	$${PWD}/../../../src/server/pitz_daq_singleentry.cpp.hpp										\
+	$${PWD}/../../../src/server/pitz_daq_eqfctcollector.cpp.hpp										\
+	$${PWD}/../../../src/tools/mailsender.h															\
+	\
+	$${PWD}/../../../include/pitz/daq/data/memory/base.hpp											\
+	$${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp										\
+	$${PWD}/../../../include/pitz_daq_internal.h													\
+	$${PWD}/../../../include/common/inthash.hpp														\
+	$${PWD}/../../../include/common/inthash.impl.hpp												\
+	\
+	$${PWD}/../../../contrib/cpp-raft/include/cpp11+/thread_cpp11.impl.hpp							\
+	$${PWD}/../../../contrib/cpp-raft/include/cpp11+/thread_cpp11.hpp								\
+	$${PWD}/../../../contrib/cpp-raft/include/cpp11+/common_defination.h							\
+	$${PWD}/../../../contrib/cpp-raft/include/cpp11+/mutex_cpp11.hpp								\
+	$${PWD}/../../../contrib/cpp-raft/include/common/common_unnamedsemaphorelite.hpp				\
+	$${PWD}/../../../contrib/cpp-raft/include/common/impl.common_fifofast.hpp						\
+	$${PWD}/../../../contrib/cpp-raft/include/common/common_fifofast.hpp							\
+	$${PWD}/../../../contrib/cpp-raft/include/common/lists.hpp										\
+	$${PWD}/../../../contrib/cpp-raft/include/common/impl.lists.hpp									\
+	$${PWD}/../../../contrib/cpp-raft/include/cpp11+/shared_mutex_cpp14.hpp							\
+	\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_internal.h				\
+	$${PWD}/../../../contrib/data_handling/include/system_specific_definations.h					\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_collector_getter_common.h			\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_eqdata.hpp			\
+	\
+	$${PWD}/../../../contrib/data_handling/include/v1/pitz_daq_data_collector_getter_common.h	\
+	$${PWD}/../../../contrib/data_handling/include/current/pitz_daq_data_collector_getter_common.h	\
+	\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_collector_getter_common.h	\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_getter_from_child.h		\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_getter.h					\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_daqdev.h			\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling.h					\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_handling_types.h			\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_matlab.h					\
+	$${PWD}/../../../contrib/data_handling/include/pitz_daq_data_matlab_ser_deser.h
 
 OTHER_FILES += \
-    $${PWD}/../../../src/tools/pitz_daq_data_memory_base.cpp                                \
-    $${PWD}/../../../src/tools2/pitz/daq/data/memory/base.hpp                               \
-    $${PWD}/../../../src/tools2/pitz/daq/data/memory/forclient.hpp                          \
-    $${PWD}/../../../src/tools2/pitz/daq/data/memory/forserver.hpp                          \
-    $${PWD}/../../../src/tools2/cpp11+/common_defination.h                                  \
-    $${PWD}/../../../src/tools2/cpp11+/mutex_cpp11.hpp                                      \
-    $${PWD}/../../../src/tools2/cpp11+/thread_cpp11.hpp                                     \
-    $${PWD}/../../../src/tools2/cpp11+/thread_cpp11.impl.hpp                                \
-    $${PWD}/../../../src/tools2/pitz_daq_data_memory_base.cpp                               \
-    $${PWD}/../../../include/common/mapandhash.hpp                                          \
-    $${PWD}/../../../include/pitz/daq/data/memory/base.hpp                                  \
-    $${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp                             \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp                \
-    $${PWD}/../../../contrib/data_handling/include/pitz_daq_data_getter.h                   \
-    $${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp
+	$${PWD}/../../../src/tools/pitz_daq_data_memory_base.cpp									\
+	$${PWD}/../../../src/tools2/pitz/daq/data/memory/base.hpp									\
+	$${PWD}/../../../src/tools2/pitz/daq/data/memory/forclient.hpp								\
+	$${PWD}/../../../src/tools2/pitz/daq/data/memory/forserver.hpp								\
+	$${PWD}/../../../src/tools2/cpp11+/common_defination.h										\
+	$${PWD}/../../../src/tools2/cpp11+/mutex_cpp11.hpp											\
+	$${PWD}/../../../src/tools2/cpp11+/thread_cpp11.hpp											\
+	$${PWD}/../../../src/tools2/cpp11+/thread_cpp11.impl.hpp									\
+	$${PWD}/../../../src/tools2/pitz_daq_data_memory_base.cpp									\
+	$${PWD}/../../../include/common/mapandhash.hpp												\
+	$${PWD}/../../../include/pitz/daq/data/memory/base.hpp										\
+	$${PWD}/../../../include/pitz/daq/data/memory/forserver.hpp									\
+	$${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_getter.cpp					\
+	$${PWD}/../../../contrib/data_handling/include/v1/pitz_daq_data_handling_v1.h				\
+	$${PWD}/../../../contrib/data_handling/src/libs/pitz_daq_data_handling.cpp					\
+	$${PWD}/../../../contrib/data_handling/src/libs/daq_root_reader.cpp

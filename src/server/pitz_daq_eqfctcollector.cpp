@@ -63,6 +63,7 @@ pitz::daq::EqFctCollector::EqFctCollector()
           m_entriesInError("ENTRIES.IN.ERROR",this),
           m_entriesReturnDelimeter("ENTRIES.RETURN.DELIMETER valid delimeters '\t' '\n' ' ' ',' ';'",this)
 {
+	m_pRootFile = nullptr;
     m_pNextNetworkToAdd = NEWNULLPTR2;
 
     m_unErrorUnableToWriteToDcacheNum = 0;
@@ -609,15 +610,14 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
     }
 }
 
-extern int g_nIsZombieFile;
 
-pitz::daq::NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
+void pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
     Int_t nVersion = PITZ_DAQ_CURRENT_VERSION;
     int64_t llnCurFileSize;
-    NewTFile *pRootFile;
     TTree* pTreeForVersion;
     TBranch *pBranchVersion;
+	int nFailureIterations;
     std::string localDirPath, remoteDirPath, fileName;
 	::std::vector<SingleEntry*> vectorEntries;
 
@@ -641,13 +641,24 @@ pitz::daq::NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_p
     mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
     mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
 
-	pRootFile = new NewTFile(a_pFilePathLocal->c_str(), vectorEntries);// SetCompressionLevel(1)
-    if ((!pRootFile) || pRootFile->IsZombie()){
-        g_nIsZombieFile = 1;
-        fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
-        exit(-1);
-    }
-    pRootFile->cd(); gFile = pRootFile;
+	nFailureIterations = 0;
+	do{
+		m_pRootFile = new NewTFile(a_pFilePathLocal->c_str());// SetCompressionLevel(1)
+		if ((!m_pRootFile) || m_pRootFile->IsZombie() || (!m_pRootFile->IsOpen())){
+			fprintf(stderr,"!!!! Error opening ROOT file (ln:%d) ",__LINE__);
+			if((++nFailureIterations)>10){
+				fprintf(stderr,"going to exit.\n");
+				exit(1);
+			}
+			else{
+				fprintf(stderr,"waiting for 5 s and trying again.\n");
+				SleepMs(5000);
+			}
+		}
+	}
+	while((!m_pRootFile) || m_pRootFile->IsZombie() || (!m_pRootFile->IsOpen()));
+	m_pRootFile->cd();
+	m_pRootFile->Initialize(vectorEntries);
 
     pTreeForVersion = new TTree(VERSION_TREE_AND_BRANCH_NAME,"DATA");
     pBranchVersion=pTreeForVersion->Branch(VERSION_TREE_AND_BRANCH_NAME,nullptr,"version/I");
@@ -659,17 +670,16 @@ pitz::daq::NewTFile* pitz::daq::EqFctCollector::RootFileCreator(std::string* a_p
     pTreeForVersion->Fill();
     pTreeForVersion->AutoSave("SaveSelf");
 
-    llnCurFileSize=pRootFile->GetSize();m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
+	llnCurFileSize=m_pRootFile->GetSize();m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
     DEBUG_APP_INFO(2," ");
 
-    return pRootFile;
 }
 
 
 
 void pitz::daq::EqFctCollector::RootThreadFunction()
 {
-    NewTFile* pRootFile=nullptr;
+	m_pRootFile=nullptr;
     std::string filePathLocal, filePathRemote;
     SStructForFill strToFill;
     int64_t llnCurFileSize, llnMaxFileSize/*, llnCurFileSizeLastSaved=0*/;
@@ -680,22 +690,24 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 
         while( m_fifoToFill.frontAndPop(&strToFill) ){
 
-            if(!pRootFile){  // open root file
-                pRootFile=RootFileCreator(&filePathLocal,&filePathRemote);
+			if(!m_pRootFile){  // open root file
+				// RootFileCreator will not exit if file creation is not done
+				RootFileCreator(&filePathLocal,&filePathRemote);
             }
 
             strToFill.entry->Fill(strToFill.data);
 
-            llnCurFileSize=gFile->GetSize();
+			llnCurFileSize=m_pRootFile->GetSize();
             llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());
             m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
 
             if(llnCurFileSize>=llnMaxFileSize){ // close root file
-				pRootFile->FinalizeAndSaveAllTrees();
-                pRootFile->TDirectory::DeleteAll();
-                pRootFile->TDirectory::Close();
-                delete pRootFile;
-                pRootFile = NEWNULLPTR2;
+				m_pRootFile->FinalizeAndSaveAllTrees();
+				m_pRootFile->TDirectory::DeleteAll();
+				m_pRootFile->TDirectory::Close();
+				m_pRootFile->Cleanup();
+				delete m_pRootFile;
+				m_pRootFile = NEWNULLPTR2;
                 m_currentFileSize.set_value(-1);
                 CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
             }
@@ -704,13 +716,14 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 
     } // while( this->shouldWork() )
 
-    if(pRootFile){
-		pRootFile->FinalizeAndSaveAllTrees();
-        pRootFile->cd();gFile = pRootFile;
-        pRootFile->TDirectory::DeleteAll();
-        pRootFile->TDirectory::Close();
-        delete pRootFile;
-        pRootFile = NEWNULLPTR2;
+	if(m_pRootFile){
+		m_pRootFile->FinalizeAndSaveAllTrees();
+		m_pRootFile->cd();
+		m_pRootFile->TDirectory::DeleteAll();
+		m_pRootFile->TDirectory::Close();
+		m_pRootFile->Cleanup();
+		delete m_pRootFile;
+		m_pRootFile = NEWNULLPTR2;
         m_currentFileSize.set_value(-1);
         CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
     }
@@ -783,7 +796,7 @@ uint64_t pitz::daq::EqFctCollector::shouldWork()const
 }
 
 
-bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData2)* a_data, SingleEntry* a_pEntry)
+bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(Header)* a_data, SingleEntry* a_pEntry)
 {
     bool bPossibleToAdd = a_pEntry->lockEntryForRoot();
 
@@ -799,20 +812,29 @@ bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(SingleData2)* a_d
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 
-pitz::daq::NewTFile::NewTFile(const char* a_filePath, const ::std::vector< SingleEntry* >& a_list)
+pitz::daq::NewTFile::NewTFile(const char* a_filePath)
     :
       TFile(a_filePath,"UPDATE","DATA",1)
 {
-	gFile = this;
+}
+
+
+pitz::daq::NewTFile::~NewTFile()
+{
+}
+
+
+void pitz::daq::NewTFile::Initialize(const ::std::vector< SingleEntry* >& a_list)
+{
 	for(auto& pEntry : a_list){
 		pEntry->InitializeRootTree();
 	}
 }
 
 
-pitz::daq::NewTFile::~NewTFile()
+void pitz::daq::NewTFile::Cleanup()
 {
-    gFile=nullptr;
+	//
 }
 
 

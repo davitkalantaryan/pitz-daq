@@ -12,6 +12,7 @@
 namespace pitz{namespace daq{
 
 class SingleEntry;
+class NewTFile;
 
 class TreeForSingleEntry : public ::TTree
 {
@@ -19,7 +20,7 @@ public:
     TreeForSingleEntry( SingleEntry* pEntry );
     ~TreeForSingleEntry() OVERRIDE2;
 
-	void Finalize();
+	void Finalize();	
 
 private:
     SingleEntry*    m_pParentEntry;

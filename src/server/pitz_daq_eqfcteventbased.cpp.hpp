@@ -22,19 +22,20 @@ public:
     void* socket()const;
 
     bool LoadOrValidateData(void* a_pContext);
-    DEC_OUT_PD(SingleData2)* ReadData();
-    void SetMemoryBack( DEC_OUT_PD(SingleData2)* );
+	DEC_OUT_PD(Header)* ReadData();
+	void SetMemoryBack( DEC_OUT_PD(SingleData)* );
 
 private:
 	void		InitializeRootTree() OVERRIDE2;
 	void		FinalizeRootTree() OVERRIDE2;
+	void		FreeUsedMemory(DEC_OUT_PD(Header)* a_usedMemory) OVERRIDE2;
 
 private:
     void*                           m_pSocket;
     EntryParams::String             m_zmqEndpoint;
     uint32_t                        m_secondHeaderLength;
 	uint32_t                        m_expectedDataLength;
-	uint32_t                        m_nextExpectedDataLength;
+	//uint32_t                        m_nextExpectedMaxDataLength;
     char                            *m_pBufferForSecondHeader;
 };
 

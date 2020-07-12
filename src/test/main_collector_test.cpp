@@ -41,7 +41,7 @@ int main()
         fprintf(stderr,"!!!! Error opening ROOT file %s. ln:%d\n",TEST_ROOT_FILE_NAME, __LINE__);
         goto returnPoint;
     }
-    pRootFile->cd();gFile = pRootFile;
+	pRootFile->cd();
 
     pRootTree = new TTree(TEST_DAQ_ENTRY_NAME,"DATA");
     pBranchHeader=pRootTree->Branch("header",nullptr,TEST_ROOT_FORMAT_STRING_HEADER);
@@ -71,7 +71,7 @@ int main()
     pRootTree->AutoSave("SaveSelf");
     pRootFile->TDirectory::DeleteAll();
     pRootFile->TDirectory::Close();
-    delete gFile;
+	delete pRootFile;
 
     nReturn = 0;
 returnPoint:

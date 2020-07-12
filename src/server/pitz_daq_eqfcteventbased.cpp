@@ -73,7 +73,7 @@ pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreation
 void pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct* a_pNet, const ::std::vector<SingleEntry*>& a_entries)
 {
     const SNetworkStructZmqDoocs* pNetZmq = static_cast< const SNetworkStructZmqDoocs* >(a_pNet);
-    DEC_OUT_PD(SingleData2)* dataFromNetwork;
+	DEC_OUT_PD(Header)* dataFromNetwork;
     SingleEntryZmqDoocs* pEntry;
     int nReturn;
     size_t unIndex;
@@ -202,7 +202,6 @@ pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_cr
     m_pSocket = NEWNULLPTR;
     m_secondHeaderLength = 0;
 	m_expectedDataLength = 0;
-	m_nextExpectedDataLength = 0;
     m_isDataLoaded = 0;
 	m_bitwise64Reserved = 0;
     m_pBufferForSecondHeader = NEWNULLPTR;
@@ -219,21 +218,31 @@ pitz::daq::SingleEntryZmqDoocs::~SingleEntryZmqDoocs()
 }
 
 
+void pitz::daq::SingleEntryZmqDoocs::FreeUsedMemory(DEC_OUT_PD(Header)* a_usedMemory)
+{
+	FreePitzDaqBuffer(a_usedMemory);
+}
+
+
 void* SingleEntryZmqDoocs::socket()const
 {
     return m_pSocket;
 }
 
 
-DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
+DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
 {
     int nReturn;
 	int32_t nDataType;
     dmsg_hdr_t aDcsHeader;
-    DEC_OUT_PD(SingleData2)* pMemory=nullptr;
+	DEC_OUT_PD(Header)* pMemory=nullptr;
     size_t     more_size;
     int        more;
     DEC_OUT_PD(Header) aHeader;
+
+	if(m_samples != (m_nNextDataMaxSamples)){
+		m_samples = (m_nNextDataMaxSamples);
+	}
 
     nReturn=zmq_recv(this->m_pSocket,&aDcsHeader,sizeof(dmsg_hdr_t),0);
     if(nReturn<4){
@@ -256,8 +265,8 @@ DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
 			goto errorReturn;
 		}
         nDataType = static_cast<decltype (nDataType)>(pHeaderV1->type);
-        aHeader.eventNumber = static_cast<decltype (aHeader.eventNumber)>(pHeaderV1->ident);
-		aHeader.timestampSeconds = static_cast<decltype (aHeader.timestampSeconds)>(ullnSec);
+		aHeader.gen_event = static_cast<decltype (aHeader.gen_event)>(pHeaderV1->ident);
+		aHeader.seconds = static_cast<decltype (aHeader.seconds)>(ullnSec);
     }break;
     default:
 		goto errorReturn;
@@ -282,8 +291,7 @@ DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
         }
     }
 
-    pMemory = CreateDataWithOffset2(0);
-	pMemory->data = CreatePitzDaqBuffer(m_expectedDataLength);
+	pMemory = CreatePitzDaqSingleData(m_expectedDataLength);
     more_size = sizeof(more);
     nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -291,25 +299,22 @@ DEC_OUT_PD(SingleData2)* SingleEntryZmqDoocs::ReadData()
 		goto errorReturn;
     }
 
-	nReturn=zmq_recv(this->m_pSocket,pMemory->data,m_expectedDataLength,0);
+	nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromEntry(pMemory),m_expectedDataLength,0);
 
 	if(nReturn<1){
 		goto errorReturn;
 	}
-	//else if(nReturn < static_cast<int>(m_expectedDataLength2)){
-	//	m_nextExpectedDataLength = static_cast<decltype (m_nextExpectedDataLength)>(nReturn);
-	//}
-	//else if(nReturn > static_cast<int>(m_expectedDataLength2)) {
-	//	// this one we will not handle, lets delete this buffer and wait for next
-	//	m_nextExpectedDataLength = static_cast<decltype (m_nextExpectedDataLength)>(nReturn);
-	//	ResizePitzDaqBuffer(pMemory->data,m_expectedDataLength);
-	//}
-	else if(nReturn != static_cast<int>(m_expectedDataLength)){
-		m_nextExpectedDataLength = static_cast<decltype (m_nextExpectedDataLength)>(nReturn);
+	else if(nReturn < static_cast<int>(m_expectedDataLength)){
+		m_expectedDataLength = static_cast< decltype (m_expectedDataLength) >(nReturn);
+		m_nNextDataMaxSamples = nReturn/m_nSingleItemSize;
+		m_samples = (m_nNextDataMaxSamples);
+	}
+	else if(nReturn > static_cast<int>(m_expectedDataLength)) {
+		m_expectedDataLength = static_cast< decltype (m_expectedDataLength) >(nReturn);
+		m_nNextDataMaxSamples = nReturn/m_nSingleItemSize;
 	}
 
-	pMemory->header = aHeader;
-	pMemory->header.samples = static_cast<decltype (pMemory->header.samples)>(m_expectedDataLength)/m_nSingleItemSize;
+	*pMemory = aHeader;
 
     return pMemory;
 
@@ -349,7 +354,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         return false;
     }
 	out.inOutSamples = dataOut.length();
-	m_samples = (out.inOutSamples);
+	//m_samples = (out.inOutSamples);
 
     //eqAddr.adr(m_doocsUrl.value());
     propToSubscribe = eqAddr.property();
@@ -413,6 +418,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 	if(!PrepareDaqEntryBasedOnType(&in,&out)){return false;}
 
 	m_nSingleItemSize = static_cast<int>(out.oneItemSize);
+	m_nNextDataMaxSamples = m_samples = (out.inOutSamples);
 	m_expectedDataLength = out.oneItemSize*static_cast<uint32_t>(out.inOutSamples);
     m_isDataLoaded = 1;
 
@@ -422,21 +428,21 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 
 void SingleEntryZmqDoocs::InitializeRootTree()
 {
-	if(m_expectedDataLength!=m_nextExpectedDataLength){
-		SingleEntryDoocsBase::InitializeRootTree();
-		m_expectedDataLength = m_nextExpectedDataLength;
-		//ResizePitzDaqBuffer(pMemory->data,m_expectedDataLength);
+	if(!isDataLoaded()){
+		const SNetworkStructZmqDoocs* pNetZmq = static_cast< const SNetworkStructZmqDoocs* >( networkParent() );
+		LoadOrValidateData(pNetZmq->m_pContext);
 	}
 
 	if(!CheckBranchExistanceAndCreateIfNecessary()){return;}
 
 	if(m_expectedDataLength>0){
-		void* pPointer;
+		DEC_OUT_PD(Header)* pDataToFill;
 		int64_t timeSeconds, macroPulse;
 		EqData dataIn, dataOut;
 		EqAdr doocsAdr;
 		EqCall doocsCall;
 		int nError;
+		bool bDeleteData;
 
 		doocsAdr.adr(m_doocsUrl.value());
 		if( (nError=doocsCall.get(&doocsAdr,&dataIn,&dataOut)) ){
@@ -444,17 +450,17 @@ void SingleEntryZmqDoocs::InitializeRootTree()
 			return;
 		}
 
-		pPointer = GetDataPointerFromEqData(&dataOut,&timeSeconds,&macroPulse);
-		if(pPointer){
-			DEC_OUT_PD(SingleData2) aDataToFill;
-			aDataToFill.data = pPointer;
-			aDataToFill.header.eventNumber = static_cast< decltype (aDataToFill.header.eventNumber) >(macroPulse);
-			aDataToFill.header.timestampSeconds = static_cast< decltype (aDataToFill.header.timestampSeconds) >(timeSeconds);
-			aDataToFill.header.samples = (m_samples);
-			if(aDataToFill.header.eventNumber<1){
-				aDataToFill.header.eventNumber = static_cast< decltype (aDataToFill.header.eventNumber) >(GetEventNumberFromTime(timeSeconds));
+		pDataToFill = GetDataPointerFromEqData2(m_expectedDataLength,&dataOut,&timeSeconds,&macroPulse,&bDeleteData);
+		if(pDataToFill){
+			pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(macroPulse);
+			pDataToFill->seconds = static_cast< decltype (pDataToFill->seconds) >(timeSeconds);
+			if(pDataToFill->gen_event<1){
+				pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(GetEventNumberFromTime(timeSeconds));
 			}
-			this->FillRaw(&aDataToFill);
+			this->FillRaw(pDataToFill);
+			if(bDeleteData){
+				FreePitzDaqBuffer(pDataToFill);
+			}
 		}
 	}
 }
@@ -462,20 +468,15 @@ void SingleEntryZmqDoocs::InitializeRootTree()
 
 void SingleEntryZmqDoocs::FinalizeRootTree()
 {
-	bool bEqualLengths=true;
-	if(m_expectedDataLength!=m_nextExpectedDataLength){
-		SingleEntryDoocsBase::InitializeRootTree();
-		m_expectedDataLength = m_nextExpectedDataLength;
-	}
-
 	// if we have non correspondend root format string then not possible to save last data
-	if((m_expectedDataLength>0)&&bEqualLengths){
-		void* pPointer;
+	if(m_expectedDataLength>0){
+		DEC_OUT_PD(Header)* pDataToFill;
 		int64_t timeSeconds, macroPulse;
 		EqData dataIn, dataOut;
 		EqAdr doocsAdr;
 		EqCall doocsCall;
 		int nError;
+		bool bDeleteData;
 
 		doocsAdr.adr(m_doocsUrl.value());
 		if( (nError=doocsCall.get(&doocsAdr,&dataIn,&dataOut)) ){
@@ -483,17 +484,17 @@ void SingleEntryZmqDoocs::FinalizeRootTree()
 			return;
 		}
 
-		pPointer = GetDataPointerFromEqData(&dataOut,&timeSeconds,&macroPulse);
-		if(pPointer){
-			DEC_OUT_PD(SingleData2) aDataToFill;
-			aDataToFill.data = pPointer;
-			aDataToFill.header.eventNumber = static_cast< decltype (aDataToFill.header.eventNumber) >(macroPulse);
-			aDataToFill.header.timestampSeconds = static_cast< decltype (aDataToFill.header.timestampSeconds) >(timeSeconds);
-			aDataToFill.header.samples = (m_samples);
-			if(aDataToFill.header.eventNumber<1){
-				aDataToFill.header.eventNumber = static_cast< decltype (aDataToFill.header.eventNumber) >(GetEventNumberFromTime(timeSeconds));
+		pDataToFill = GetDataPointerFromEqData2(m_expectedDataLength,&dataOut,&timeSeconds,&macroPulse,&bDeleteData);
+		if(pDataToFill){
+			pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(macroPulse);
+			pDataToFill->seconds = static_cast< decltype (pDataToFill->seconds) >(timeSeconds);
+			if(pDataToFill->gen_event<1){
+				pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(GetEventNumberFromTime(timeSeconds));
 			}
-			this->FillRaw(&aDataToFill);
+			this->FillRaw(pDataToFill);
+			if(bDeleteData){
+				FreePitzDaqBuffer(pDataToFill);
+			}
 		}
 	}
 }

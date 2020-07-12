@@ -74,8 +74,8 @@ private:
 };
 
 struct SStructForFill{
-    SingleEntry*             entry;
-    DEC_OUT_PD(SingleData2)* data;
+	SingleEntry*            entry;
+	DEC_OUT_PD(Header)*		data;
 };
 
 
@@ -100,7 +100,7 @@ protected:
 
     // API should be used by childs
 protected:
-    bool AddJobForRootThread(DEC_OUT_PD(SingleData2)* data, SingleEntry* pEntry);
+	bool AddJobForRootThread(DEC_OUT_PD(Header)* data, SingleEntry* pEntry);
     uint64_t  shouldWork()const;
 
     // API inherited from EqFct,
@@ -118,7 +118,7 @@ private:
     void CalcLocalDir(std::string* localDirPath)STUPID_NON_CONST;
     void CopyFileToRemoteAndMakeIndexing(const std::string& localFilePath, const std::string& remoteFilePath);
     void writeEntriesToConfig()const;
-    NewTFile*  RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
+	void RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
 
     // thread functions
     void  RootThreadFunction() ;
@@ -168,6 +168,7 @@ private:
     uint64_t                            m_unErrorUnableToWriteToDcacheNum : 16;
     uint64_t                            m_shouldWork : 1;
     uint64_t                            m_bitwise64Reserved : 47;
+	/*__thisthread */NewTFile*			m_pRootFile;
 
 };
 

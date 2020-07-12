@@ -55,14 +55,6 @@ static ::std::string GetPropertyName(const char* a_entryLine, TypeConstCharPtr* 
 
 
 
-void pitz::daq::SingleEntry::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedMemory)
-{
-	FreePitzDaqBuffer(a_usedMemory->data);a_usedMemory->data=NEWNULLPTR2;
-	FreePitzDaqBuffer(a_usedMemory->additionalDataPtr);a_usedMemory->additionalDataPtr=NEWNULLPTR2;
-	FreeDataWithOffset2(a_usedMemory,0);
-}
-
-
 /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
@@ -361,14 +353,12 @@ bool pitz::daq::SingleEntry::CheckBranchExistanceAndCreateIfNecessary()
 	if(!m_pTreeOnRoot){
 
 		char vcBufferData[4096];
-		snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_COUNT "%d",m_dataType.value(),static_cast<int>(m_samples));
+		snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_FIRST_MAX_COUNT "%d",m_dataType.value(),static_cast<int>(m_samples));
 
 		m_pTreeOnRoot = new TreeForSingleEntry(this);
 
-		m_pHeaderBranch =m_pTreeOnRoot->Branch(HEADERS_HEADER,nullptr,"seconds/I:gen_event/I:samples/I");
-		if(!m_pHeaderBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return false;}
-		m_pDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
-		if(!m_pDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return false;}
+		m_pHeaderAndDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
+		if(!m_pHeaderAndDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return false;}
 		if(m_pAdditionalData){m_pAdditionalData->SetRootBranch("",m_pTreeOnRoot);}
 	}
 
@@ -376,38 +366,39 @@ bool pitz::daq::SingleEntry::CheckBranchExistanceAndCreateIfNecessary()
 }
 
 
-void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
+void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
 	FillRaw(a_pNewMemory);
     FreeUsedMemory(a_pNewMemory);
 }
 
 
-void pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
+void pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
-	int32_t nGenEventNormalized = a_pNewMemory->header.eventNumber%s_H_count;
 	if(!lockEntryForRoot()){return;}
 	if(!CheckBranchExistanceAndCreateIfNecessary()){return;}
 
 	// handle possible gen event errors
-	if((a_pNewMemory->header.eventNumber<0)||(a_pNewMemory->header.eventNumber<m_lastHeader.timestampSeconds)){
-		// we have gen event error handle it
-	}
-	if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->header.eventNumber){
-		a_pNewMemory->header.timestampSeconds = g_shareptr[nGenEventNormalized].seconds;
-	}
+	// int32_t nGenEventNormalized = a_pNewMemory->gen_event%s_H_count;
+	//if((a_pNewMemory->header.gen_event<0)||(a_pNewMemory->header.gen_event<m_lastHeader.gen_event)){
+	//	// we have gen event error handle it
+	//}
+	//if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->gen_event){
+	//	a_pNewMemory->seconds = g_shareptr[nGenEventNormalized].seconds;
+	//}
 
+	a_pNewMemory->samples = static_cast<decltype (a_pNewMemory->samples)>(m_samples);
+	a_pNewMemory->branch_num_in_rcv_and_next_samples_in_root = static_cast<decltype (a_pNewMemory->branch_num_in_rcv_and_next_samples_in_root)>(m_nNextDataMaxSamples);
 
 	//if(g_shareptr[a_pNewMemory->eventNumber].gen_event)
 
-	m_pHeaderBranch->SetAddress(&(a_pNewMemory->header));
-	m_pDataBranch->SetAddress( a_pNewMemory->data);
-	if(m_pAdditionalData){m_pAdditionalData->Fill();}
+	m_pHeaderAndDataBranch->SetAddress( a_pNewMemory );
+	if(m_pAdditionalData){m_pAdditionalData->Fill(a_pNewMemory);}
 	m_pTreeOnRoot->Fill();
 
 	if(!m_isPresentInLastFile){
 		m_isPresentInLastFile = 1;
-		m_firstHeader = a_pNewMemory->header;
+		m_firstHeader = *a_pNewMemory;
 		m_numberInCurrentFile = (0);
 		++m_numberOfAllFiles;
 	}
@@ -417,7 +408,7 @@ void pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(SingleData2)* a_pNewMemory/*, i
 
 	DecrementError(ROOT_ERROR);
 
-	m_lastHeader = a_pNewMemory->header;
+	m_lastHeader = *a_pNewMemory;
 }
 
 
@@ -581,6 +572,12 @@ void pitz::daq::SingleEntry::ResetAllErrors()
 }
 
 
+pitz::daq::NewTFile* pitz::daq::SingleEntry::GetCurrentFile() const
+{
+	return m_pParent->m_pRootFile;
+}
+
+
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
@@ -644,16 +641,20 @@ pitz::daq::TreeForSingleEntry::TreeForSingleEntry( pitz::daq::SingleEntry* a_pPa
       ::TTree(a_pParentEntry->m_daqName, "DATA"),
       m_pParentEntry(a_pParentEntry)
 {
-    NewTFile* pFile = dynamic_cast<NewTFile*>(GetCurrentFile());
+	NewTFile* pFile = a_pParentEntry->GetCurrentFile();
     m_pParentEntry->m_isPresentInLastFile = 0;
-    pFile->AddNewTree(this);
+	if(pFile){
+		pFile->AddNewTree(this);
+	}
+	else{
+		fprintf(stderr,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! No root file\n");
+	}
 }
 
 
 pitz::daq::TreeForSingleEntry::~TreeForSingleEntry()
 {
-    m_pParentEntry->m_pHeaderBranch = NEWNULLPTR2;
-    m_pParentEntry->m_pDataBranch = NEWNULLPTR2;
+	m_pParentEntry->m_pHeaderAndDataBranch = NEWNULLPTR2;
 	if(m_pParentEntry->m_pAdditionalData){m_pParentEntry->m_pAdditionalData->InitRoot();}
     m_pParentEntry->m_pTreeOnRoot = NEWNULLPTR2;
     if(m_pParentEntry->resetRootLockAndReturnIfDeletable()){
@@ -931,17 +932,17 @@ void pitz::daq::EntryParams::Vector::SetRootBranch(const char* , TTree *a_pTreeO
     ( static_cast<int64_t>(((_timeFinal).time-(_timeInit).time)*1000)+static_cast<int64_t>((_timeFinal).millitm-(_timeInit).millitm)  )
 
 
-void pitz::daq::EntryParams::Vector::Fill()
+void pitz::daq::EntryParams::Vector::Fill(DEC_OUT_PD(Header)* a_pNewMemory)
 {
 	if(this->timeToRefresh()){
 		for( auto pParam : m_vectorOfEntries){
 			pParam->Refresh();
-			pParam->Fill();
+			pParam->Fill(a_pNewMemory);
 		}
 	}
 	else{
 		for( auto pParam : m_vectorOfEntries){
-			pParam->Fill();
+			pParam->Fill(a_pNewMemory);
 		}
 	}
 }
@@ -1375,7 +1376,7 @@ void pitz::daq::EntryParams::String::setValue(const ::std::string& a_newValue)
 }
 
 
-void pitz::daq::EntryParams::String::Fill()
+void pitz::daq::EntryParams::String::Fill(DEC_OUT_PD(Header)* )
 {
 	m_pBranch->SetAddress(const_cast<char*>(m_string.c_str()));
 }
@@ -1409,11 +1410,22 @@ pitz::daq::EntryParams::Doocs::Doocs(const char* a_entryParamName)
 	m_rootFormatStr = nullptr;
 	m_dataType = DATA_NULL;
 	m_samples = 0;
+	//DEC_OUT_PD(Header)*		m_pFillData;
+	//uint64_t				m_deleteFillData : 1;
+	//uint64_t				m_reserved64bit01 : 63;
+	m_pFillData = nullptr;
+	m_deleteFillData = 0;
+	m_reserved64bit01 =0;
+	m_expectedDataLength = 0;
+	m_reserved1 = 0;
 }
 
 
 pitz::daq::EntryParams::Doocs::~Doocs()
 {
+	if(m_deleteFillData){
+		FreePitzDaqBuffer(m_pFillData);
+	}
 	free(m_rootFormatStr);
 }
 
@@ -1421,6 +1433,7 @@ pitz::daq::EntryParams::Doocs::~Doocs()
 void pitz::daq::EntryParams::Doocs::Initialize()
 {
 	if((m_string.size()>1)&&(m_parentDoocsAddress.size()>0)){
+		const char* cpcRootFormatString;
 		size_t unIndex=0;
 		::std::string strLastPart;
 		ptrdiff_t nCount;
@@ -1451,12 +1464,17 @@ void pitz::daq::EntryParams::Doocs::Initialize()
 
 		m_data.init();
 		GetEntryInfoFromDoocsServer(&m_data,m_doocsAddress,&in.dataType,&out.inOutSamples);
-		in.shouldDupString = 1;
 		m_dataType = in.dataType;
-		free(m_rootFormatStr);
-		m_rootFormatStr = nullptr;
-		m_rootFormatStr = PrepareDaqEntryBasedOnType(&in,&out);
-		m_samples = out.inOutSamples;
+
+		cpcRootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
+		if(cpcRootFormatString){
+			m_nSingleItemSize = static_cast< decltype (m_nSingleItemSize) >(out.oneItemSize);
+			m_samples = out.inOutSamples;
+			m_expectedDataLength = static_cast< decltype (m_expectedDataLength) >(m_nSingleItemSize*m_samples);
+			if(!m_rootFormatStr){
+				m_rootFormatStr = strdup(cpcRootFormatString);
+			}
+		}
 	}
 }
 
@@ -1467,12 +1485,14 @@ const char* pitz::daq::EntryParams::Doocs::rootFormatString()const
 }
 
 
-void pitz::daq::EntryParams::Doocs::Fill()
+void pitz::daq::EntryParams::Doocs::Fill(DEC_OUT_PD(Header)* a_pNewMemory)
 {
-	void* pAddress = GetDataPointerFromEqData(&m_data,nullptr,nullptr);
-	if(pAddress){
-		m_pBranch->SetAddress( pAddress );
-		m_pBranch->Fill();
+	if(m_pFillData){
+		*m_pFillData = *a_pNewMemory;
+		m_pFillData->samples = m_samples;
+		m_pFillData->branch_num_in_rcv_and_next_samples_in_root = m_nNextDataMaxSamples;
+		m_pBranch->SetAddress( m_pFillData );
+		//m_pBranch->Fill(); // troot fill will will all
 	}
 }
 
@@ -1532,6 +1552,7 @@ void pitz::daq::EntryParams::Doocs::Refresh()
 	EqData dataIn, dataOut;
 	EqAdr doocsAdr;
 	EqCall doocsCaller;
+	bool bShouldDeletePointer=false;
 
 	doocsAdr.adr(m_doocsAddress);
 	if(doocsCaller.get(&doocsAdr,&dataIn,&dataOut)){
@@ -1542,6 +1563,15 @@ void pitz::daq::EntryParams::Doocs::Refresh()
 
 	m_data.init();
 	m_data.copy_from(&dataOut);
+
+	if(m_deleteFillData){
+		FreePitzDaqBuffer(m_pFillData);
+		m_deleteFillData = 0;
+	}
+	m_pFillData = nullptr;
+
+	m_pFillData = GetDataPointerFromEqData2(m_expectedDataLength,&m_data,nullptr,nullptr,&bShouldDeletePointer);
+	m_deleteFillData = bShouldDeletePointer?1:0;
 }
 
 
@@ -1617,7 +1647,7 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
 }
 
 
-void* GetDataPointerFromEqData(EqData* a_pData, int64_t* a_pTimeSeconds, int64_t* a_pMacroPulse)
+DEC_OUT_PD(Header)* GetDataPointerFromEqData2(uint32_t a_nExpectedDataLen, EqData* a_pData, int64_t* a_pTimeSeconds, int64_t* a_pMacroPulse, bool* a_pbFreeFillData)
 {
     EqDataBlock* pDataBlock = a_pData->data_block();
 
@@ -1631,10 +1661,28 @@ void* GetDataPointerFromEqData(EqData* a_pData, int64_t* a_pTimeSeconds, int64_t
         *a_pMacroPulse = static_cast<int64_t>((static_cast<uint64_t>(pDataBlock->mp_hi)<<32) | static_cast<uint64_t>(pDataBlock->mp_lo));
     }
 
+	if((nDataLen<2)||(a_pData->type()==DATA_IIII)||(a_pData->type()==DATA_IFFF)){
+		if( HAS_HEADER( &(pDataBlock->data_u.DataUnion_u) ) ){
+			*a_pbFreeFillData = false;
+			return PD_HEADER( &(pDataBlock->data_u.DataUnion_u) );
+		}
+		else{
+			DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleData(a_nExpectedDataLen);
+			memcpy(DATA_FROM_HEADER(pReturnWithHeader),&(pDataBlock->data_u.DataUnion_u),a_nExpectedDataLen);
+			*a_pbFreeFillData = true;
+			return pReturnWithHeader;
+		}
+	}
 
-    if((nDataLen<2)||(a_pData->type()==DATA_IIII)||(a_pData->type()==DATA_IFFF)){return &(pDataBlock->data_u.DataUnion_u);}
+	if( !HAS_HEADER(pDataBlock->data_u.DataUnion_u.d_char.d_char_val) ){
+		DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleData(a_nExpectedDataLen);
+		memcpy(DATA_FROM_HEADER(pReturnWithHeader),pDataBlock->data_u.DataUnion_u.d_char.d_char_val,a_nExpectedDataLen);
+		*a_pbFreeFillData = true;
+		return pReturnWithHeader;
+	}
 
-    return pDataBlock->data_u.DataUnion_u.d_char.d_char_val;
+	*a_pbFreeFillData = false;
+	return PD_HEADER(pDataBlock->data_u.DataUnion_u.d_char.d_char_val);
 }
 
 }}
