@@ -263,7 +263,8 @@ enteTryPoint:
             vectForEntries.clear();
             lockGuard.LockShared(&m_lockForEntries);
             for(auto pEntry : a_pNet->daqEntries()){
-                if(pEntry->lockEntryForNetwork()){
+				// todo: make new try to load from line, if not loaded
+				if(pEntry->isLoadedFromLine() && pEntry->lockEntryForNetwork()){
                     vectForEntries.push_back(pEntry);
                 }
             }

@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <pitz_daq_collector_global.h>
 #include "pitz_daq_collectorproperties.hpp"
 #include "pitz_daq_eqfctcollector.hpp"
 
@@ -178,4 +179,44 @@ static int mkdir_p_raw(const char *a_path, mode_t a_mode)
     } // if(nReturn){
 
     return nReturn;
+}
+
+using namespace pitz::daq;
+
+const size_t pitz::daq::data::g_cunOffsetToData = SIGNATURE_OFFSET + sizeof(DEC_OUT_PD(Header));
+
+namespace __private {
+
+static void DeleteFunction(void* a_pMemory)
+{
+	if(a_pMemory){
+		void* pMemoryToDelete = static_cast<char*>(a_pMemory)-data::g_cunOffsetToData;
+		if( (*static_cast< size_t** >(pMemoryToDelete))==(&pitz::daq::data::g_cunOffsetToData) ){
+			free(pMemoryToDelete);
+		}
+	}
+}
+
+}
+
+
+void* operator new( ::std::size_t a_unSize )
+{
+	const size_t cunCreationSize ( a_unSize + pitz::daq::data::g_cunOffsetToData );
+	void* pReturn = malloc(cunCreationSize);
+	if(!pReturn){throw ::std::bad_alloc();}
+	*static_cast< const size_t** >(pReturn) = &pitz::daq::data::g_cunOffsetToData;
+	return static_cast<char*>(pReturn)+pitz::daq::data::g_cunOffsetToData;
+}
+
+
+void operator delete (void* a_pMemory) noexcept
+{
+	__private::DeleteFunction(a_pMemory);
+}
+
+
+void operator delete (void* a_pMemory, ::std::size_t) noexcept
+{
+	__private::DeleteFunction(a_pMemory);
 }

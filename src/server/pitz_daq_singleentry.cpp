@@ -13,11 +13,11 @@
 #include "pitz_daq_singleentry.cpp.hpp"
 #include <eq_data.h>
 #include <eq_client.h>
-#include <pitz_daq_data_handling_types.h>
-#include <pitz_daq_data_handling_daqdev.h>
+#include <pitz_daq_data_daqdev_common.h>
 #include <pitz_daq_data_collector_getter_common.h>
 #include <algorithm>
 #include <iostream>
+#include <pitz_daq_collector_global.h>
 
 #define DATA_SIZE_TO_SAVE   50000  // 40 kB
 #define MIN_NUMBER_OF_FILLS 20
@@ -83,6 +83,11 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
 
     if(!pLine){throw errorsFromConstructor::syntax;}
     m_bitwise64Reserved = 0;
+	m_isLoadedFromLine = 0;
+	m_isPresentInLastFile = 0;
+	m_bitwise64Reserved = 0;
+
+	m_initialEntryine = a_entryLine;
 
     AddNewParameterToEnd(m_dataType.thisPtr(),false,true);
 	AddNewParameterToEnd(&m_samples,false,false);
@@ -325,6 +330,12 @@ uint64_t pitz::daq::SingleEntry::isDataLoaded() const
 }
 
 
+uint64_t pitz::daq::SingleEntry::isLoadedFromLine()const
+{
+	return m_isLoadedFromLine;
+}
+
+
 void pitz::daq::SingleEntry::set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc)
 {
     char vcBuffer[1024];
@@ -416,22 +427,32 @@ void pitz::daq::SingleEntry::writeContentToTheFile(FILE* a_fpFile)const
 {
     if(!(m_willBeDeletedOrIsUsedAtomic64&DELETER_ALL)){
         //char vcBufForCrt[32],vcBufForExp[32],vcBufForMask[32];
-        char vcBuffer[4096];
-        char* pcBufToWrite(vcBuffer);
-        size_t nBufLen(4093);
-        size_t nWritten;
 
-        for( auto pParam : m_permanentParams){
-            nWritten=pParam->writeToLineBuffer(pcBufToWrite,nBufLen,';');
-            if(nBufLen<=(nWritten+1)){return;}
-            nBufLen -= nWritten;
-            pcBufToWrite += nWritten;
-        }
-        pcBufToWrite[0]='\n';
-        pcBufToWrite[1]=0;
-        pcBufToWrite[2]=0;
+		if(m_isLoadedFromLine){
+			char vcBuffer[4096];
+			char* pcBufToWrite(vcBuffer);
+			size_t nBufLen(4093);
+			size_t nWritten;
 
-        fprintf(a_fpFile,"%s %s",m_daqName,vcBuffer);
+			for( auto pParam : m_permanentParams){
+				nWritten=pParam->writeToLineBuffer(pcBufToWrite,nBufLen,';');
+				if(nBufLen<=(nWritten+1)){return;}
+				nBufLen -= nWritten;
+				pcBufToWrite += nWritten;
+			}
+			pcBufToWrite[0]='\n';
+			pcBufToWrite[1]=0;
+			pcBufToWrite[2]=0;
+
+			fprintf(a_fpFile,"%s %s",m_daqName,vcBuffer);
+		}
+		else{
+			//fprintf(a_fpFile,"%s\n",m_initialEntryine.c_str());
+			fwrite(m_initialEntryine.c_str(),1,m_initialEntryine.length(),a_fpFile);
+			if(m_initialEntryine.back()!='\n'){
+				putc('\n',a_fpFile);
+			}
+		}
     }
 }
 
@@ -490,7 +511,7 @@ void pitz::daq::SingleEntry::get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, E
 
     // '\t' '\n' ' ' ',' ';'
     if(aDelimeter.FindAndGetFromLine(vcFromUser)){
-        cDelimeter = FindDelimeterFromString('\n',aDelimeter.value().c_str());
+		cDelimeter = FindDelimeterFromString('\n',aDelimeter.value());
     }
     else{
         //EqFctCollector* pClc = static_cast<EqFctCollector*>(get_eqfct());
@@ -789,7 +810,7 @@ void pitz::daq::EntryParams::Base::SetRootBranch(const char* a_cpcParentBranchNa
 	const char* cpcRootFormatString = this->rootFormatString();
 	if(cpcRootFormatString && cpcRootFormatString[0]){
 		::std::string rootBranchName = a_cpcParentBranchName + ::std::string("_") + paramName() +
-				::std::string("_") + DATA_HEADER_TYPE + ::std::to_string( this->dataType() ) + DATA_HEADER_COUNT + ::std::to_string( this->samples() );
+				DATA_HEADER_TYPE + ::std::to_string( this->dataType() ) + DATA_HEADER_FIRST_MAX_COUNT + ::std::to_string( this->samples() );
 		m_pBranch =a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,this->rootFormatString());
 
 		//TBranch* pParentBranch = a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,static_cast<char*>(nullptr)); // crash
@@ -1333,58 +1354,94 @@ bool pitz::daq::EntryParams::Mask::isMasked()
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
+#define VALUE_FROM_HEADERTR(_headerPtr)		( reinterpret_cast<char*>(_headerPtr) + sizeof( DEC_OUT_PD(Header) )  )
+
 pitz::daq::EntryParams::String::String(const char* a_entryParamName)
     :
       Base(a_entryParamName)
 {
-    //
+	char* pcStringPart;
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+
+	m_pHeader = nullptr;
+	m_pHeader=static_cast<DEC_OUT_PD(Header)*>(ResizePitzDaqBuffer(m_pHeader,1+sizeof( DEC_OUT_PD(Header) )));
+	pcStringPart = VALUE_FROM_HEADERTR(m_pHeader);
+	pcStringPart[0]=0;
+	m_unStrLen = 0;
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	in.dataType = DATA_STRING;
+	m_rootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
 }
 
 
 pitz::daq::EntryParams::String::~String()
 {
-    //
+	FreePitzDaqBuffer(m_pHeader);
 }
 
 
 bool pitz::daq::EntryParams::String::GetDataFromLine(const char* a_entryLine)
 {
+	char* pcStringPart;
     size_t unStrLen = strcspn(a_entryLine," \n\t;");
-    m_string = ::std::string(a_entryLine,unStrLen);
+
+	m_pHeader=static_cast<DEC_OUT_PD(Header)*>(ResizePitzDaqBuffer(m_pHeader,unStrLen+1+sizeof( DEC_OUT_PD(Header) )));
+	pcStringPart = VALUE_FROM_HEADERTR(m_pHeader);
+	memcpy(pcStringPart,a_entryLine,unStrLen);
+	pcStringPart[unStrLen]=0;
+	m_unStrLen = unStrLen;
+
     return true;
 }
 
 
 size_t pitz::daq::EntryParams::String::writeDataToLineBuffer(char* a_entryLineBuffer, size_t a_unBufferSize)const
 {
-    size_t unStrLen = m_string.length();
-    unStrLen = (unStrLen>a_unBufferSize)?a_unBufferSize:unStrLen;
-    memcpy(a_entryLineBuffer,m_string.data(),unStrLen);
-    return unStrLen;
+	if(m_unStrLen){
+		size_t unStrLen = m_unStrLen;
+		unStrLen = (unStrLen>a_unBufferSize)?a_unBufferSize:unStrLen;
+		memcpy(a_entryLineBuffer,VALUE_FROM_HEADERTR(m_pHeader),unStrLen);
+		return unStrLen;
+	}
+	return 0;
 }
 
 
-const ::std::string& pitz::daq::EntryParams::String::value()const
+const char* pitz::daq::EntryParams::String::value()const
 {
-    return m_string;
+	return VALUE_FROM_HEADERTR(m_pHeader);
 }
 
 
 void pitz::daq::EntryParams::String::setValue(const ::std::string& a_newValue)
 {
-    m_string = a_newValue;
+	const char* entryLine = a_newValue.c_str();
+	char* pcStringPart;
+	size_t unStrLen = a_newValue.length();
+
+	m_pHeader=static_cast<DEC_OUT_PD(Header)*>(ResizePitzDaqBuffer(m_pHeader,unStrLen+1+sizeof( DEC_OUT_PD(Header) )));
+	pcStringPart = VALUE_FROM_HEADERTR(m_pHeader);
+	memcpy(pcStringPart,entryLine,unStrLen);
+	pcStringPart[unStrLen]=0;
+	m_unStrLen = unStrLen;
 }
 
 
-void pitz::daq::EntryParams::String::Fill(DEC_OUT_PD(Header)* )
+void pitz::daq::EntryParams::String::Fill(DEC_OUT_PD(Header)* a_pHeader )
 {
-	m_pBranch->SetAddress(const_cast<char*>(m_string.c_str()));
+	*m_pHeader = *a_pHeader;
+	m_pBranch->SetAddress(m_pHeader);
 }
 
 
 const char* pitz::daq::EntryParams::String::rootFormatString()const
 {
-	return "data/C";
+	//return "data/C";
+	return m_rootFormatString;
 }
 
 
@@ -1432,7 +1489,8 @@ pitz::daq::EntryParams::Doocs::~Doocs()
 
 void pitz::daq::EntryParams::Doocs::Initialize()
 {
-	if((m_string.size()>1)&&(m_parentDoocsAddress.size()>0)){
+	if((m_unStrLen>1)&&(m_parentDoocsAddress.size()>0)){
+		::std::string aString = VALUE_FROM_HEADERTR(m_pHeader);
 		const char* cpcRootFormatString;
 		size_t unIndex=0;
 		::std::string strLastPart;
@@ -1445,8 +1503,8 @@ void pitz::daq::EntryParams::Doocs::Initialize()
 		memset(&in,0,sizeof(in));
 		memset(&out,0,sizeof(out));
 
-		if(m_string.at(0)!='/'){strLastPart=m_string;}
-		else{strLastPart=m_string.c_str()+1;}
+		if(aString.at(0)!='/'){strLastPart=aString;}
+		else{strLastPart=aString.c_str()+1;}
 		nCount = ::std::count(strLastPart.begin(),strLastPart.end(),'/');
 
 		if((nCount>=3)||((nCount+nParentCount)<2)){
@@ -1515,7 +1573,7 @@ bool pitz::daq::EntryParams::Doocs::GetDataFromLine(const char* a_entryLine)
 	::std::string stringInit = ::std::string(a_entryLine,unStrLen);
 
 	if(stringInit.find("doocs:",0)==0){
-		m_string = stringInit.c_str()+6;
+		String::setValue(stringInit.c_str()+6);
 		Initialize();
 		return true;
 	}
@@ -1530,9 +1588,9 @@ size_t pitz::daq::EntryParams::Doocs::writeDataToLineBuffer(char* a_entryLineBuf
 		memcpy(a_entryLineBuffer,"doocs:",6);
 		a_entryLineBuffer += 6;
 		a_unBufferSize -= 6;
-		size_t unStrLen = m_string.length();
+		size_t unStrLen = m_unStrLen;
 		unStrLen = (unStrLen>a_unBufferSize)?a_unBufferSize:unStrLen;
-		memcpy(a_entryLineBuffer,m_string.data(),unStrLen);
+		memcpy(a_entryLineBuffer,VALUE_FROM_HEADERTR(m_pHeader),unStrLen);
 		return unStrLen+6;
 	}
 
@@ -1570,7 +1628,7 @@ void pitz::daq::EntryParams::Doocs::Refresh()
 	}
 	m_pFillData = nullptr;
 
-	m_pFillData = GetDataPointerFromEqData2(m_expectedDataLength,&m_data,nullptr,nullptr,&bShouldDeletePointer);
+	m_pFillData = GetDataPointerFromEqData(m_expectedDataLength,&m_data,nullptr,nullptr,&bShouldDeletePointer);
 	m_deleteFillData = bShouldDeletePointer?1:0;
 }
 
@@ -1635,7 +1693,7 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
 
     if(nReturn){
         ::std::string errorString = a_pEqDataOut->get_string();
-        ::std::cerr << errorString << ::std::endl;
+		::std::cerr << "doocsAdr:"<<a_doocsUrl << ",err:"<<errorString << ::std::endl;
         return false;
     }
 
@@ -1647,7 +1705,7 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
 }
 
 
-DEC_OUT_PD(Header)* GetDataPointerFromEqData2(uint32_t a_nExpectedDataLen, EqData* a_pData, int64_t* a_pTimeSeconds, int64_t* a_pMacroPulse, bool* a_pbFreeFillData)
+DEC_OUT_PD(Header)* GetDataPointerFromEqData(uint32_t a_nExpectedDataLen, EqData* a_pData, int64_t* a_pTimeSeconds, int64_t* a_pMacroPulse, bool* a_pbFreeFillData)
 {
     EqDataBlock* pDataBlock = a_pData->data_block();
 
@@ -1667,7 +1725,7 @@ DEC_OUT_PD(Header)* GetDataPointerFromEqData2(uint32_t a_nExpectedDataLen, EqDat
 			return PD_HEADER( &(pDataBlock->data_u.DataUnion_u) );
 		}
 		else{
-			DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleData(a_nExpectedDataLen);
+			DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(a_nExpectedDataLen);
 			memcpy(DATA_FROM_HEADER(pReturnWithHeader),&(pDataBlock->data_u.DataUnion_u),a_nExpectedDataLen);
 			*a_pbFreeFillData = true;
 			return pReturnWithHeader;
@@ -1675,7 +1733,7 @@ DEC_OUT_PD(Header)* GetDataPointerFromEqData2(uint32_t a_nExpectedDataLen, EqDat
 	}
 
 	if( !HAS_HEADER(pDataBlock->data_u.DataUnion_u.d_char.d_char_val) ){
-		DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleData(a_nExpectedDataLen);
+		DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(a_nExpectedDataLen);
 		memcpy(DATA_FROM_HEADER(pReturnWithHeader),pDataBlock->data_u.DataUnion_u.d_char.d_char_val,a_nExpectedDataLen);
 		*a_pbFreeFillData = true;
 		return pReturnWithHeader;

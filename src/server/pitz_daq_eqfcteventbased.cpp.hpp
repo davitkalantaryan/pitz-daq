@@ -23,7 +23,7 @@ public:
 
     bool LoadOrValidateData(void* a_pContext);
 	DEC_OUT_PD(Header)* ReadData();
-	void SetMemoryBack( DEC_OUT_PD(SingleData)* );
+	void SetMemoryBack( DEC_OUT_PD(Header)* );
 
 private:
 	void		InitializeRootTree() OVERRIDE2;

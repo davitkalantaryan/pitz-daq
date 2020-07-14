@@ -11,13 +11,11 @@
 #include <signal.h>
 #include <stdint.h>
 #include <pitz_daq_internal.h>
-#include <pitz_daq_data_handling.h>
-#include <pitz_daq_data_handling_daqdev.h>
+#include <pitz_daq_data_types_common.h>
 #include <list>
 #include <TTree.h>
 #include <sys/timeb.h>
 #include <vector>
-#include <pitz_daq_eqdata.hpp>
 
 #define ENTRY_IN_ERROR                  STATIC_CAST2(unsigned int,1)
 
@@ -82,7 +80,7 @@ namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknow
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
 bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, int* pType, int* pSamples );
-DEC_OUT_PD(Header)* GetDataPointerFromEqData2(uint32_t a_nExpectedDataLen, EqData* a_pData,int64_t* a_pTimeeconds, int64_t* a_pMacroPulse, bool* a_pbFreeFillData);
+DEC_OUT_PD(Header)* GetDataPointerFromEqData(uint32_t a_nExpectedDataLen, EqData* a_pData,int64_t* a_pTimeeconds, int64_t* a_pMacroPulse, bool* a_pbFreeFillData);
 int64_t GetEventNumberFromTime(int64_t a_time);
 
 #define D_BASE_FOR_STR  D_text
@@ -174,6 +172,14 @@ protected:
 	virtual int	 dataType() const OVERRIDE2;
 	virtual int	 samples() const OVERRIDE2;
 
+protected:
+	const char* m_rootFormatString;
+	struct{
+		DEC_OUT_PD(Header)	header;
+		Int32Type			value;
+		uint32_t			reserved;
+	}m_rootable;
+
 };
 
 
@@ -247,8 +253,8 @@ public:
 
     virtual bool   GetDataFromLine(const char* entryLine) OVERRIDE2;
     virtual size_t writeDataToLineBuffer(char* entryLineBuffer, size_t unBufferSize)const OVERRIDE2;
-    const ::std::string& value()const;
-    void setValue(const ::std::string& newValue);
+	const char* value()const;
+	void setValue(const ::std::string& newValue);
 
 protected:
 	virtual void Fill(DEC_OUT_PD(Header)* pNewMemory) OVERRIDE2 ;
@@ -257,7 +263,9 @@ protected:
 	virtual int	 samples() const OVERRIDE2;
 
 protected:
-    ::std::string m_string;
+	const char*				m_rootFormatString;
+	DEC_OUT_PD(Header)*		m_pHeader;
+	size_t					m_unStrLen;
 };
 
 
@@ -363,6 +371,7 @@ public:
 	virtual void		FinalizeRootTree(){}
 
 	uint64_t			isDataLoaded()const;
+	uint64_t			isLoadedFromLine()const;
 	SNetworkStruct*     networkParent();
 	bool                markEntryForDeleteAndReturnIfPossibleNow();
 	bool                lockEntryForRoot();
@@ -403,6 +412,8 @@ private:
 private:
 	::std::list< SingleEntry* >::iterator   m_thisIter;
 
+	::std::string							m_initialEntryine;
+
 	::std::list<EntryParams::Base*>         m_allParams;
 	::std::list<EntryParams::Base*>         m_userSetableParams;
 	::std::list<EntryParams::Base*>         m_permanentParams;
@@ -441,7 +452,8 @@ private:
 
 protected:
 	uint64_t                                m_isDataLoaded : 1;
-	uint64_t                                m_bitwise64Reserved : 62;
+	uint64_t                                m_isLoadedFromLine : 1;
+	uint64_t                                m_bitwise64Reserved : 61;
 
 	EqFctCollector*                         m_pParent;  // hope will be deleted
 

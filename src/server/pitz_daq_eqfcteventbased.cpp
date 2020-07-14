@@ -14,6 +14,7 @@
 #include <pitz_daq_data_handling_types.h>
 #include <iostream>
 #include "pitz_daq_singleentry.cpp.hpp"
+#include <pitz_daq_data_daqdev_common.h>
 
 #ifndef HANDLE_LOW_MEMORY
 #define HANDLE_LOW_MEMORY(_memory,...) do{if(!(_memory)){exit(1);}}while(0)
@@ -291,7 +292,7 @@ DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
         }
     }
 
-	pMemory = CreatePitzDaqSingleData(m_expectedDataLength);
+	pMemory = CreatePitzDaqSingleDataHeader(m_expectedDataLength);
     more_size = sizeof(more);
     nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -299,7 +300,7 @@ DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
 		goto errorReturn;
     }
 
-	nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromEntry(pMemory),m_expectedDataLength,0);
+	nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromHeader(pMemory),m_expectedDataLength,0);
 
 	if(nReturn<1){
 		goto errorReturn;
@@ -410,7 +411,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         return false;
     }
 
-    nReturn = zmq_connect (this->m_pSocket, m_zmqEndpoint.value().c_str());
+	nReturn = zmq_connect (this->m_pSocket, m_zmqEndpoint.value());
     if(nReturn){
         return false;
     }
@@ -450,7 +451,7 @@ void SingleEntryZmqDoocs::InitializeRootTree()
 			return;
 		}
 
-		pDataToFill = GetDataPointerFromEqData2(m_expectedDataLength,&dataOut,&timeSeconds,&macroPulse,&bDeleteData);
+		pDataToFill = GetDataPointerFromEqData(m_expectedDataLength,&dataOut,&timeSeconds,&macroPulse,&bDeleteData);
 		if(pDataToFill){
 			pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(macroPulse);
 			pDataToFill->seconds = static_cast< decltype (pDataToFill->seconds) >(timeSeconds);
@@ -484,7 +485,7 @@ void SingleEntryZmqDoocs::FinalizeRootTree()
 			return;
 		}
 
-		pDataToFill = GetDataPointerFromEqData2(m_expectedDataLength,&dataOut,&timeSeconds,&macroPulse,&bDeleteData);
+		pDataToFill = GetDataPointerFromEqData(m_expectedDataLength,&dataOut,&timeSeconds,&macroPulse,&bDeleteData);
 		if(pDataToFill){
 			pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(macroPulse);
 			pDataToFill->seconds = static_cast< decltype (pDataToFill->seconds) >(timeSeconds);

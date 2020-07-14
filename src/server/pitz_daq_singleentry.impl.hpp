@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <pitz_daq_data_handling_types.h>
 
 template <typename IntType>
 pitz::daq::EntryParams::IntParam<IntType>::IntParam(const char* a_entryParamName)
@@ -90,7 +91,16 @@ pitz::daq::EntryParams::SomeInts<Int32Type>::SomeInts(const char* a_entryParamNa
 	:
 	  IntParam<Int32Type>(a_entryParamName)
 {
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
 	IntParam<Int32Type>::m_value = 0;
+
+	in.dataType = DATA_INT;
+	m_rootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
 }
 
 
@@ -137,9 +147,11 @@ size_t pitz::daq::EntryParams::SomeInts<Int32Type>::writeDataToLineBuffer(char* 
 
 
 template <typename Int32Type>
-void pitz::daq::EntryParams::SomeInts<Int32Type>::Fill(DEC_OUT_PD(Header)*)
+void pitz::daq::EntryParams::SomeInts<Int32Type>::Fill(DEC_OUT_PD(Header)* a_pHeader)
 {
-	IntParam<Int32Type>::m_pBranch->SetAddress(&(IntParam<Int32Type>::m_value));
+	m_rootable.header = *a_pHeader;
+	m_rootable.value = IntParam<Int32Type>::m_value;
+	IntParam<Int32Type>::m_pBranch->SetAddress(&m_rootable);
 }
 
 #define str(s) #s
@@ -150,7 +162,8 @@ template <typename Int32Type>
 const char* pitz::daq::EntryParams::SomeInts<Int32Type>::rootFormatString()const
 {
 	//return "data_" DATA_INT_STR "/I";
-	return "data/I";
+	//return "data/I";
+	return m_rootFormatString;
 }
 
 

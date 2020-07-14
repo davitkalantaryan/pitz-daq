@@ -55,7 +55,7 @@ public:
     virtual ~SingleEntryDoocsBase() OVERRIDE2;
 
     const char* rootFormatString()const OVERRIDE2;
-    const ::std::string& doocsUrl()const ;
+	const char* doocsUrl()const ;
 
 protected:
     EntryParams::String             m_doocsUrl;

@@ -89,11 +89,28 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
 
 
 	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples)){
-		throw ::std::bad_alloc();
+
+		switch(a_creationType){
+		case entryCreationType::fromConfigFile:
+			m_isLoadedFromLine = 0;
+			return;
+		default:
+			throw ::std::bad_alloc();
+		}
 	}
 
+	m_isLoadedFromLine = 1;
+
 	pcReturnFromPrepare = PrepareDaqEntryBasedOnType(&in,&out);
-	if(!pcReturnFromPrepare){throw ::std::bad_alloc();}
+	if(!pcReturnFromPrepare){
+		switch(a_creationType){
+		case entryCreationType::fromConfigFile:
+			m_isLoadedFromLine = 0;
+			return;
+		default:
+			throw ::std::bad_alloc();
+		}
+	}
 
 	m_rootFormatStr = strdup(pcReturnFromPrepare);
 	if(!m_rootFormatStr){
@@ -110,7 +127,7 @@ pitz::daq::SingleEntryDoocsBase::~SingleEntryDoocsBase()
 }
 
 
-const ::std::string& pitz::daq::SingleEntryDoocsBase::doocsUrl()const
+const char* pitz::daq::SingleEntryDoocsBase::doocsUrl()const
 {
     return m_doocsUrl.value();
 }
