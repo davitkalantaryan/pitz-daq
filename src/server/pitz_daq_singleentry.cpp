@@ -1370,6 +1370,9 @@ pitz::daq::EntryParams::String::String(const char* a_entryParamName)
 	pcStringPart[0]=0;
 	m_unStrLen = 0;
 
+	m_pHeader->samples = 1;
+	m_pHeader->branch_num_in_rcv_and_next_samples_in_root = 1;
+
 	memset(&in,0,sizeof(in));
 	memset(&out,0,sizeof(out));
 
@@ -1433,7 +1436,9 @@ void pitz::daq::EntryParams::String::setValue(const ::std::string& a_newValue)
 
 void pitz::daq::EntryParams::String::Fill(DEC_OUT_PD(Header)* a_pHeader )
 {
-	*m_pHeader = *a_pHeader;
+	m_pHeader->seconds = a_pHeader->seconds;
+	m_pHeader->gen_event = a_pHeader->gen_event;
+	m_pHeader->branch_num_in_rcv_and_next_samples_in_root = static_cast<int32_t>(m_unStrLen);
 	m_pBranch->SetAddress(m_pHeader);
 }
 
@@ -1453,7 +1458,7 @@ int	pitz::daq::EntryParams::String::dataType() const
 
 int	pitz::daq::EntryParams::String::samples() const
 {
-	return 1;
+	return static_cast<int>(m_unStrLen);
 }
 
 

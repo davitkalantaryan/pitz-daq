@@ -97,6 +97,9 @@ pitz::daq::EntryParams::SomeInts<Int32Type>::SomeInts(const char* a_entryParamNa
 	memset(&in,0,sizeof(in));
 	memset(&out,0,sizeof(out));
 
+	m_rootable.header.samples = 1;
+	m_rootable.header.branch_num_in_rcv_and_next_samples_in_root = 1;
+
 	IntParam<Int32Type>::m_value = 0;
 
 	in.dataType = DATA_INT;
@@ -149,7 +152,8 @@ size_t pitz::daq::EntryParams::SomeInts<Int32Type>::writeDataToLineBuffer(char* 
 template <typename Int32Type>
 void pitz::daq::EntryParams::SomeInts<Int32Type>::Fill(DEC_OUT_PD(Header)* a_pHeader)
 {
-	m_rootable.header = *a_pHeader;
+	m_rootable.header.seconds = a_pHeader->seconds;
+	m_rootable.header.gen_event = a_pHeader->gen_event;
 	m_rootable.value = IntParam<Int32Type>::m_value;
 	IntParam<Int32Type>::m_pBranch->SetAddress(&m_rootable);
 }
