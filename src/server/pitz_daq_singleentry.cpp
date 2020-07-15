@@ -366,7 +366,7 @@ bool pitz::daq::SingleEntry::CheckBranchExistanceAndCreateIfNecessary()
 		char vcBufferData[4096];
 		snprintf(vcBufferData,4095,
 				 DATA_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_FIRST_MAX_BUFF_SIZE "%d",
-				 m_dataType.value(),static_cast<int>(m_samples*m_samples));
+				 m_dataType.value(),static_cast<int>(m_samples*m_nSingleItemSize));
 
 		m_pTreeOnRoot = new TreeForSingleEntry(this);
 
