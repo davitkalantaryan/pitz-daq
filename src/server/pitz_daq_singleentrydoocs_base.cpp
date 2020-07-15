@@ -116,7 +116,8 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
 	if(!m_rootFormatStr){
 		throw ::std::bad_alloc();
 	}
-	m_nNextDataMaxSamples = m_samples = (out.inOutSamples);
+	m_samples = (out.inOutSamples);
+	m_nMaxBufferForNextIter = static_cast<decltype (m_nMaxBufferForNextIter)>(out.inOutSamples * out.oneItemSize);
 
 }
 

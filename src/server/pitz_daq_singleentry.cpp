@@ -364,7 +364,9 @@ bool pitz::daq::SingleEntry::CheckBranchExistanceAndCreateIfNecessary()
 	if(!m_pTreeOnRoot){
 
 		char vcBufferData[4096];
-		snprintf(vcBufferData,4095,DATA_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_FIRST_MAX_COUNT "%d",m_dataType.value(),static_cast<int>(m_samples));
+		snprintf(vcBufferData,4095,
+				 DATA_HEADER_START DATA_HEADER_TYPE "%d" DATA_HEADER_FIRST_MAX_BUFF_SIZE "%d",
+				 m_dataType.value(),static_cast<int>(m_samples*m_samples));
 
 		m_pTreeOnRoot = new TreeForSingleEntry(this);
 
@@ -399,7 +401,7 @@ void pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_
 	//}
 
 	a_pNewMemory->samples = static_cast<decltype (a_pNewMemory->samples)>(m_samples);
-	a_pNewMemory->branch_num_in_rcv_and_next_samples_in_root = static_cast<decltype (a_pNewMemory->branch_num_in_rcv_and_next_samples_in_root)>(m_nNextDataMaxSamples);
+	a_pNewMemory->branch_num_in_rcv_and_next_max_buffer_size_on_root = static_cast<decltype (a_pNewMemory->branch_num_in_rcv_and_next_max_buffer_size_on_root)>(m_nMaxBufferForNextIter);
 
 	//if(g_shareptr[a_pNewMemory->eventNumber].gen_event)
 
@@ -810,7 +812,7 @@ void pitz::daq::EntryParams::Base::SetRootBranch(const char* a_cpcParentBranchNa
 	const char* cpcRootFormatString = this->rootFormatString();
 	if(cpcRootFormatString && cpcRootFormatString[0]){
 		::std::string rootBranchName = a_cpcParentBranchName + ::std::string("_") + paramName() +
-				DATA_HEADER_TYPE + ::std::to_string( this->dataType() ) + DATA_HEADER_FIRST_MAX_COUNT + ::std::to_string( this->samples() );
+				DATA_HEADER_TYPE + ::std::to_string( this->dataType() ) + DATA_HEADER_FIRST_MAX_BUFF_SIZE + ::std::to_string( this->nextMaxMemorySize() );
 		m_pBranch =a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,this->rootFormatString());
 
 		//TBranch* pParentBranch = a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,static_cast<char*>(nullptr)); // crash
@@ -1369,9 +1371,10 @@ pitz::daq::EntryParams::String::String(const char* a_entryParamName)
 	pcStringPart = VALUE_FROM_HEADERTR(m_pHeader);
 	pcStringPart[0]=0;
 	m_unStrLen = 0;
+	m_unNextMaxMemorySize = 1;
 
 	m_pHeader->samples = 1;
-	m_pHeader->branch_num_in_rcv_and_next_samples_in_root = 1;
+	m_pHeader->branch_num_in_rcv_and_next_max_buffer_size_on_root = 1;
 
 	memset(&in,0,sizeof(in));
 	memset(&out,0,sizeof(out));
@@ -1397,6 +1400,7 @@ bool pitz::daq::EntryParams::String::GetDataFromLine(const char* a_entryLine)
 	memcpy(pcStringPart,a_entryLine,unStrLen);
 	pcStringPart[unStrLen]=0;
 	m_unStrLen = unStrLen;
+	m_unNextMaxMemorySize = unStrLen+1;
 
     return true;
 }
@@ -1431,6 +1435,7 @@ void pitz::daq::EntryParams::String::setValue(const ::std::string& a_newValue)
 	memcpy(pcStringPart,entryLine,unStrLen);
 	pcStringPart[unStrLen]=0;
 	m_unStrLen = unStrLen;
+	m_unNextMaxMemorySize = unStrLen+1;
 }
 
 
@@ -1438,7 +1443,7 @@ void pitz::daq::EntryParams::String::Fill(DEC_OUT_PD(Header)* a_pHeader )
 {
 	m_pHeader->seconds = a_pHeader->seconds;
 	m_pHeader->gen_event = a_pHeader->gen_event;
-	m_pHeader->branch_num_in_rcv_and_next_samples_in_root = static_cast<int32_t>(m_unStrLen);
+	m_pHeader->branch_num_in_rcv_and_next_max_buffer_size_on_root = static_cast<int32_t>(m_unNextMaxMemorySize);
 	m_pBranch->SetAddress(m_pHeader);
 }
 
@@ -1456,9 +1461,9 @@ int	pitz::daq::EntryParams::String::dataType() const
 }
 
 
-int	pitz::daq::EntryParams::String::samples() const
+int	pitz::daq::EntryParams::String::nextMaxMemorySize() const
 {
-	return static_cast<int>(m_unStrLen);
+	return static_cast<int>(m_unNextMaxMemorySize);
 }
 
 
@@ -1533,7 +1538,7 @@ void pitz::daq::EntryParams::Doocs::Initialize()
 		if(cpcRootFormatString){
 			m_nSingleItemSize = static_cast< decltype (m_nSingleItemSize) >(out.oneItemSize);
 			m_samples = out.inOutSamples;
-			m_expectedDataLength = static_cast< decltype (m_expectedDataLength) >(m_nSingleItemSize*m_samples);
+			m_nMaxBufferForNextIter = m_expectedDataLength = static_cast< decltype (m_expectedDataLength) >(m_nSingleItemSize*m_samples);
 			if(!m_rootFormatStr){
 				m_rootFormatStr = strdup(cpcRootFormatString);
 			}
@@ -1553,7 +1558,7 @@ void pitz::daq::EntryParams::Doocs::Fill(DEC_OUT_PD(Header)* a_pNewMemory)
 	if(m_pFillData){
 		*m_pFillData = *a_pNewMemory;
 		m_pFillData->samples = m_samples;
-		m_pFillData->branch_num_in_rcv_and_next_samples_in_root = m_nNextDataMaxSamples;
+		m_pFillData->branch_num_in_rcv_and_next_max_buffer_size_on_root = m_nMaxBufferForNextIter;
 		m_pBranch->SetAddress( m_pFillData );
 		//m_pBranch->Fill(); // troot fill will will all
 	}
@@ -1566,9 +1571,9 @@ int	pitz::daq::EntryParams::Doocs::dataType() const
 }
 
 
-int	pitz::daq::EntryParams::Doocs::samples() const
+int	pitz::daq::EntryParams::Doocs::nextMaxMemorySize() const
 {
-	return m_samples;
+	return m_nMaxBufferForNextIter;
 }
 
 
@@ -1616,6 +1621,16 @@ void pitz::daq::EntryParams::Doocs::Refresh()
 	EqAdr doocsAdr;
 	EqCall doocsCaller;
 	bool bShouldDeletePointer=false;
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	if(m_nMaxBufferForNextIter!=static_cast<int>(m_expectedDataLength)){
+		m_expectedDataLength = static_cast<decltype (m_expectedDataLength)>(m_nMaxBufferForNextIter);
+		m_samples = m_nMaxBufferForNextIter/m_nSingleItemSize;
+	}
 
 	doocsAdr.adr(m_doocsAddress);
 	if(doocsCaller.get(&doocsAdr,&dataIn,&dataOut)){
@@ -1632,6 +1647,17 @@ void pitz::daq::EntryParams::Doocs::Refresh()
 		m_deleteFillData = 0;
 	}
 	m_pFillData = nullptr;
+
+	GetEntryInfoFromDoocsServer(&m_data,m_doocsAddress,&in.dataType,&out.inOutSamples);
+	if(PrepareDaqEntryBasedOnType(&in,&out)){
+		if(m_samples!=out.inOutSamples){
+			m_nMaxBufferForNextIter = out.inOutSamples*static_cast<int>(out.oneItemSize);
+			if(m_expectedDataLength<static_cast<decltype (m_expectedDataLength)>(m_nMaxBufferForNextIter)){
+				m_expectedDataLength = static_cast<decltype (m_expectedDataLength)>(m_nMaxBufferForNextIter);
+				m_samples = m_nMaxBufferForNextIter/m_nSingleItemSize;
+			}
+		}
+	}
 
 	m_pFillData = GetDataPointerFromEqData(m_expectedDataLength,&m_data,nullptr,nullptr,&bShouldDeletePointer);
 	m_deleteFillData = bShouldDeletePointer?1:0;

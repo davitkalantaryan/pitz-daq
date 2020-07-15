@@ -121,7 +121,7 @@ public:
 	virtual void Fill(DEC_OUT_PD(Header)*){}
 	virtual void Refresh(){}
 	virtual int	 dataType() const {return DATA_NULL;}
-	virtual int	 samples() const {return 0;}
+	virtual int	 nextMaxMemorySize() const {return 0;}
 
 	static Base* FindAndCreateEntryParamFromLine(const char* a_paramName, const char* entryLine);
 
@@ -170,7 +170,7 @@ protected:
 	virtual void Fill(DEC_OUT_PD(Header)* pNewMemory) OVERRIDE2 ;
 	virtual const char* rootFormatString()const OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2;
-	virtual int	 samples() const OVERRIDE2;
+	virtual int	 nextMaxMemorySize() const OVERRIDE2;
 
 protected:
 	const char* m_rootFormatString;
@@ -260,12 +260,13 @@ protected:
 	virtual void Fill(DEC_OUT_PD(Header)* pNewMemory) OVERRIDE2 ;
 	virtual const char* rootFormatString()const OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2 ;
-	virtual int	 samples() const OVERRIDE2;
+	virtual int	 nextMaxMemorySize() const OVERRIDE2;
 
 protected:
 	const char*				m_rootFormatString;
 	DEC_OUT_PD(Header)*		m_pHeader;
 	size_t					m_unStrLen;
+	size_t					m_unNextMaxMemorySize;
 };
 
 
@@ -285,7 +286,7 @@ private:
 	virtual const char* rootFormatString()const OVERRIDE2 ;
 	virtual void Fill(DEC_OUT_PD(Header)* pNewMemory) OVERRIDE2 ;
 	virtual int	 dataType() const OVERRIDE2;
-	virtual int	 samples() const OVERRIDE2;
+	virtual int	 nextMaxMemorySize() const OVERRIDE2;
 
 private:
 	char*					m_rootFormatStr;
@@ -297,7 +298,7 @@ private:
 	::std::string			m_parentDoocsAddress;
 	int						m_dataType;
 	int						m_samples;
-	int						m_nNextDataMaxSamples;
+	int						m_nMaxBufferForNextIter;
 	int						m_nSingleItemSize;
 	uint32_t				m_expectedDataLength;
 	uint32_t				m_reserved1;
@@ -458,7 +459,7 @@ protected:
 	EqFctCollector*                         m_pParent;  // hope will be deleted
 
 	int                                     m_nSingleItemSize;
-	int                                     m_nNextDataMaxSamples;
+	int                                     m_nMaxBufferForNextIter;
 	int                                     m_nReserved1;
 	int                                     m_nReserved2;
 

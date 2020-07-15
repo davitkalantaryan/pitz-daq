@@ -118,15 +118,7 @@ const int    MAX_BUFFER = MAX_BUFFER_NO;
 
 //===================================================
 
-struct DATA_struct
-{
-	int              endian;
-	int              branch_num;	
-	int              seconds;
-	int              gen_event;
-	int              samples;
-	float            f[2048];
-};
+
 const int DATA_struct_l = sizeof(struct DATA_struct);
 union DATA_union
 {

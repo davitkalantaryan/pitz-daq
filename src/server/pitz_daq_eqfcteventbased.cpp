@@ -241,8 +241,9 @@ DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
     int        more;
     DEC_OUT_PD(Header) aHeader;
 
-	if(m_samples != (m_nNextDataMaxSamples)){
-		m_samples = (m_nNextDataMaxSamples);
+	if( m_expectedDataLength != static_cast<decltype (m_expectedDataLength)>(m_nMaxBufferForNextIter) ){
+		m_expectedDataLength = static_cast<decltype (m_expectedDataLength)>(m_nMaxBufferForNextIter);
+		m_samples = (m_nMaxBufferForNextIter/m_nSingleItemSize);
 	}
 
     nReturn=zmq_recv(this->m_pSocket,&aDcsHeader,sizeof(dmsg_hdr_t),0);
@@ -306,13 +307,11 @@ DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
 		goto errorReturn;
 	}
 	else if(nReturn < static_cast<int>(m_expectedDataLength)){
-		m_expectedDataLength = static_cast< decltype (m_expectedDataLength) >(nReturn);
-		m_nNextDataMaxSamples = nReturn/m_nSingleItemSize;
-		m_samples = (m_nNextDataMaxSamples);
+		m_nMaxBufferForNextIter = static_cast< decltype (m_nMaxBufferForNextIter) >(nReturn);
+		m_samples = (m_nMaxBufferForNextIter/m_nSingleItemSize);
 	}
 	else if(nReturn > static_cast<int>(m_expectedDataLength)) {
-		m_expectedDataLength = static_cast< decltype (m_expectedDataLength) >(nReturn);
-		m_nNextDataMaxSamples = nReturn/m_nSingleItemSize;
+		m_nMaxBufferForNextIter = static_cast< decltype (m_nMaxBufferForNextIter) >(nReturn);
 	}
 
 	*pMemory = aHeader;
@@ -419,7 +418,8 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 	if(!PrepareDaqEntryBasedOnType(&in,&out)){return false;}
 
 	m_nSingleItemSize = static_cast<int>(out.oneItemSize);
-	m_nNextDataMaxSamples = m_samples = (out.inOutSamples);
+	m_samples = (out.inOutSamples);
+	m_nMaxBufferForNextIter = out.inOutSamples*static_cast<int>(out.oneItemSize);
 	m_expectedDataLength = out.oneItemSize*static_cast<uint32_t>(out.inOutSamples);
     m_isDataLoaded = 1;
 

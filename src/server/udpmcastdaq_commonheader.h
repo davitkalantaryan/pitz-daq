@@ -24,7 +24,7 @@ struct  conf_struct2
 struct DATA_struct
 {
         int              endian;
-        int              branch_num;
+		int              branch_num_in_rcv_and_next_max_buffer_size_on_root;
         int              seconds;
         int              gen_event;
         int              samples;

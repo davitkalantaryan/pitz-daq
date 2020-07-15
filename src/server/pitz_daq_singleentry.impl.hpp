@@ -98,7 +98,7 @@ pitz::daq::EntryParams::SomeInts<Int32Type>::SomeInts(const char* a_entryParamNa
 	memset(&out,0,sizeof(out));
 
 	m_rootable.header.samples = 1;
-	m_rootable.header.branch_num_in_rcv_and_next_samples_in_root = 1;
+	m_rootable.header.branch_num_in_rcv_and_next_max_buffer_size_on_root = 4;
 
 	IntParam<Int32Type>::m_value = 0;
 
@@ -179,9 +179,9 @@ int pitz::daq::EntryParams::SomeInts<Int32Type>::dataType()const
 
 
 template <typename Int32Type>
-int	pitz::daq::EntryParams::SomeInts<Int32Type>::samples() const
+int	pitz::daq::EntryParams::SomeInts<Int32Type>::nextMaxMemorySize() const
 {
-	return 1;
+	return 4;
 }
 
 #endif // #ifndef PITZ_DAQ_SINGLEENTRY_IMPL_HPP
