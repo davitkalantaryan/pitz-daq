@@ -31,7 +31,7 @@ struct DATA_struct
         float            f[2048];
 };
 
-#define DATA_OFFSET_ON_DATA_struct 20
+//#define DATA_OFFSET_ON_DATA_struct 20
 
 
 #endif // #ifndef udpmcastdaq_commonheader_h

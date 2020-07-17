@@ -1757,7 +1757,7 @@ DEC_OUT_PD(Header)* GetDataPointerFromEqData(uint32_t a_nExpectedDataLen, EqData
 		}
 		else{
 			DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(a_nExpectedDataLen);
-			memcpy(DATA_FROM_HEADER(pReturnWithHeader),&(pDataBlock->data_u.DataUnion_u),a_nExpectedDataLen);
+			memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),&(pDataBlock->data_u.DataUnion_u),a_nExpectedDataLen);
 			*a_pbFreeFillData = true;
 			return pReturnWithHeader;
 		}
@@ -1765,7 +1765,7 @@ DEC_OUT_PD(Header)* GetDataPointerFromEqData(uint32_t a_nExpectedDataLen, EqData
 
 	if( !HAS_HEADER(pDataBlock->data_u.DataUnion_u.d_char.d_char_val) ){
 		DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(a_nExpectedDataLen);
-		memcpy(DATA_FROM_HEADER(pReturnWithHeader),pDataBlock->data_u.DataUnion_u.d_char.d_char_val,a_nExpectedDataLen);
+		memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),pDataBlock->data_u.DataUnion_u.d_char.d_char_val,a_nExpectedDataLen);
 		*a_pbFreeFillData = true;
 		return pReturnWithHeader;
 	}

@@ -24,6 +24,7 @@
 #include "udpmcastdaq_commonheader.h"
 #include "pitz_daq_globalfunctionsiniter.hpp"
 #include "common_daq_definations.h"
+#include <pitz_daq_data_daqdev_common.h>
 //#include "alog.h"
 #include <TPluginManager.h> // https://root.cern.ch/phpBB3/viewtopic.php?t=9816
 #include <iostream>
@@ -32,8 +33,10 @@
 #endif
 
 #define SPECIAL_KEY_CHANNEL "channel"
+// char* pcPointerToFree = reinterpret_cast<char*>(a_usedMemory) - sizeof(int);
+#define UDP_DATA_FROM_HEADER(_header)	reinterpret_cast<struct DATA_struct*>( reinterpret_cast<char*>(_header) - sizeof(int) )
 
-static int SwapDataIfNecessary(DEC_OUT_PD(SingleData2) *a_pMemory);
+static int SwapDataIfNecessary(DEC_OUT_PD(Header) *a_pMemory);
 
 namespace pitz{namespace daq{
 
@@ -51,17 +54,18 @@ public:
     int LastEventNumberHandled()const;
     void SetLastEventNumberHandled(int);
 
-    DEC_OUT_PD(SingleData2)* GetAndRemovePendingBufferIfAny(int indexOrEventNumber);
-    void SetPendingBuffer(int a_indexOrEventNumber, DEC_OUT_PD(SingleData2)* a_pBuffer);
+	DEC_OUT_PD(Header)* GetAndRemovePendingBufferIfAny(int indexOrEventNumber);
+	void SetPendingBuffer(int a_indexOrEventNumber, DEC_OUT_PD(Header)* a_pBuffer);
 
-    void  FreeUsedMemory(DEC_OUT_PD(SingleData2)* usedMemory) OVERRIDE2;
+	void  FreeUsedMemory(DEC_OUT_PD(Header)* usedMemory) OVERRIDE2;
 
 private:
     EqFctUdpMcast*                      m_pFctParent;
     EntryParams::IntParam<int>          m_nChannelNumber;
     int                                 m_nLastEventNumberHandled;
     int                                 m_nReservedUdp1;
-    DEC_OUT_PD(SingleData2)* m_vPendings[NUMBER_OF_PENDING_PACKS];
+	DEC_OUT_PD(Header)*					m_vPendings[NUMBER_OF_PENDING_PACKS];
+	const char*							m_rootFormatString;
 
 };
 
@@ -151,31 +155,42 @@ void pitz::daq::EqFctUdpMcast::DataGetterFunctionWithWait(const SNetworkStruct* 
 {
     SingleEntryUdp* pCurEntry;
     //DEC_OUT_PD(SingleData2) *pPendingData, *pMemory = CreateDataWithOffset2(8,sizeof(DATA_struct)-8); // 8 = 4(for endian), 4(for branchNum)
-    DEC_OUT_PD(SingleData2) *pPendingData, *pMemory = CreateDataWithOffset2(0); // 8 = 4(for endian), 4(for branchNum)
-    char* pcBuffer = static_cast<char*>(CreatePitzDaqBuffer(sizeof(DATA_struct)));
-    int nBranchNum;
+	struct DATA_struct* pWholeData = static_cast<struct DATA_struct*>(CreatePitzDaqBuffer(sizeof(struct DATA_struct)));
+	DEC_OUT_PD(Header) *pPendingData, *pMemory = reinterpret_cast< DEC_OUT_PD(Header)* >( &(pWholeData->branch_num_in_rcv_and_next_max_buffer_size_on_root) ); // 8 = 4(for endian), 4(for branchNum)
+	int nBranchNum, nBranchNumFirst=-1;
     int nbytes;
     int nEventNumberToTryPending,nLastEventToTryPending;
     int nEventNumber(0), nLastEventNumberHandled;
     const SNetworkStructUdp* pNet = static_cast<const SNetworkStructUdp*>(a_pNet);
 
-    nbytes = pNet->m_socket.recvC(pcBuffer,sizeof(DATA_struct));
+receivePoint:
+	nbytes = pNet->m_socket.recvC(pWholeData,sizeof(DATA_struct));
 
     if( nbytes != sizeof(DATA_struct) ){
 
-        printtostderr("ERROR","nbytes < 0");
+		printtostderr("ERROR","nbytes != sizeof(DATA_struct)");
         //ERR_LOG("nbytes<0");
-        fprintf(stderr,"Error during reading\n");
+		fprintf(stderr,"Error during reading nBytes=%d\n",nbytes);
         return;
     }
-    pMemory->data = pcBuffer + DATA_OFFSET_ON_DATA_struct;
-    nBranchNum = SwapDataIfNecessary(pMemory)%MAX_CHANNELS_NUM;
+	nBranchNum = SwapDataIfNecessary(pMemory)%MAX_CHANNELS_NUM;
 
     pCurEntry = static_cast<SingleEntryUdp*>(m_vMapper[nBranchNum]);
+
+	if(!pCurEntry){
+		// we do not handle this channel, try next
+		if(nBranchNumFirst<0){nBranchNumFirst=nBranchNum;}
+		else if(nBranchNum==nBranchNumFirst){
+			// we did one iteration no needed data, return here
+			return;
+		}
+		goto receivePoint;
+	}
+
     pCurEntry->lockEntryForRoot();
 
     nLastEventNumberHandled = pCurEntry->LastEventNumberHandled();
-    nEventNumber = pMemory->header.eventNumber;
+	nEventNumber = pMemory->gen_event;
 
     if(nEventNumber<=nLastEventNumberHandled){
         // report on repetition (this is just warning forgot it :) )
@@ -187,9 +202,9 @@ void pitz::daq::EqFctUdpMcast::DataGetterFunctionWithWait(const SNetworkStruct* 
     if(pPendingData){
         // bad luck we have lost data
         fprintf(stderr, "!!! data loss in the channel %d. Event number before %d is not found (%d).\n",
-                pCurEntry->channelNumber(), nEventNumber,pPendingData->header.eventNumber);
+				pCurEntry->channelNumber(), nEventNumber,pPendingData->gen_event);
         AddJobForRootThread(pPendingData,pCurEntry);
-        pCurEntry->SetLastEventNumberHandled(pPendingData->header.eventNumber);  // checking is done inside
+		pCurEntry->SetLastEventNumberHandled(pPendingData->gen_event);  // checking is done inside
     }
 
     // let's remove all pending data (if any) after this event
@@ -200,7 +215,7 @@ void pitz::daq::EqFctUdpMcast::DataGetterFunctionWithWait(const SNetworkStruct* 
         pPendingData = pCurEntry->GetAndRemovePendingBufferIfAny(nEventNumberToTryPending);
         if(!pPendingData){break;}
         AddJobForRootThread(pPendingData,pCurEntry);
-        pCurEntry->SetLastEventNumberHandled(pPendingData->header.eventNumber);
+		pCurEntry->SetLastEventNumberHandled(pPendingData->gen_event);
     }
 
     // let's check whether this data should wait (become pending, untill previous package arrives) to make packages in correct order
@@ -225,6 +240,20 @@ pitz::daq::SingleEntryUdp::SingleEntryUdp(entryCreationType::Type a_creationType
 {
     int nChannelNumber=0;
     bool bCallIniter = false;
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	in.dataType = DATA_FLOAT;
+	out.inOutSamples = 2048;
+	m_rootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
+
+	m_nSingleItemSize = 4;
+	m_samples = (2048);
+	m_dataType.set(DATA_FLOAT);
+
     m_nReservedUdp1 = 0;
     m_nLastEventNumberHandled = 0;
     memset(m_vPendings,0,sizeof(m_vPendings));
@@ -260,6 +289,8 @@ pitz::daq::SingleEntryUdp::SingleEntryUdp(entryCreationType::Type a_creationType
     nChannelNumber = nChannelNumber<0 ? 0 : nChannelNumber;
     nChannelNumber %= MAX_CHANNELS_NUM;
     m_nChannelNumber = (nChannelNumber);
+	m_nMaxBufferForNextIter = m_nSingleItemSize*(m_samples);
+	m_isLoadedFromLine = 1;
 }
 
 
@@ -279,7 +310,7 @@ void pitz::daq::SingleEntryUdp::SetFctParent(EqFctUdpMcast*  a_pFctParent)
 const char* pitz::daq::SingleEntryUdp::rootFormatString()const
 {
     //return "seconds/I:gen_event/I:array_value[2048]/F";
-    return "data[2048]/F";
+	return m_rootFormatString; // "data[2048]/F";
 }
 
 
@@ -295,10 +326,10 @@ int pitz::daq::SingleEntryUdp::LastEventNumberHandled() const
 }
 
 
-DEC_OUT_PD(SingleData2)* pitz::daq::SingleEntryUdp::GetAndRemovePendingBufferIfAny(int a_indexOrEventNumber)
+DEC_OUT_PD(Header)* pitz::daq::SingleEntryUdp::GetAndRemovePendingBufferIfAny(int a_indexOrEventNumber)
 {
     int nIndex = a_indexOrEventNumber%NUMBER_OF_PENDING_PACKS;
-    DEC_OUT_PD(SingleData2)* pReturn = m_vPendings[nIndex];
+	DEC_OUT_PD(Header)* pReturn = m_vPendings[nIndex];
     //unsigned int unMask = ~(1<<nIndex);
 
     m_vPendings[nIndex]=NEWNULLPTR2;
@@ -307,7 +338,7 @@ DEC_OUT_PD(SingleData2)* pitz::daq::SingleEntryUdp::GetAndRemovePendingBufferIfA
 }
 
 
-void pitz::daq::SingleEntryUdp::SetPendingBuffer(int a_indexOrEventNumber, DEC_OUT_PD(SingleData2)* a_pBuffer)
+void pitz::daq::SingleEntryUdp::SetPendingBuffer(int a_indexOrEventNumber, DEC_OUT_PD(Header)* a_pBuffer)
 {
     int nIndex = a_indexOrEventNumber%NUMBER_OF_PENDING_PACKS;
     //unsigned int unMask = 1<<nIndex;
@@ -316,11 +347,10 @@ void pitz::daq::SingleEntryUdp::SetPendingBuffer(int a_indexOrEventNumber, DEC_O
 }
 
 
-void pitz::daq::SingleEntryUdp::FreeUsedMemory(DEC_OUT_PD(SingleData2)* a_usedMemory)
+void pitz::daq::SingleEntryUdp::FreeUsedMemory(DEC_OUT_PD(Header)* a_usedMemory)
 {
-    char* pcPointerToFree = static_cast<char*>(a_usedMemory->data) - DATA_OFFSET_ON_DATA_struct;
-    FreePitzDaqBuffer(pcPointerToFree);a_usedMemory->data=NEWNULLPTR2;
-    FreeDataWithOffset2(a_usedMemory,0);
+	struct DATA_struct* pcPointerToFree = UDP_DATA_FROM_HEADER(a_usedMemory);
+	FreePitzDaqBuffer(pcPointerToFree);
 }
 
 
@@ -353,15 +383,15 @@ pitz::daq::SNetworkStructUdp::~SNetworkStructUdp()
 #define SWAP_4_BYTES(_pBufForSwap,_tmpVar)  SWAP_4_BYTES_RAW(reinterpret_cast<char*>(_pBufForSwap),_tmpVar)
 
 
-static int SwapDataIfNecessary(DEC_OUT_PD(SingleData2) *a_pMemory)
+static int SwapDataIfNecessary(DEC_OUT_PD(Header) *a_pMemory)
 {
-    DATA_struct* pData = reinterpret_cast<DATA_struct*>(static_cast<char*>(a_pMemory->data)-DATA_OFFSET_ON_DATA_struct);
+	DATA_struct* pData = UDP_DATA_FROM_HEADER(a_pMemory);
 
     if(pData->endian!=1){
         int i;
         char tmpVar;
 
-        SWAP_4_BYTES(&pData->branch_num,tmpVar);
+		SWAP_4_BYTES(&pData->branch_num_in_rcv_and_next_max_buffer_size_on_root,tmpVar);
         SWAP_4_BYTES(&pData->seconds,tmpVar);
         SWAP_4_BYTES(&pData->gen_event,tmpVar);
         SWAP_4_BYTES(&pData->samples,tmpVar);
@@ -371,9 +401,6 @@ static int SwapDataIfNecessary(DEC_OUT_PD(SingleData2) *a_pMemory)
 
     }
 
-    a_pMemory->header.eventNumber = pData->gen_event;
-    a_pMemory->header.timestampSeconds = pData->seconds;
-
-    return pData->branch_num;
+	return pData->branch_num_in_rcv_and_next_max_buffer_size_on_root;
 }
 

@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include "pitz_daq_singleentrydoocs_base.hpp"
 #include <pitz_daq_data_handling_types.h>
-#include <pitz_daq_data_handling_daqdev.h>
+#include <pitz_daq_data_daqdev_common.h>
 #include "eq_errors.h"
 #include "eq_sts_codes.h"
 #include "eq_fct_errors.h"
@@ -30,13 +30,14 @@
 
 namespace pitz{namespace daq{
 
-class SingleEntryRR : public SingleEntryDoocsBase
+class SingleEntryRR final : public SingleEntryDoocsBase
 {
 public:
     SingleEntryRR(entryCreationType::Type creationType,const char* entryLine,TypeConstCharPtr* a_pHelper);
-    ~SingleEntryRR();
+	~SingleEntryRR() override;
 
-    void GetDataAndFill();
+private:
+	void  FreeUsedMemory(DEC_OUT_PD(Header)* usedMemory) override;
 
 private:
 	int m_itemsCountPerEntry;
@@ -121,54 +122,7 @@ pitz::daq::SingleEntryRR::~SingleEntryRR()
 }
 
 
-void pitz::daq::SingleEntryRR::GetDataAndFill()
+void pitz::daq::SingleEntryRR::FreeUsedMemory(DEC_OUT_PD(Header)* a_usedMemory)
 {
-    void* pDoocsData;
-    size_t expectedDataLength;
-    int64_t timeSeconds, genEvent;
-    DEC_OUT_PD(TypeAndCount) entryInfo;
-    EqData dataOut;
-	int nSamples;
-    DEC_OUT_PD(SingleData2)* pNewMemory;
-	struct PrepareDaqEntryInputs in;
-	struct PrepareDaqEntryOutputs out;
-
-	memset(&in,0,sizeof(in));
-	memset(&out,0,sizeof(out));
-
-	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&entryInfo.type,&nSamples)){
-		IncrementError(NETWORK_READ_ERROR,"DOOCS RR error");
-        return;
-    }
-
-	in.dataType = entryInfo.type;
-	out.inOutSamples = nSamples;
-
-	if(!PrepareDaqEntryBasedOnType(&in,&out)){
-		IncrementError(UNABLE_TO_PREPARE_DATA,"unable to prepare data");
-        return ;
-    }
-
-	if((m_dataType.value()!=entryInfo.type)||(m_itemsCountPerEntry!=out.inOutSamples)){
-		IncrementError(DATA_TYPE_MISMATCH,"data type mismatch");
-        return ;
-    }
-
-    pDoocsData=GetDataPointerFromEqData(&dataOut,&timeSeconds,&genEvent);
-    if(!pDoocsData){
-		IncrementError(UNABLE_TO_GET_DOOCS_DATA,"unable to get doocs data");
-        return ;
-    }
-
-	expectedDataLength = out.oneItemSize*static_cast<uint32_t>(out.inOutSamples);
-    //pNewMemory =CreateDataWithOffset2(0,expectedDataLength);
-    pNewMemory =CreateDataWithOffset2(0);
-    pNewMemory->data = CreatePitzDaqBuffer(expectedDataLength);
-
-    pNewMemory->header.eventNumber = static_cast<decltype (pNewMemory->header.eventNumber)>(genEvent);
-    pNewMemory->header.timestampSeconds = static_cast<decltype (pNewMemory->header.timestampSeconds)>(timeSeconds);
-
-    memcpy(pNewMemory->data,pDoocsData,expectedDataLength);
-
-    Fill(pNewMemory);
+	//
 }

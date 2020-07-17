@@ -17,11 +17,9 @@ optionsLib = $$find(TEMPLATE, "lib")
 
 count(optionsLib, 1){
     TARGET_PATH=lib
-    DEEPNESS = ../../../../
     message("Shared library creation")
 }else{
     TARGET_PATH=bin
-    DEEPNESS = ../../../../
     message("Binary file creation")
 }
 
