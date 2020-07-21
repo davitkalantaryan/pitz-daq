@@ -11,6 +11,7 @@
 #include <queue>
 #include <string>
 #include <vector>
+#include <fstream>
 
 #define     CODE_EVENT_BASED_DAQ  301	// eq_fct_type number for the .conf file
 
@@ -107,7 +108,7 @@ protected:
 private:
     void init(void) OVERRIDE2 FINAL2 ; // use complete (called before init) and post_init (called after init) or online (before)
     CLEAR_RET_TYPE CLEAR_FUNC_NAME(void) OVERRIDE2 FINAL2 ;  // use 'virtual void cancel(void)' in the child (called before cancel)
-    int  write          (fstream &fprt) OVERRIDE2 FINAL2;   
+	int  write          ( ::std::fstream &fprt) OVERRIDE2 FINAL2;
 
     // API for internal usage
 private:

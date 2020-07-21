@@ -231,6 +231,27 @@ void* SingleEntryZmqDoocs::socket()const
 }
 
 
+void SingleEntryZmqDoocs::RecalculateSamples()
+{
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	in.dataType = m_dataType.value();
+	in.inNeededBufferSize = m_nMaxBufferForNextIter;
+	out.inOutSamples = (m_samples);
+
+	if(PrepareDaqEntryBasedOnType(&in,&out)){
+		int nSamplesBySize = m_nSingleItemSize?(m_nMaxBufferForNextIter/m_nSingleItemSize):1;
+		int nSamplesByFunc = out.inOutSamples;
+		m_expectedDataLength = static_cast<decltype (m_expectedDataLength)>(m_nMaxBufferForNextIter);
+		m_samples = (nSamplesBySize<nSamplesByFunc)?nSamplesBySize:nSamplesByFunc;
+	}
+}
+
+
 DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
 {
     int nReturn;
@@ -242,8 +263,7 @@ DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
     DEC_OUT_PD(Header) aHeader;
 
 	if( m_expectedDataLength != static_cast<decltype (m_expectedDataLength)>(m_nMaxBufferForNextIter) ){
-		m_expectedDataLength = static_cast<decltype (m_expectedDataLength)>(m_nMaxBufferForNextIter);
-		m_samples = (m_nMaxBufferForNextIter/m_nSingleItemSize);
+		RecalculateSamples();
 	}
 
     nReturn=zmq_recv(this->m_pSocket,&aDcsHeader,sizeof(dmsg_hdr_t),0);
@@ -287,13 +307,13 @@ DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
 			goto errorReturn;
         }
 
-        nReturn=zmq_recv(this->m_pSocket,m_pBufferForSecondHeader,m_secondHeaderLength,0);
+		nReturn=zmq_recv(this->m_pSocket,m_pBufferForSecondHeader,static_cast<size_t>(m_secondHeaderLength),0);
         if(nReturn!=static_cast<int>(m_secondHeaderLength)){
 			goto errorReturn;
         }
     }
 
-	pMemory = CreatePitzDaqSingleDataHeader(m_expectedDataLength);
+	pMemory = CreatePitzDaqSingleDataHeader(static_cast<size_t>(m_expectedDataLength));
     more_size = sizeof(more);
     nReturn = zmq_getsockopt (m_pSocket, ZMQ_RCVMORE, &more, &more_size);
 
@@ -301,14 +321,14 @@ DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
 		goto errorReturn;
     }
 
-	nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromHeader(pMemory),m_expectedDataLength,0);
+	nReturn=zmq_recv(this->m_pSocket,wrPitzDaqDataFromHeader(pMemory),static_cast<size_t>(m_expectedDataLength),0);
 
 	if(nReturn<1){
 		goto errorReturn;
 	}
 	else if(nReturn < static_cast<int>(m_expectedDataLength)){
 		m_nMaxBufferForNextIter = static_cast< decltype (m_nMaxBufferForNextIter) >(nReturn);
-		m_samples = (m_nMaxBufferForNextIter/m_nSingleItemSize);
+		RecalculateSamples();
 	}
 	else if(nReturn > static_cast<int>(m_expectedDataLength)) {
 		m_nMaxBufferForNextIter = static_cast< decltype (m_nMaxBufferForNextIter) >(nReturn);
@@ -338,7 +358,6 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
     EqAdr eqAddr;
 	struct PrepareDaqEntryInputs in;
 	struct PrepareDaqEntryOutputs out;
-	//DEC_OUT_PD(TypeAndCount)      branchInfo={static_cast<int32_t>(m_dataType.value()),(m_itemsCountPerEntry2)};
 
 	memset(&in,0,sizeof(in));
 	memset(&out,0,sizeof(out));
@@ -354,9 +373,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
         return false;
     }
 	out.inOutSamples = dataOut.length();
-	//m_samples = (out.inOutSamples);
 
-    //eqAddr.adr(m_doocsUrl.value());
     propToSubscribe = eqAddr.property();
     eqAddr.set_property("SPN");
     dataIn.set (1, 0.0f, 0.0f, static_cast<time_t>(0), propToSubscribe.c_str(), 0);
@@ -417,10 +434,12 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 
 	if(!PrepareDaqEntryBasedOnType(&in,&out)){return false;}
 
-	m_nSingleItemSize = static_cast<int>(out.oneItemSize);
+	m_nSingleItemSize = out.oneItemSize;
 	m_samples = (out.inOutSamples);
-	m_nMaxBufferForNextIter = out.inOutSamples*static_cast<int>(out.oneItemSize);
-	m_expectedDataLength = out.oneItemSize*static_cast<uint32_t>(out.inOutSamples);
+	//m_nMaxBufferForNextIter = out.inOutSamples*out.oneItemSize;
+	//m_expectedDataLength = out.oneItemSize*out.inOutSamples;
+	m_nMaxBufferForNextIter = out.outNeededBufferSize;
+	m_expectedDataLength = out.outNeededBufferSize;
     m_isDataLoaded = 1;
 
     return true;
@@ -438,7 +457,6 @@ void SingleEntryZmqDoocs::InitializeRootTree()
 
 	if(m_expectedDataLength>0){
 		DEC_OUT_PD(Header)* pDataToFill;
-		int64_t timeSeconds, macroPulse;
 		EqData dataIn, dataOut;
 		EqAdr doocsAdr;
 		EqCall doocsCall;
@@ -451,12 +469,10 @@ void SingleEntryZmqDoocs::InitializeRootTree()
 			return;
 		}
 
-		pDataToFill = GetDataPointerFromEqData(m_expectedDataLength,&dataOut,&timeSeconds,&macroPulse,&bDeleteData);
+		pDataToFill = GetDataPointerFromEqData(m_expectedDataLength,&dataOut,&bDeleteData);
 		if(pDataToFill){
-			pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(macroPulse);
-			pDataToFill->seconds = static_cast< decltype (pDataToFill->seconds) >(timeSeconds);
 			if(pDataToFill->gen_event<1){
-				pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(GetEventNumberFromTime(timeSeconds));
+				pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(GetEventNumberFromTime(pDataToFill->seconds));
 			}
 			this->FillRaw(pDataToFill);
 			if(bDeleteData){
@@ -472,7 +488,6 @@ void SingleEntryZmqDoocs::FinalizeRootTree()
 	// if we have non correspondend root format string then not possible to save last data
 	if(m_expectedDataLength>0){
 		DEC_OUT_PD(Header)* pDataToFill;
-		int64_t timeSeconds, macroPulse;
 		EqData dataIn, dataOut;
 		EqAdr doocsAdr;
 		EqCall doocsCall;
@@ -485,12 +500,10 @@ void SingleEntryZmqDoocs::FinalizeRootTree()
 			return;
 		}
 
-		pDataToFill = GetDataPointerFromEqData(m_expectedDataLength,&dataOut,&timeSeconds,&macroPulse,&bDeleteData);
+		pDataToFill = GetDataPointerFromEqData(m_expectedDataLength,&dataOut,&bDeleteData);
 		if(pDataToFill){
-			pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(macroPulse);
-			pDataToFill->seconds = static_cast< decltype (pDataToFill->seconds) >(timeSeconds);
 			if(pDataToFill->gen_event<1){
-				pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(GetEventNumberFromTime(timeSeconds));
+				pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(GetEventNumberFromTime(pDataToFill->seconds));
 			}
 			this->FillRaw(pDataToFill);
 			if(bDeleteData){

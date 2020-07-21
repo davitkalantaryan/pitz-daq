@@ -26,6 +26,9 @@ public:
 	void SetMemoryBack( DEC_OUT_PD(Header)* );
 
 private:
+	void RecalculateSamples();
+
+private:
 	void		InitializeRootTree() OVERRIDE2;
 	void		FinalizeRootTree() OVERRIDE2;
 	void		FreeUsedMemory(DEC_OUT_PD(Header)* a_usedMemory) OVERRIDE2;
@@ -33,8 +36,8 @@ private:
 private:
     void*                           m_pSocket;
     EntryParams::String             m_zmqEndpoint;
-    uint32_t                        m_secondHeaderLength;
-	uint32_t                        m_expectedDataLength;
+	int32_t                        m_secondHeaderLength;
+	int32_t                        m_expectedDataLength;
 	//uint32_t                        m_nextExpectedMaxDataLength;
     char                            *m_pBufferForSecondHeader;
 };

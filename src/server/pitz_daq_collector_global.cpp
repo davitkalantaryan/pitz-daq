@@ -183,16 +183,25 @@ static int mkdir_p_raw(const char *a_path, mode_t a_mode)
 
 using namespace pitz::daq;
 
-const size_t pitz::daq::data::g_cunOffsetToData = SIGNATURE_OFFSET + sizeof(DEC_OUT_PD(Header));
 
 namespace __private {
 
 static void DeleteFunction(void* a_pMemory)
 {
 	if(a_pMemory){
-		void* pMemoryToDelete = static_cast<char*>(a_pMemory)-data::g_cunOffsetToData;
-		if( (*static_cast< size_t** >(pMemoryToDelete))==(&pitz::daq::data::g_cunOffsetToData) ){
+		::pitz::daq::data::SMemoryHeader* pMemoryToDelete = HEADER_FROM_MEM(a_pMemory);
+		// HAS_HEADER
+		//if( (*static_cast< size_t** >(pMemoryToDelete))==(&pitz::daq::data::g_cunOffsetToData) ){
+		if( HAS_HEADER_RAW(pMemoryToDelete) ){
+			//static int snCleaningMem = 0;
+			//printf("++++++++++++++++++++++++++++ %d cleaning mem (twoArgs=%s)\n",++snCleaningMem,a_bTwoArgs?"true":"false");
+			pMemoryToDelete->signature = 0;
 			free(pMemoryToDelete);
+		}
+		else{
+			//static int snCleaningMem = 0;
+			//fprintf(stderr,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! %d not cleaned mempory (twoArgs=%s)!\n",++snCleaningMem,a_bTwoArgs?"true":"false");
+			::std::free(a_pMemory);
 		}
 	}
 }
@@ -202,11 +211,11 @@ static void DeleteFunction(void* a_pMemory)
 
 void* operator new( ::std::size_t a_unSize )
 {
-	const size_t cunCreationSize ( a_unSize + pitz::daq::data::g_cunOffsetToData );
+	const size_t cunCreationSize ( a_unSize + PDD_MEMORY_OFFSET );
 	void* pReturn = malloc(cunCreationSize);
 	if(!pReturn){throw ::std::bad_alloc();}
-	*static_cast< const size_t** >(pReturn) = &pitz::daq::data::g_cunOffsetToData;
-	return static_cast<char*>(pReturn)+pitz::daq::data::g_cunOffsetToData;
+	*static_cast< uint64_t* >(pReturn) = PDD_SIGNATURE_VALUE;
+	return static_cast<char*>(pReturn)+PDD_MEMORY_OFFSET;
 }
 
 

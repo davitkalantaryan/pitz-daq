@@ -187,8 +187,6 @@ receivePoint:
 		goto receivePoint;
 	}
 
-    pCurEntry->lockEntryForRoot();
-
     nLastEventNumberHandled = pCurEntry->LastEventNumberHandled();
 	nEventNumber = pMemory->gen_event;
 

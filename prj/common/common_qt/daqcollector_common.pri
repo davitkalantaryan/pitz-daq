@@ -20,8 +20,6 @@ include($${PWD}/../../../contrib/data_handling/contrib/matlab/prj/common/common_
 
 DEFINES += ROOT_APP
 DEFINES += USE_NEW_MATLB_NAMES
-DEFINES += R__NULLPTR
-DEFINES += ROOT_APP
 DEFINES += SERVER_APP
 
 

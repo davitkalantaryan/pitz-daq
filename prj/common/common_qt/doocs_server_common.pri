@@ -10,6 +10,7 @@ message("!!! doocs_server_common.pri:")
 
 QT -= core
 QT -= gui
+CONFIG -= qt
 
 LIBS += -lEqServer
 LIBS += -lCom

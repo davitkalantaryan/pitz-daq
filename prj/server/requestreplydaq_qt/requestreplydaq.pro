@@ -8,7 +8,7 @@
 #QMAKE_CXXFLAGS += "-include types.h"
 #DEFINES += u_int=unsigned
 
-#DEFINES += DEBUG_APP
+DEFINES += DEBUG_APP
 
 include($${PWD}/../../common/common_qt/daqcollector_doocs_based_props_common.pri)
 include( $${PWD}/../../common/common_qt/daqcollector_common.pri )

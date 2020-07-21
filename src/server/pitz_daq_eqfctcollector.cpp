@@ -2,6 +2,7 @@
 // pitz_daq_eqfctcollector.cpp
 // 2017 Nov 24
 
+#include <pitz_daq_data_handling_internal.h>
 #include <cstdlib>
 #include "pitz_daq_eqfctcollector.hpp"
 #include <signal.h>
@@ -30,7 +31,7 @@ static const size_t s_cunDaqVersionForConfigLen = strlen(CONF_FILE_VERSION_START
 #define HANDLE_MEM_DIFF(_pointer,...) \
     do{ \
         if(!(_pointer)){ \
-            exit(1); \
+			exit(4); \
         } \
     }while(0)
 
@@ -135,7 +136,7 @@ void pitz::daq::EqFctCollector::CalculateRemoteDirPathAndFileName(std::string* a
 }
 
 
-int pitz::daq::EqFctCollector::write(fstream &a_fprt)
+int pitz::daq::EqFctCollector::write( ::std::fstream &a_fprt)
 {
     int nReturn = EqFct::write(a_fprt);
     NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard(&m_lockForEntries);
@@ -495,7 +496,7 @@ CLEAR_RET_TYPE pitz::daq::EqFctCollector::CLEAR_FUNC_NAME(void)
     // no need to synchronize, because all threads are gone
 
     for( auto netStruct : m_networsList){
-        DEBUG_APP_INFO(0,"!!!!!! stopping and deleting network\n");
+		DEBUG_APP_INFO(0,"!!!!!! stopping and deleting network");
         delete netStruct;
     }
 
@@ -662,7 +663,7 @@ void pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, s
 	m_pRootFile->Initialize(vectorEntries);
 
     pTreeForVersion = new TTree(VERSION_TREE_AND_BRANCH_NAME,"DATA");
-    pBranchVersion=pTreeForVersion->Branch(VERSION_TREE_AND_BRANCH_NAME,nullptr,"version/I");
+	pBranchVersion=pTreeForVersion->Branch(VERSION_TREE_AND_BRANCH_NAME,static_cast<void*>(nullptr),"version/I");
     if(!pBranchVersion){
         fprintf(stderr,"!!!! Error opening ROOT file going to exit. ln:%d\n",__LINE__);
         exit(-1);
@@ -736,7 +737,7 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
 {
     NewLockGuard< ::STDN::shared_mutex > aGuard;
     SingleEntry* pCurEntry;
-    fstream index_fl;
+	::std::fstream index_fl;
     char vcBuffer[1024];
 
     ::std::list< SingleEntry* >::iterator pIter, pIterEnd, pIterToRemove;

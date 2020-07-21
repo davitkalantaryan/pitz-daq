@@ -318,7 +318,7 @@ bool pitz::daq::SingleEntry::isLockedForAnyAction()const
 }
 
 
-pitz::daq::SNetworkStruct* pitz::daq::SingleEntry::networkParent()
+pitz::daq::SNetworkStruct* pitz::daq::SingleEntry::networkParent()const
 {
     return m_pNetworkParent;
 }
@@ -350,7 +350,7 @@ void pitz::daq::SingleEntry::set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqDat
 }
 
 
-void pitz::daq::SingleEntry::write (fstream &)
+void pitz::daq::SingleEntry::write ( ::std::fstream &)
 {
 #ifdef DEBUG_APP
     ::std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! fnc:"<< __FUNCTION__ << ::std::endl;
@@ -370,7 +370,7 @@ bool pitz::daq::SingleEntry::CheckBranchExistanceAndCreateIfNecessary()
 
 		m_pTreeOnRoot = new TreeForSingleEntry(this);
 
-		m_pHeaderAndDataBranch=m_pTreeOnRoot->Branch(vcBufferData,nullptr,this->rootFormatString());
+		m_pHeaderAndDataBranch=m_pTreeOnRoot->Branch(vcBufferData,static_cast<void*>(nullptr),this->rootFormatString());
 		if(!m_pHeaderAndDataBranch){delete m_pTreeOnRoot;m_pTreeOnRoot = nullptr;IncrementError(ROOT_ERROR,"Unable to create root branch");return false;}
 		if(m_pAdditionalData){m_pAdditionalData->SetRootBranch("",m_pTreeOnRoot);}
 	}
@@ -813,7 +813,7 @@ void pitz::daq::EntryParams::Base::SetRootBranch(const char* a_cpcParentBranchNa
 	if(cpcRootFormatString && cpcRootFormatString[0]){
 		::std::string rootBranchName = a_cpcParentBranchName + ::std::string("_") + paramName() +
 				DATA_HEADER_TYPE + ::std::to_string( this->dataType() ) + DATA_HEADER_FIRST_MAX_BUFF_SIZE + ::std::to_string( this->nextMaxMemorySize() );
-		m_pBranch =a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,this->rootFormatString());
+		m_pBranch =a_pTreeOnRoot->Branch(rootBranchName.c_str(),static_cast<void*>(nullptr),this->rootFormatString());
 
 		//TBranch* pParentBranch = a_pTreeOnRoot->Branch(rootBranchName.c_str(),nullptr,static_cast<char*>(nullptr)); // crash
 
@@ -1659,7 +1659,7 @@ void pitz::daq::EntryParams::Doocs::Refresh()
 		}
 	}
 
-	m_pFillData = GetDataPointerFromEqData(m_expectedDataLength,&m_data,nullptr,nullptr,&bShouldDeletePointer);
+	m_pFillData = GetDataPointerFromEqData(m_expectedDataLength,&m_data,&bShouldDeletePointer);
 	m_deleteFillData = bShouldDeletePointer?1:0;
 }
 
@@ -1736,42 +1736,47 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
 }
 
 
-DEC_OUT_PD(Header)* GetDataPointerFromEqData(uint32_t a_nExpectedDataLen, EqData* a_pData, int64_t* a_pTimeSeconds, int64_t* a_pMacroPulse, bool* a_pbFreeFillData)
+DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData* a_pData, bool* a_pbFreeFillData)
 {
+	DEC_OUT_PD(Header)* pReturn=nullptr;
     EqDataBlock* pDataBlock = a_pData->data_block();
+	uint64_t llnMacroPulse;
 
     if((!pDataBlock)||(pDataBlock->error)||(!pDataBlock->tm)){return nullptr;}
 
     int nDataLen = a_pData->length();
     if(nDataLen<1){return nullptr;}
 
-    if(a_pTimeSeconds){*a_pTimeSeconds=static_cast<int64_t>(pDataBlock->tm);}
-    if(a_pMacroPulse){
-        *a_pMacroPulse = static_cast<int64_t>((static_cast<uint64_t>(pDataBlock->mp_hi)<<32) | static_cast<uint64_t>(pDataBlock->mp_lo));
-    }
+	llnMacroPulse = (static_cast<uint64_t>(pDataBlock->mp_hi)<<32) | static_cast<uint64_t>(pDataBlock->mp_lo);
 
 	if((nDataLen<2)||(a_pData->type()==DATA_IIII)||(a_pData->type()==DATA_IFFF)){
 		if( HAS_HEADER( &(pDataBlock->data_u.DataUnion_u) ) ){
+			pReturn = PD_HEADER( &(pDataBlock->data_u.DataUnion_u) );
 			*a_pbFreeFillData = false;
-			return PD_HEADER( &(pDataBlock->data_u.DataUnion_u) );
 		}
 		else{
-			DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(a_nExpectedDataLen);
-			memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),&(pDataBlock->data_u.DataUnion_u),a_nExpectedDataLen);
+			DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(static_cast<size_t>(a_nExpectedDataLen));
+			memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),&(pDataBlock->data_u.DataUnion_u),static_cast<size_t>(a_nExpectedDataLen));
+			pReturn = pReturnWithHeader;
 			*a_pbFreeFillData = true;
-			return pReturnWithHeader;
+		}
+	}
+	else{
+		if( HAS_HEADER(pDataBlock->data_u.DataUnion_u.d_char.d_char_val) ){
+			pReturn = PD_HEADER(pDataBlock->data_u.DataUnion_u.d_char.d_char_val);
+			*a_pbFreeFillData = false;
+		}
+		else{
+			DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(static_cast<size_t>(a_nExpectedDataLen));
+			memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),pDataBlock->data_u.DataUnion_u.d_char.d_char_val,static_cast<size_t>(a_nExpectedDataLen));
+			pReturn = pReturnWithHeader;
+			*a_pbFreeFillData = true;
 		}
 	}
 
-	if( !HAS_HEADER(pDataBlock->data_u.DataUnion_u.d_char.d_char_val) ){
-		DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(a_nExpectedDataLen);
-		memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),pDataBlock->data_u.DataUnion_u.d_char.d_char_val,a_nExpectedDataLen);
-		*a_pbFreeFillData = true;
-		return pReturnWithHeader;
-	}
-
-	*a_pbFreeFillData = false;
-	return PD_HEADER(pDataBlock->data_u.DataUnion_u.d_char.d_char_val);
+	pReturn->seconds = static_cast< decltype (pReturn->seconds) >(pDataBlock->tm);
+	pReturn->gen_event = static_cast< decltype (pReturn->gen_event)>(llnMacroPulse);
+	return pReturn;
 }
 
 }}

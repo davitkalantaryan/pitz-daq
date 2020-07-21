@@ -16,6 +16,7 @@
 #include <TTree.h>
 #include <sys/timeb.h>
 #include <vector>
+#include <fstream>
 
 #define ENTRY_IN_ERROR                  STATIC_CAST2(unsigned int,1)
 
@@ -80,7 +81,7 @@ namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknow
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
 bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, int* pType, int* pSamples );
-DEC_OUT_PD(Header)* GetDataPointerFromEqData(uint32_t a_nExpectedDataLen, EqData* a_pData,int64_t* a_pTimeeconds, int64_t* a_pMacroPulse, bool* a_pbFreeFillData);
+DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData* a_pData, bool* a_pbFreeFillData);
 int64_t GetEventNumberFromTime(int64_t a_time);
 
 #define D_BASE_FOR_STR  D_text
@@ -300,8 +301,8 @@ private:
 	int						m_samples;
 	int						m_nMaxBufferForNextIter;
 	int						m_nSingleItemSize;
-	uint32_t				m_expectedDataLength;
-	uint32_t				m_reserved1;
+	int32_t					m_expectedDataLength;
+	int32_t					m_reserved1;
 };
 
 
@@ -359,21 +360,27 @@ protected:
 
 class SingleEntry : protected D_BASE_FOR_STR
 {
+	friend class NewTFile;
 	friend class SNetworkStruct;
 	friend class TreeForSingleEntry;
 	friend class EqFctCollector;
-public:
+protected:
 	SingleEntry( entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
 	virtual ~SingleEntry() OVERRIDE2;
 
+private:
 	virtual const char* rootFormatString()const=0;
 	virtual void        FreeUsedMemory(DEC_OUT_PD(Header)* usedMemory)=0;
 	virtual void		InitializeRootTree(){}
 	virtual void		FinalizeRootTree(){}
 
+public:
 	uint64_t			isDataLoaded()const;
+	SNetworkStruct*     networkParent()const;
+	void                IncrementError(uint8_t errorMask, const ::std::string& a_errorString);
+
+private:
 	uint64_t			isLoadedFromLine()const;
-	SNetworkStruct*     networkParent();
 	bool                markEntryForDeleteAndReturnIfPossibleNow();
 	bool                lockEntryForRoot();
 	bool                lockEntryForCurrentFile();
@@ -391,7 +398,6 @@ public:
 	int                 lastEventNumber()const{return m_lastHeader.gen_event;}
 	uint64_t            isPresentInLastFile()const{return m_isPresentInLastFile;}
 	void                writeContentToTheFile(FILE* fpFile)const;
-	void                IncrementError(uint8_t errorMask, const ::std::string& a_errorString);
 	void                DecrementError(uint8_t errorMask);
 	void                ResetAllErrors();
 	NewTFile*			GetCurrentFile() const;
@@ -408,7 +414,7 @@ private:
 	// DOOCS callbacks
 	void                get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
 	void                set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
-	void                write (fstream &) OVERRIDE2;
+	void                write ( ::std::fstream &) OVERRIDE2;
 
 private:
 	::std::list< SingleEntry* >::iterator   m_thisIter;
@@ -454,6 +460,7 @@ private:
 protected:
 	uint64_t                                m_isDataLoaded : 1;
 	uint64_t                                m_isLoadedFromLine : 1;
+	uint64_t								m_recalculateNumberOfSamples : 1;
 	uint64_t                                m_bitwise64Reserved : 61;
 
 	EqFctCollector*                         m_pParent;  // hope will be deleted
