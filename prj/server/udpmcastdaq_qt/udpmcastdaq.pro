@@ -5,7 +5,7 @@
 # for PITZ
 
 
-DEFINES += DEBUG_APP
+#DEFINES += DEBUG_APP
 include($${PWD}/../../common/common_qt/daqcollector_event_based_common.pri)
 
 # LIBS += -lMCclass

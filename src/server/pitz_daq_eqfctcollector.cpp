@@ -881,5 +881,7 @@ static int NewSystemStat(const char *a_command)
     nReturn = system(a_command);
     dup2(stdoutCopy,STDOUT_FILENO);
     dup2(stderrCopy,STDERR_FILENO);
+	close(stdoutCopy);
+	close(stderrCopy);
     return nReturn;
 }
