@@ -54,7 +54,7 @@ message("!!! sys_common.pri: SYSTEM_PATH=$$SYSTEM_PATH")
 
 # Debug:DESTDIR = debug1
 DESTDIR = $$DEEPNESS/$$SYSTEM_PATH/$$TARGET_PATH
-OBJECTS_DIR = ../../../$$SYSTEM_PATH/.objects
+OBJECTS_DIR = ../../../$$SYSTEM_PATH/.objects/$${TARGET}
 
 #CONFIG += debug
 #CONFIG += c++11

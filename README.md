@@ -1,6 +1,6 @@
 # pitz-daq
 
-![PITZ logo](https://davitkalantaryan.github.io/pitz-daq/docs/images/pitz_logo.png)
+![PITZ logo](docs/images/pitz_logo.png)
 
 
 DAQ is abbreviation for Data AcQuisition
@@ -26,6 +26,13 @@ an IL event, to understand its origin if there were a few IL detectors triggered
   <br />
 
 <br />
+
+## versions
+
+### Root file versions
+![version0](docs/images/root_file_version0.png)
+
+![version1](docs/images/root_file_version1.png)
 
 ## Most used parts of the system are following
 ### 1. [Data collector servers](docs/subsystems/collectors)

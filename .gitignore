@@ -33,8 +33,11 @@ prj/*/*/*
 !prj/common/*/*
 !prj/common/*/*/*
 !prj/test/simple_root_reader_vs/simple_root_reader.vcxproj.user
+
 workspaces/*/*
-!workspaces/*/*.sln
+!workspaces/*_vs/*.sln
+!workspaces/*_qt/*.pro
+
 moc_*.cpp
 .gitattributes
 .DS_Store
