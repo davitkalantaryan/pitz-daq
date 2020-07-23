@@ -29,20 +29,22 @@ an IL event, to understand its origin if there were a few IL detectors triggered
 
 ## versions
 
-### Root file versions
-![version0](docs/images/root_file_version0.png)
-
-![version1](docs/images/root_file_version1.png)
-
+### Root file versions  
+#### version 0  
+![version0](docs/images/root_file_version0.png)  
+  
+#### version 1  
+![version1](docs/images/root_file_version1.png)  
+  
 ## Most used parts of the system are following
-### 1. [Data collector servers](docs/subsystems/collectors)
-### 2. Application to control the collectors
-### 3. Data getter and handler applications and tools
+### 1. [Data collector servers](docs/subsystems/collectors)  
+### 2. Application to control the collectors  
+### 3. Data getter and handler applications and tools  
 
-Some additional information can be obtained from the files from 'doc' directory   <br />
+Some additional information can be obtained from the files from 'doc' directory   
 
-## Usefull links
-[API](https://davitkalantaryan.github.io/pitz-daq/docs/doxy/html/index.html)  
+## Usefull links  
+[API](https://davitkalantaryan.github.io/pitz-daq/docs/doxy/html/index.html)   
 [web](https://davitkalantaryan.github.io/pitz-daq/index.html)   <br />  
 [github](https://github.com/davitkalantaryan/pitz-daq)		<br />  
 [DESY bitbucket](https://github.com/davitkalantaryan/pitz-daq)	<br />  
@@ -51,6 +53,6 @@ Some additional information can be obtained from the files from 'doc' directory 
 [root formats](https://root.cern.ch/doc/master/classTTree.html#a7fdd71ed8f39c76c9a32d6b936a9737a)
 [variablarray size](https://root.cern.ch/root/html/tutorials/tree/tree3.C.html)
 
-## Assumptions
- 1.  Additional data size is not changed
+## Assumptions  
+ 1.  Additional data size is not changed  
 
