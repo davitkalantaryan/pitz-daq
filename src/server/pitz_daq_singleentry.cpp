@@ -57,7 +57,7 @@ static ::std::string GetPropertyName(const char* a_entryLine, TypeConstCharPtr* 
 
 /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
+pitz::daq::SingleEntry::SingleEntry(EqFctCollector* a_pParent,/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
         D_BASE_FOR_STR(GetPropertyName(a_entryLine,a_pHelper,&m_daqName),NEWNULLPTR2),
 		//SingleEntryBase(),
@@ -80,6 +80,8 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
     TypeConstCharPtr& pLine = *a_pHelper;
     size_t strStart;
     int nError(errorsFromConstructor::noError);
+	
+	m_pParent = a_pParent;
 
     if(!pLine){throw errorsFromConstructor::syntax;}
     m_bitwise64Reserved = 0;
@@ -87,7 +89,7 @@ pitz::daq::SingleEntry::SingleEntry(/*DEC_OUT_PD(BOOL2) a_bDubRootString,*/ entr
 	m_isPresentInLastFile = 0;
 	m_bitwise64Reserved = 0;
 
-	m_initialEntryine = a_entryLine;
+	m_initialEntryLine = a_entryLine;
 
     AddNewParameterToEnd(m_dataType.thisPtr(),false,true);
 	AddNewParameterToEnd(&m_samples,false,false);
@@ -330,8 +332,11 @@ uint64_t pitz::daq::SingleEntry::isDataLoaded() const
 }
 
 
-uint64_t pitz::daq::SingleEntry::isLoadedFromLine()const
+uint64_t pitz::daq::SingleEntry::isLoadedFromLine()
 {
+	if(!m_isLoadedFromLine) {
+		LoadEntryFromLine();
+	}
 	return m_isLoadedFromLine;
 }
 
@@ -450,8 +455,8 @@ void pitz::daq::SingleEntry::writeContentToTheFile(FILE* a_fpFile)const
 		}
 		else{
 			//fprintf(a_fpFile,"%s\n",m_initialEntryine.c_str());
-			fwrite(m_initialEntryine.c_str(),1,m_initialEntryine.length(),a_fpFile);
-			if(m_initialEntryine.back()!='\n'){
+			fwrite(m_initialEntryLine.c_str(),1,m_initialEntryLine.length(),a_fpFile);
+			if(m_initialEntryLine.back()!='\n'){
 				putc('\n',a_fpFile);
 			}
 		}
@@ -1531,7 +1536,7 @@ void pitz::daq::EntryParams::Doocs::Initialize()
 		m_doocsAddress += strLastPart;
 
 		m_data.init();
-		GetEntryInfoFromDoocsServer(&m_data,m_doocsAddress,&in.dataType,&out.inOutSamples);
+		GetEntryInfoFromDoocsServer(&m_data,m_doocsAddress,&in.dataType,&out.inOutSamples,nullptr);
 		m_dataType = in.dataType;
 
 		cpcRootFormatString = PrepareDaqEntryBasedOnType(&in,&out);
@@ -1648,7 +1653,7 @@ void pitz::daq::EntryParams::Doocs::Refresh()
 	}
 	m_pFillData = nullptr;
 
-	GetEntryInfoFromDoocsServer(&m_data,m_doocsAddress,&in.dataType,&out.inOutSamples);
+	GetEntryInfoFromDoocsServer(&m_data,m_doocsAddress,&in.dataType,&out.inOutSamples,nullptr);
 	if(PrepareDaqEntryBasedOnType(&in,&out)){
 		if(m_samples!=out.inOutSamples){
 			m_nMaxBufferForNextIter = out.inOutSamples*static_cast<int>(out.oneItemSize);
@@ -1712,7 +1717,7 @@ static size_t EPOCH_TO_STRING(const time_t& a_epoch, char* a_buffer, size_t a_bu
 }
 
 
-bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_doocsUrl, int* a_pType, int* a_pSamples )
+bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_doocsUrl, int* a_pType, int* a_pSamples, std::string* a_pErrorString )
 {
     int nReturn;
     EqCall eqCall;
@@ -1723,8 +1728,13 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
     nReturn = eqCall.get(&eqAddr,&dataIn,a_pEqDataOut);
 
     if(nReturn){
-        ::std::string errorString = a_pEqDataOut->get_string();
-		::std::cerr << "doocsAdr:"<<a_doocsUrl << ",err:"<<errorString << ::std::endl;
+		::std::string errorString = a_pEqDataOut->get_string();
+		if(a_pErrorString) {
+			*a_pErrorString = errorString;
+		}
+		else {
+			::std::cerr << "doocsAdr:"<<a_doocsUrl << ",err:"<<errorString << ::std::endl;
+		}
         return false;
     }
 

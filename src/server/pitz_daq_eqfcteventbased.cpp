@@ -67,7 +67,7 @@ pitz::daq::SNetworkStruct* pitz::daq::EqFctEventBased::CreateNewNetworkStruct()
 pitz::daq::SingleEntry* pitz::daq::EqFctEventBased::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
     const char* cpcLine;
-    return new SingleEntryZmqDoocs(a_creationType,a_entryLine,&cpcLine);
+    return new SingleEntryZmqDoocs(this,a_creationType,a_entryLine,&cpcLine);
 }
 
 
@@ -170,9 +170,9 @@ bool pitz::daq::SNetworkStructZmqDoocs::ResizeItemsCount(size_t a_unNewSize)cons
 #define SPECIAL_KEY_READ1              "read1"
 #define SPECIAL_KEY_READ2              "read2"
 
-pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
+pitz::daq::SingleEntryZmqDoocs::SingleEntryZmqDoocs(EqFctCollector* a_pParent,entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
     :
-      SingleEntryDoocsBase(a_creationType,a_entryLine,a_pHelper),
+      SingleEntryDoocsBase(a_pParent,a_creationType,a_entryLine,a_pHelper),
       m_zmqEndpoint(SPECIAL_KEY_ENDPOINT)
 {
     //bool bCallIniter = false, bIsAddedByUser = false;

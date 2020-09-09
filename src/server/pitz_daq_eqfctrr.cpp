@@ -34,7 +34,7 @@ namespace pitz{namespace daq{
 class SingleEntryRR final : public SingleEntryDoocsBase
 {
 public:
-    SingleEntryRR(entryCreationType::Type creationType,const char* entryLine,TypeConstCharPtr* a_pHelper);
+    SingleEntryRR(EqFctCollector* a_pParent, entryCreationType::Type creationType,const char* entryLine,TypeConstCharPtr* a_pHelper);
 	~SingleEntryRR() override;
 
 	DEC_OUT_PD(Header)* GetDataAndAddForRoot();
@@ -86,7 +86,7 @@ int pitz::daq::EqFctRR::fct_code()
 pitz::daq::SingleEntry* pitz::daq::EqFctRR::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
     const char* cpcLine;
-    return new SingleEntryRR(a_creationType,a_entryLine,&cpcLine);
+    return new SingleEntryRR(this,a_creationType,a_entryLine,&cpcLine);
 }
 
 
@@ -115,9 +115,9 @@ void pitz::daq::EqFctRR::DataGetterFunctionWithWait(const SNetworkStruct* /*a_pN
 
 /*////////////////////////////////////////////////////*/
 
-pitz::daq::SingleEntryRR::SingleEntryRR(entryCreationType::Type a_creationType,const char* a_entryLine,TypeConstCharPtr* a_pHelper)
+pitz::daq::SingleEntryRR::SingleEntryRR(EqFctCollector* a_pParent, entryCreationType::Type a_creationType,const char* a_entryLine,TypeConstCharPtr* a_pHelper)
         :
-        SingleEntryDoocsBase(a_creationType, a_entryLine,a_pHelper)
+        SingleEntryDoocsBase(a_pParent,a_creationType, a_entryLine,a_pHelper)
 {
 	//m_expectedDataLength = static_cast<uint32_t>( (m_samples)*m_nSingleItemSize );
 	//m_reserved = 0;
@@ -150,7 +150,8 @@ DEC_OUT_PD(Header)* pitz::daq::SingleEntryRR::GetDataAndAddForRoot()
 
 	if(nReturn){
 		::std::string errorString = pDataOut->get_string();
-		::std::cerr << "doocsAdr:"<<m_doocsUrl.value() << ",err:"<<errorString << ::std::endl;
+		//::std::cerr << "doocsAdr:"<<m_doocsUrl.value() << ",err:"<<errorString << ::std::endl;
+		IncrementError(UNABLE_TO_GET_DOOCS_DATA,errorString);
 		delete pDataOut;
 		return nullptr;
 	}

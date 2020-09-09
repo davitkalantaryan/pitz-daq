@@ -18,13 +18,14 @@
 
 /*////////////////////////////////////////////////////*/
 
-pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
+pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(EqFctCollector* a_pParent, entryCreationType::Type a_creationType,const char* a_entryLine, TypeConstCharPtr* a_pHelper)
         :
-        SingleEntry(a_creationType, a_entryLine, a_pHelper),
+        SingleEntry(a_pParent,a_creationType, a_entryLine, a_pHelper),
         m_doocsUrl(SPECIAL_KEY_DOOCS),
         m_rootFormatStr(NEWNULLPTR2)
 {
     //bool bCallIniter = false, bIsAddedByUser = false;
+	std::string errorString;
 	const char* pcReturnFromPrepare;
     bool bCallIniter = false;
     EqData dataOut;
@@ -88,11 +89,12 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(entryCreationType::Type a_
     }
 
 
-	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples)){
+	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples,&errorString)){
 
 		switch(a_creationType){
 		case entryCreationType::fromConfigFile:
 			m_isLoadedFromLine = 0;
+			IncrementError(UNABLE_TO_GET_DOOCS_DATA,errorString);
 			return;
 		default:
 			throw ::std::bad_alloc();
@@ -137,6 +139,47 @@ const char* pitz::daq::SingleEntryDoocsBase::doocsUrl()const
 const char* pitz::daq::SingleEntryDoocsBase::rootFormatString()const
 {
     return m_rootFormatStr;
+}
+
+
+void pitz::daq::SingleEntryDoocsBase::LoadEntryFromLine()
+{
+	std::string errorString;
+	const char* pcReturnFromPrepare;
+    EqData dataOut;
+	struct PrepareDaqEntryInputs in;
+	struct PrepareDaqEntryOutputs out;
+	const char*  entryLine = m_initialEntryLine.c_str();	
+
+	memset(&in,0,sizeof(in));
+	memset(&out,0,sizeof(out));
+
+	in.dataType = PITZ_DAQ_UNSPECIFIED_DATA_TYPE;
+	m_nSingleItemSize = -1;
+
+	m_doocsUrl.FindAndGetFromLine(entryLine);
+	in.dataType = m_dataType.value();
+	out.inOutSamples = (m_samples);
+
+	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples,&errorString)){
+		m_isLoadedFromLine = 0;
+		IncrementError(UNABLE_TO_GET_DOOCS_DATA,errorString);
+		return ;
+	}
+
+	m_isLoadedFromLine = 1;
+
+	pcReturnFromPrepare = PrepareDaqEntryBasedOnType(&in,&out);
+	if(!pcReturnFromPrepare){
+		m_isLoadedFromLine = 0;
+	}
+
+	m_rootFormatStr = strdup(pcReturnFromPrepare);
+	if(!m_rootFormatStr){
+		throw ::std::bad_alloc();
+	}
+	m_samples = (out.inOutSamples);
+	m_nMaxBufferForNextIter = static_cast<decltype (m_nMaxBufferForNextIter)>(out.inOutSamples * out.oneItemSize);
 }
 
 

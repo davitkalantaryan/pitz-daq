@@ -685,6 +685,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
     std::string filePathLocal, filePathRemote;
     SStructForFill strToFill;
     int64_t llnCurFileSize, llnMaxFileSize/*, llnCurFileSizeLastSaved=0*/;
+	int nGenEvent = 0;
 
     while( this->shouldWork()  ){
 
@@ -698,6 +699,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
             }
 
             strToFill.entry->Fill(strToFill.data);
+			nGenEvent = strToFill.data->gen_event;
 
 			llnCurFileSize=m_pRootFile->GetSize();
             llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());
@@ -715,6 +717,8 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
             }
 
         } // while( m_fifoToFill.frontAndPop(&strToFill) ){
+		
+		m_genEvent.set_value(nGenEvent);
 
     } // while( this->shouldWork() )
 

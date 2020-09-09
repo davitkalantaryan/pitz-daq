@@ -51,11 +51,14 @@ private:
 class SingleEntryDoocsBase : public SingleEntry
 {
 public:
-    SingleEntryDoocsBase(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
+    SingleEntryDoocsBase(EqFctCollector* a_pParent, entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     virtual ~SingleEntryDoocsBase() OVERRIDE2;
 
-    const char* rootFormatString()const OVERRIDE2;
 	const char* doocsUrl()const ;
+	
+protected:
+    const char*		rootFormatString()const OVERRIDE2;
+	virtual void	LoadEntryFromLine() OVERRIDE2 ;
 
 protected:
     EntryParams::String             m_doocsUrl;

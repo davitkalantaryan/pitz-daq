@@ -80,7 +80,8 @@ typedef const char* TypeConstCharPtr;
 namespace entryCreationType{enum Type{fromOldFile,fromConfigFile,fromUser,unknownCreation};}
 namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,doocsUnreachable};}
 
-bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, int* pType, int* pSamples );
+// todo: in the next release make last argument not default
+bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, int* pType, int* pSamples, std::string* a_pErrorString );
 DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData* a_pData, bool* a_pbFreeFillData);
 int64_t GetEventNumberFromTime(int64_t a_time);
 
@@ -365,7 +366,7 @@ class SingleEntry : protected D_BASE_FOR_STR
 	friend class TreeForSingleEntry;
 	friend class EqFctCollector;
 protected:
-	SingleEntry( entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
+	SingleEntry( EqFctCollector* a_pParent, entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
 	virtual ~SingleEntry() OVERRIDE2;
 
 private:
@@ -373,6 +374,7 @@ private:
 	virtual void        FreeUsedMemory(DEC_OUT_PD(Header)* usedMemory)=0;
 	virtual void		InitializeRootTree(){}
 	virtual void		FinalizeRootTree(){}
+	virtual void		LoadEntryFromLine(){}
 
 public:
 	uint64_t			isDataLoaded()const;
@@ -380,7 +382,7 @@ public:
 	void                IncrementError(uint8_t errorMask, const ::std::string& a_errorString);
 
 private:
-	uint64_t			isLoadedFromLine()const;
+	uint64_t			isLoadedFromLine(); // in reality not costant
 	bool                markEntryForDeleteAndReturnIfPossibleNow();
 	bool                lockEntryForRoot();
 	bool                lockEntryForCurrentFile();
@@ -419,8 +421,6 @@ private:
 private:
 	::std::list< SingleEntry* >::iterator   m_thisIter;
 
-	::std::string							m_initialEntryine;
-
 	::std::list<EntryParams::Base*>         m_allParams;
 	::std::list<EntryParams::Base*>         m_userSetableParams;
 	::std::list<EntryParams::Base*>         m_permanentParams;
@@ -435,6 +435,7 @@ private:
 	EntryParams::Error                      m_errorWithString;
 
 protected:
+	::std::string							m_initialEntryLine;
 	EntryParams::Vector*					m_pAdditionalData;
 	EntryParams::DataType                   m_dataType;
 	EntryParams::IntParam<int32_t>          m_samples;

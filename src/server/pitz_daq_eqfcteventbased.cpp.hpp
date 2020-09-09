@@ -16,7 +16,7 @@ namespace pitz{namespace daq{
 class SingleEntryZmqDoocs final: public SingleEntryDoocsBase
 {
 public:
-    SingleEntryZmqDoocs(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
+    SingleEntryZmqDoocs(EqFctCollector* a_pParent,entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     ~SingleEntryZmqDoocs() OVERRIDE2;
 
     void* socket()const;

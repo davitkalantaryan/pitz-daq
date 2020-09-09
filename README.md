@@ -36,6 +36,9 @@ an IL event, to understand its origin if there were a few IL detectors triggered
 #### version 1  
 ![version1](docs/images/root_file_version1.png)  
   
+### Colector config version  
+currently version 1  
+
 ## Most used parts of the system are following
 ### 1. [Data collector servers](docs/subsystems/collectors)  
 ### 2. Application to control the collectors  

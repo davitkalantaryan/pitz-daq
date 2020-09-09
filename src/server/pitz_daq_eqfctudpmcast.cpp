@@ -43,7 +43,7 @@ namespace pitz{namespace daq{
 class SingleEntryUdp : public SingleEntry
 {
 public:
-    SingleEntryUdp(entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
+    SingleEntryUdp(EqFctCollector* a_pParent,entryCreationType::Type creationType,const char* entryLine, TypeConstCharPtr* a_pHelper);
     ~SingleEntryUdp() OVERRIDE2;
 
     const char* rootFormatString()const OVERRIDE2;
@@ -128,7 +128,7 @@ int pitz::daq::EqFctUdpMcast::fct_code()
 pitz::daq::SingleEntry* pitz::daq::EqFctUdpMcast::CreateNewEntry(entryCreationType::Type a_creationType,const char* a_entryLine)
 {
     const char* cpcLine;
-    SingleEntryUdp* pEntry = new SingleEntryUdp(a_creationType,a_entryLine,&cpcLine);
+    SingleEntryUdp* pEntry = new SingleEntryUdp(this,a_creationType,a_entryLine,&cpcLine);
     int nChannelNumber ;
     
     if(!pEntry){return NEWNULLPTR2;}
@@ -230,9 +230,9 @@ receivePoint:
 
 
 /*///////////////////////////////////////////////////////////////////////////////*/
-pitz::daq::SingleEntryUdp::SingleEntryUdp(entryCreationType::Type a_creationType,const char* a_entryLine,TypeConstCharPtr* a_pHelper)
+pitz::daq::SingleEntryUdp::SingleEntryUdp(EqFctCollector* a_pParent,entryCreationType::Type a_creationType,const char* a_entryLine,TypeConstCharPtr* a_pHelper)
         :
-        SingleEntry(a_creationType,a_entryLine,a_pHelper),
+        SingleEntry(a_pParent,a_creationType,a_entryLine,a_pHelper),
         m_pFctParent(NEWNULLPTR2),
         m_nChannelNumber(SPECIAL_KEY_CHANNEL)
 {
