@@ -392,7 +392,7 @@ private:
 	bool                resetNetworkLockAndReturnIfDeletable();
 	bool                resetRooFileLockAndReturnIfDeletable();
 	bool                isLockedForAnyAction()const;
-	void                Fill(DEC_OUT_PD(Header)* pNewMemory);
+	int64_t             Fill(DEC_OUT_PD(Header)* pNewMemory);
 	const char*         daqName()const{return m_daqName;}
 	int                 firstSecond()const{return m_firstHeader.seconds;}
 	int                 firstEventNumber()const{return m_firstHeader.gen_event;}
@@ -410,7 +410,7 @@ protected:
 	void                AddNewParameterToEnd(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
 	void                AddNewParameterToBeg(EntryParams::Base* newParam, bool isUserSetable, bool isPermanent);
 	bool				CheckBranchExistanceAndCreateIfNecessary();
-	void                FillRaw(DEC_OUT_PD(Header)* pNewMemory);
+	int64_t             FillRaw(DEC_OUT_PD(Header)* pNewMemory);
 
 private:
 	// DOOCS callbacks

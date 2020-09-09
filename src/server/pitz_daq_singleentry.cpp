@@ -384,17 +384,20 @@ bool pitz::daq::SingleEntry::CheckBranchExistanceAndCreateIfNecessary()
 }
 
 
-void pitz::daq::SingleEntry::Fill( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
+int64_t pitz::daq::SingleEntry::Fill( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
-	FillRaw(a_pNewMemory);
+	int64_t genEventToReturn = FillRaw(a_pNewMemory);
     FreeUsedMemory(a_pNewMemory);
+	
+	return genEventToReturn;
 }
 
 
-void pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
+int64_t pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
-	if(!lockEntryForRoot()){return;}
-	if(!CheckBranchExistanceAndCreateIfNecessary()){return;}
+	int64_t genEventToReturn(-1);
+	if(!lockEntryForRoot()){return -1;}
+	if(!CheckBranchExistanceAndCreateIfNecessary()){return -1;}
 
 	// handle possible gen event errors
 	// int32_t nGenEventNormalized = a_pNewMemory->gen_event%s_H_count;
@@ -404,6 +407,12 @@ void pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_
 	//if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->gen_event){
 	//	a_pNewMemory->seconds = g_shareptr[nGenEventNormalized].seconds;
 	//}
+	
+	genEventToReturn = a_pNewMemory->gen_event;
+	if(genEventToReturn<1) {
+		genEventToReturn = GetEventNumberFromTime(a_pNewMemory->seconds);
+		a_pNewMemory->gen_event = static_cast<decltype (a_pNewMemory->gen_event)>(genEventToReturn);
+	}
 
 	a_pNewMemory->samples = static_cast<decltype (a_pNewMemory->samples)>(m_samples);
 	a_pNewMemory->branch_num_in_rcv_and_next_max_buffer_size_on_root = static_cast<decltype (a_pNewMemory->branch_num_in_rcv_and_next_max_buffer_size_on_root)>(m_nMaxBufferForNextIter);
@@ -427,6 +436,8 @@ void pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_
 	DecrementError(ROOT_ERROR);
 
 	m_lastHeader = *a_pNewMemory;
+	
+	return genEventToReturn;
 }
 
 

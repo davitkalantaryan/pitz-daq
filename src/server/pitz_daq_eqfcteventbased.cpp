@@ -471,9 +471,6 @@ void SingleEntryZmqDoocs::InitializeRootTree()
 
 		pDataToFill = GetDataPointerFromEqData(m_expectedDataLength,&dataOut,&bDeleteData);
 		if(pDataToFill){
-			if(pDataToFill->gen_event<1){
-				pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(GetEventNumberFromTime(pDataToFill->seconds));
-			}
 			this->FillRaw(pDataToFill);
 			if(bDeleteData){
 				FreePitzDaqBuffer(pDataToFill);
@@ -502,9 +499,6 @@ void SingleEntryZmqDoocs::FinalizeRootTree()
 
 		pDataToFill = GetDataPointerFromEqData(m_expectedDataLength,&dataOut,&bDeleteData);
 		if(pDataToFill){
-			if(pDataToFill->gen_event<1){
-				pDataToFill->gen_event = static_cast< decltype (pDataToFill->gen_event) >(GetEventNumberFromTime(pDataToFill->seconds));
-			}
 			this->FillRaw(pDataToFill);
 			if(bDeleteData){
 				FreePitzDaqBuffer(pDataToFill);

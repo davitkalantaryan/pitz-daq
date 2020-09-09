@@ -34,13 +34,13 @@ CPPPARAMS += -I$(ROOTSYS)/include -I/afs/ifh.de/group/pitz/doocs/lib/include
 
 OBJECTS = \
 	$(OBJECT_FILES_DIR)/tools/main_daq_browser_bin_for_nonroot.o                 \
+	$(OBJECT_FILES_DIR)/common/common_system_rw.o                                \
 	$(OBJECT_FILES_DIR)/common/common_memorypool.o                               \
 	$(OBJECT_FILES_DIR)/common/common_system_exe_child_windows.o                 \
 	$(OBJECT_FILES_DIR)/common/common_argument_parser.o                          \
 	$(OBJECT_FILES_DIR)/libs/pitz_daq_data_handling.o                            \
 	$(OBJECT_FILES_DIR)/libs/pitz_daq_data_handling_types.o                      \
 	$(OBJECT_FILES_DIR)/libs/pitz_daq_data_getter.o                              \
-	$(OBJECT_FILES_DIR)/common/common_system_rw.o                                \
 	$(OBJECT_FILES_DIR)/libs/common_libs_matlab_independent_functions.o          \
 	$(OBJECT_FILES_DIR)/libs/pitz_daq_data_indexing.o
 

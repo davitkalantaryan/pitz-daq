@@ -685,7 +685,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
     std::string filePathLocal, filePathRemote;
     SStructForFill strToFill;
     int64_t llnCurFileSize, llnMaxFileSize/*, llnCurFileSizeLastSaved=0*/;
-	int nGenEvent = 0;
+	int64_t nGenEvent = 0, nGenEventPrevious=0;
 
     while( this->shouldWork()  ){
 
@@ -698,8 +698,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 				RootFileCreator(&filePathLocal,&filePathRemote);
             }
 
-            strToFill.entry->Fill(strToFill.data);
-			nGenEvent = strToFill.data->gen_event;
+            nGenEvent = strToFill.entry->Fill(strToFill.data);
 
 			llnCurFileSize=m_pRootFile->GetSize();
             llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());
@@ -718,7 +717,10 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 
         } // while( m_fifoToFill.frontAndPop(&strToFill) ){
 		
-		m_genEvent.set_value(nGenEvent);
+		if(nGenEvent>nGenEventPrevious) {
+			m_genEvent.set_value(static_cast<int>(nGenEvent));
+			nGenEventPrevious = nGenEvent;
+		}
 
     } // while( this->shouldWork() )
 
@@ -743,11 +745,17 @@ void pitz::daq::EqFctCollector::CopyFileToRemoteAndMakeIndexing(const std::strin
     SingleEntry* pCurEntry;
 	::std::fstream index_fl;
     char vcBuffer[1024];
+	const char* pcFileName = a_fileRemote.c_str();
 
     ::std::list< SingleEntry* >::iterator pIter, pIterEnd, pIterToRemove;
     ::std::list< SingleEntry* >* pList;
-
-    snprintf(vcBuffer,1023,"dccp -d 0 %s %s", a_fileLocal.c_str(), a_fileRemote.c_str());
+	
+	if((strncmp(pcFileName,"/acs/",5)==0)||(strncmp(pcFileName,"/net/pnfs/acs/",14)==0)||(strncmp(pcFileName,"/net/acs_dcache/",16)==0)){
+		snprintf(vcBuffer,1023,"dccp -d 0 %s %s", a_fileLocal.c_str(), a_fileRemote.c_str());
+	}
+	else{
+		snprintf(vcBuffer,1023,"cp %s %s", a_fileLocal.c_str(), a_fileRemote.c_str());
+	}
     DEBUG_APP_INFO(2,"executing \"%s\"\n",vcBuffer);
     if(NewSystemStat(vcBuffer)){
         if(m_unErrorUnableToWriteToDcacheNum++==0){
