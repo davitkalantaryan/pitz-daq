@@ -119,7 +119,7 @@ private:
     void CalcLocalDir(std::string* localDirPath)STUPID_NON_CONST;
     void CopyFileToRemoteAndMakeIndexing(const std::string& localFilePath, const std::string& remoteFilePath);
     void writeEntriesToConfig()const;
-	void RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
+	bool RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote);
 
     // thread functions
     void  RootThreadFunction() ;

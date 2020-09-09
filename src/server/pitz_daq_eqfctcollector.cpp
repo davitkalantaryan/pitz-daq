@@ -20,7 +20,7 @@
 #define CONF_FILE_VERSION_START "DAQ_VERSION="
 static const size_t s_cunDaqVersionForConfigLen = strlen(CONF_FILE_VERSION_START);
 
-#define MINIMUM_ROOT_FILE_SIZE_HARD     1000
+#define MINIMUM_ROOT_FILE_SIZE_HARD     20000000
 
 //#define SEMA_WAIT_TIME_MS       10000
 #define WAIT_INFINITE  -1
@@ -613,7 +613,7 @@ void pitz::daq::EqFctCollector::TryToRemoveEntryNotLocked(SingleEntry* a_pEntry)
 }
 
 
-void pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
+bool pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, std::string* a_pFilePathRemote)
 {
     Int_t nVersion = PITZ_DAQ_CURRENT_VERSION;
     int64_t llnCurFileSize;
@@ -622,6 +622,7 @@ void pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, s
 	int nFailureIterations;
     std::string localDirPath, remoteDirPath, fileName;
 	::std::vector<SingleEntry*> vectorEntries;
+	bool bNotFirstTry = false;
 
 	{
 		NewSharedLockGuard< ::STDN::shared_mutex > aGuard(&m_lockForEntries);
@@ -634,28 +635,38 @@ void pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, s
 		}
 	}
 
-    CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
-    CalcLocalDir(&localDirPath);
-    *a_pFilePathLocal = localDirPath+"/"+fileName;
-    *a_pFilePathRemote = remoteDirPath+"/"+fileName;
-    //std::cout<<"locDirPath="<<localDirPath<<std::endl;
-    //std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
-    mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
-    mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
-
 	nFailureIterations = 0;
 	do{
+		CalculateRemoteDirPathAndFileName(&fileName,&remoteDirPath);
+		CalcLocalDir(&localDirPath);
+		*a_pFilePathLocal = localDirPath+"/"+fileName;
+		*a_pFilePathRemote = remoteDirPath+"/"+fileName;
+		//std::cout<<"locDirPath="<<localDirPath<<std::endl;
+		//std::cout<<"remDirPath="<<remoteDirPath<<std::endl;
+		mkdir_p(localDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+		mkdir_p(remoteDirPath.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+		
 		m_pRootFile = new NewTFile(a_pFilePathLocal->c_str());// SetCompressionLevel(1)
 		if ((!m_pRootFile) || m_pRootFile->IsZombie() || (!m_pRootFile->IsOpen())){
-			fprintf(stderr,"!!!! Error opening ROOT file (ln:%d) ",__LINE__);
-			if((++nFailureIterations)>10){
+			if(!bNotFirstTry) {fprintf(stderr,"!!!! Error opening ROOT file (ln:%d) \n",__LINE__);}
+			if((++nFailureIterations)>10000){
 				fprintf(stderr,"going to exit.\n");
 				exit(1);
 			}
 			else{
-				fprintf(stderr,"waiting for 5 s and trying again.\n");
-				SleepMs(5000);
+				if(this->shouldWork()){
+					if(!bNotFirstTry) {
+						fprintf(stderr,"   waiting for 10000 s. Will be tried with 1 s period.\n");
+						bNotFirstTry = true;
+					}
+					SleepMs(1000);
+				}
+				else{return false;}
 			}
+		}
+		else if(bNotFirstTry){
+			printf("error recovered@!!!!!!\n");
+			printf("file opened is: \"%s\"\n",a_pFilePathLocal->c_str());
 		}
 	}
 	while((!m_pRootFile) || m_pRootFile->IsZombie() || (!m_pRootFile->IsOpen()));
@@ -674,6 +685,8 @@ void pitz::daq::EqFctCollector::RootFileCreator(std::string* a_pFilePathLocal, s
 
 	llnCurFileSize=m_pRootFile->GetSize();m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
     DEBUG_APP_INFO(2," ");
+	
+	return true;
 
 }
 
@@ -695,7 +708,9 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 
 			if(!m_pRootFile){  // open root file
 				// RootFileCreator will not exit if file creation is not done
-				RootFileCreator(&filePathLocal,&filePathRemote);
+				if(!RootFileCreator(&filePathLocal,&filePathRemote)) {
+					return;
+				}
             }
 
             nGenEvent = strToFill.entry->Fill(strToFill.data);

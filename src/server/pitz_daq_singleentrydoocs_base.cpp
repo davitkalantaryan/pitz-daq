@@ -172,6 +172,7 @@ void pitz::daq::SingleEntryDoocsBase::LoadEntryFromLine()
 	pcReturnFromPrepare = PrepareDaqEntryBasedOnType(&in,&out);
 	if(!pcReturnFromPrepare){
 		m_isLoadedFromLine = 0;
+		return;
 	}
 
 	m_rootFormatStr = strdup(pcReturnFromPrepare);
