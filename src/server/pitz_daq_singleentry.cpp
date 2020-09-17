@@ -1765,6 +1765,7 @@ DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData*
 	DEC_OUT_PD(Header)* pReturn=nullptr;
     EqDataBlock* pDataBlock = a_pData->data_block();
 	uint64_t llnMacroPulse;
+	time_t secondsFromserver, secondsLocal;
 
     if((!pDataBlock)||(pDataBlock->error)||(!pDataBlock->tm)){return nullptr;}
 
@@ -1805,8 +1806,19 @@ DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData*
 			}
 		}
 	}
+	
+	secondsFromserver=pDataBlock->tm;
+	secondsLocal=time(&secondsLocal);
+	
+	if(
+			((secondsLocal>secondsFromserver)&&((secondsLocal-secondsFromserver)>4))||
+			((secondsFromserver>secondsLocal)&&((secondsFromserver-secondsLocal)>4))    )  
+	{
+		secondsFromserver = secondsLocal;
+		llnMacroPulse = 0; // let's leave to next function correcting this
+	}
 
-	pReturn->seconds = static_cast< decltype (pReturn->seconds) >(pDataBlock->tm);
+	pReturn->seconds = static_cast< decltype (pReturn->seconds) >(secondsFromserver);
 	pReturn->gen_event = static_cast< decltype (pReturn->gen_event)>(llnMacroPulse);
 	return pReturn;
 }
