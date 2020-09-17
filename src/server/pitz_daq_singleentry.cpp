@@ -336,6 +336,9 @@ uint64_t pitz::daq::SingleEntry::isLoadedFromLine()
 {
 	if(!m_isLoadedFromLine) {
 		LoadEntryFromLine();
+		if(m_isLoadedFromLine) {
+			DecrementError(UNABLE_TO_INITIALIZE);
+		}
 	}
 	return m_isLoadedFromLine;
 }
@@ -1757,7 +1760,7 @@ bool GetEntryInfoFromDoocsServer( EqData* a_pEqDataOut, const ::std::string& a_d
 }
 
 
-DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData* a_pData, bool* a_pbFreeFillData)
+DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData* a_pData, bool* a_pbFreeFillData, int a_dataType)
 {
 	DEC_OUT_PD(Header)* pReturn=nullptr;
     EqDataBlock* pDataBlock = a_pData->data_block();
@@ -1789,9 +1792,17 @@ DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData*
 		}
 		else{
 			DEC_OUT_PD(Header)* pReturnWithHeader = CreatePitzDaqSingleDataHeader(static_cast<size_t>(a_nExpectedDataLen));
-			memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),pDataBlock->data_u.DataUnion_u.d_char.d_char_val,static_cast<size_t>(a_nExpectedDataLen));
-			pReturn = pReturnWithHeader;
-			*a_pbFreeFillData = true;
+			if(a_dataType==DATA_SPECTRUM) {
+				void* ptrServer = pDataBlock->data_u.DataUnion_u.d_spectrum.d_spect_array.d_spect_array_val;
+				memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),ptrServer,static_cast<size_t>(a_nExpectedDataLen));
+				pReturn = pReturnWithHeader;
+				*a_pbFreeFillData = true;
+			}
+			else{
+				memcpy(wrPitzDaqDataFromHeader(pReturnWithHeader),pDataBlock->data_u.DataUnion_u.d_char.d_char_val,static_cast<size_t>(a_nExpectedDataLen));
+				pReturn = pReturnWithHeader;
+				*a_pbFreeFillData = true;
+			}
 		}
 	}
 

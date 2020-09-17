@@ -183,7 +183,7 @@ DEC_OUT_PD(Header)* pitz::daq::SingleEntryRR::GetDataAndAddForRoot()
 		return nullptr;
 	}
 
-	pFillData = GetDataPointerFromEqData(in.inNeededBufferSize,pDataOut,&bShouldDeletePointer);
+	pFillData = GetDataPointerFromEqData(in.inNeededBufferSize,pDataOut,&bShouldDeletePointer,in.dataType);
 	if(!pFillData){
 		IncrementError(UNABLE_TO_GET_DOOCS_DATA,"unable to get doocs data");
 		delete pDataOut;

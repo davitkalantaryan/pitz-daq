@@ -94,7 +94,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(EqFctCollector* a_pParent,
 		switch(a_creationType){
 		case entryCreationType::fromConfigFile:
 			m_isLoadedFromLine = 0;
-			IncrementError(UNABLE_TO_GET_DOOCS_DATA,errorString);
+			IncrementError(UNABLE_TO_INITIALIZE,errorString);
 			return;
 		default:
 			throw ::std::bad_alloc();
@@ -163,7 +163,7 @@ void pitz::daq::SingleEntryDoocsBase::LoadEntryFromLine()
 
 	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples,&errorString)){
 		m_isLoadedFromLine = 0;
-		IncrementError(UNABLE_TO_GET_DOOCS_DATA,errorString);
+		IncrementError(UNABLE_TO_INITIALIZE,errorString);
 		return ;
 	}
 

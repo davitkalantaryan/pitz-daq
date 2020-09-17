@@ -63,6 +63,7 @@
 #define DATA_TYPE_MISMATCH          4
 #define LOW_MEMORY_DQ               5
 #define UNABLE_TO_GET_DOOCS_DATA    6
+#define UNABLE_TO_INITIALIZE		7
 
 class EqData;
 
@@ -82,7 +83,7 @@ namespace errorsFromConstructor{enum Error{noError=0,syntax=10,lowMemory, type,d
 
 // todo: in the next release make last argument not default
 bool GetEntryInfoFromDoocsServer( EqData* a_pDataOut, const ::std::string& a_doocsUrl, int* pType, int* pSamples, std::string* a_pErrorString );
-DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData* a_pData, bool* a_pbFreeFillData);
+DEC_OUT_PD(Header)* GetDataPointerFromEqData(int32_t a_nExpectedDataLen, EqData* a_pData, bool* a_pbFreeFillData, int dataType=0);
 int64_t GetEventNumberFromTime(int64_t a_time);
 
 #define D_BASE_FOR_STR  D_text
