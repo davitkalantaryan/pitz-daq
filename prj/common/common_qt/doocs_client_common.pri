@@ -17,7 +17,7 @@ message("!!! doocs_client_common.pri:")
 
 QMAKE_CXXFLAGS_WARN_ON += -Wno-attributes
 
-include(../../common/common_qt/sys_common.pri)
+include($${PWD}/../../common/common_qt/sys_common.pri)
 
 SYSTEM_LIB = $$MYDOOCS/system_arch/$$CODENAME/lib
 
@@ -26,20 +26,22 @@ SYSTEM_LIB = $$MYDOOCS/system_arch/$$CODENAME/lib
 #QMAKE_CXXFLAGS += -std=c++0x
 CONFIG += c++14
 
-equals(CODENAME,"Boron") {
-    INCLUDEPATH += $$SYSTEM_LIB/include
+#equals(CODENAME,"Boron") {
+#    INCLUDEPATH += $$SYSTEM_LIB/include
+#
+#}
+#else {
+#
+#    equals(CODENAME,"trusty") {
+#        INCLUDEPATH += $$SYSTEM_LIB/include
+#    }
+#    else{
+#        INCLUDEPATH += $$MYDOOCS/include/doocs
+#        #INCLUDEPATH += /doocs/system_arch/trusty/lib/include
+#    }
+#}
 
-}
-else {
-
-    equals(CODENAME,"trusty") {
-        INCLUDEPATH += $$SYSTEM_LIB/include
-    }
-    else{
-        INCLUDEPATH += $$MYDOOCS/include/doocs
-        #INCLUDEPATH += /doocs/system_arch/trusty/lib/include
-    }
-}
+INCLUDEPATH += $$MYDOOCS/include/doocs
 
 
 message("!!! SYSTEM_LIB: $$SYSTEM_LIB")

@@ -15,7 +15,7 @@
 #include <libgen.h>
 #include <sys/time.h>
 #include <sys/resource.h>
-#include "printtostderr.h"
+//#include "printtostderr.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -24,7 +24,7 @@
 #include <pitz_daq_data_handling_types.h>
 #include <pitz_daq_data_daqdev_common.h>
 #include "eq_errors.h"
-#include "eq_sts_codes.h"
+//#include "eq_sts_codes.h"
 #include "eq_fct_errors.h"
 #include <pitz_daq_collector_global.h>
 
@@ -138,6 +138,7 @@ DEC_OUT_PD(Header)* pitz::daq::SingleEntryRR::GetDataAndAddForRoot()
 	EqData dataIn;
 	EqCall eqCall;
 	DEC_OUT_PD(Header)* pFillData;
+	const char* cpcNewRootString = nullptr;
 
 	struct PrepareDaqEntryInputs in;
 	struct PrepareDaqEntryOutputs out;
@@ -151,7 +152,7 @@ DEC_OUT_PD(Header)* pitz::daq::SingleEntryRR::GetDataAndAddForRoot()
 	if(nReturn){
 		::std::string errorString = pDataOut->get_string();
 		//::std::cerr << "doocsAdr:"<<m_doocsUrl.value() << ",err:"<<errorString << ::std::endl;
-		IncrementError(UNABLE_TO_GET_DOOCS_DATA,errorString);
+		IncrementError(NETWORK_ERROR,errorString);
 		delete pDataOut;
 		return nullptr;
 	}
@@ -159,13 +160,26 @@ DEC_OUT_PD(Header)* pitz::daq::SingleEntryRR::GetDataAndAddForRoot()
 	in.dataType = pDataOut->type();
 	in.inNeededBufferSize = m_nMaxBufferForNextIter;
 	out.inOutSamples = pDataOut->length();
+	
+	cpcNewRootString = PrepareDaqEntryBasedOnType(&in,&out);
 
-	if(!PrepareDaqEntryBasedOnType(&in,&out)){
-		IncrementError(UNABLE_TO_GET_DOOCS_DATA,"unable to get doocs data");
+	if(!cpcNewRootString){
+		IncrementError(NETWORK_ERROR,"unable to get doocs data");
 		delete pDataOut;
 		return nullptr;
 	}
-
+	
+	if(strcmp(cpcNewRootString,m_rootFormatStr)) {
+		printtostderr(__FUNCTION__,"format changed. Collection will be stopped for this file.");
+		free(m_rootFormatStr);
+		m_rootFormatStr = strdup(cpcNewRootString);
+		delete pDataOut;
+		return nullptr;
+	}
+	
+	m_samples = (out.inOutSamples);
+	m_dataType.set(in.dataType);
+	m_nMaxBufferForNextIter = static_cast<decltype (m_nMaxBufferForNextIter)>(out.inOutSamples * out.oneItemSize);
 
 	if(out.outNeededBufferSize!=m_nMaxBufferForNextIter){
 		if(m_recalculateNumberOfSamples || (out.outNeededBufferSize<m_nMaxBufferForNextIter)){
@@ -178,14 +192,14 @@ DEC_OUT_PD(Header)* pitz::daq::SingleEntryRR::GetDataAndAddForRoot()
 	}
 	m_nMaxBufferForNextIter = out.outNeededBufferSize;
 	if(m_nMaxBufferForNextIter<1){
-		IncrementError(UNABLE_TO_GET_DOOCS_DATA,"unable to get doocs data");
+		IncrementError(NETWORK_ERROR,"unable to get doocs data");
 		delete pDataOut;
 		return nullptr;
 	}
 
 	pFillData = GetDataPointerFromEqData(in.inNeededBufferSize,pDataOut,&bShouldDeletePointer,in.dataType);
 	if(!pFillData){
-		IncrementError(UNABLE_TO_GET_DOOCS_DATA,"unable to get doocs data");
+		IncrementError(NETWORK_ERROR,"unable to get doocs data");
 		delete pDataOut;
 		return nullptr;
 	}

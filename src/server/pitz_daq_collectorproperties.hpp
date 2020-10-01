@@ -41,10 +41,10 @@ class D_addNewEntry : public D_text
 {
 public:
     D_addNewEntry(const char* pn, EqFct* loc);
-    ~D_addNewEntry();
+    ~D_addNewEntry() override;
 
 private:
-     void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
+     void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location) override;
 };
 
 
@@ -52,17 +52,17 @@ class D_logLevel : public D_int
 {    
 public:
     D_logLevel(const char* pn, EqFct* loc);
-    void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
+    void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location) override;
 };
 
 class D_removeEntry : public D_string
 {
 public:
     D_removeEntry(const char* pn, EqFct* loc);
-    ~D_removeEntry();
+    ~D_removeEntry() override;
 
 private:
-     void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
+     void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location) override;
 };
 
 
@@ -71,7 +71,19 @@ class D_loadOldConfig : public D_string
 public:
     D_loadOldConfig(const char* pn, EqFct* loc);
 private:
-    void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location);
+    void    set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location) override;
+};
+
+
+class D_closeFile : public D_fct
+{
+public:
+	D_closeFile(const char* pn, EqFct* loc);
+private:
+	void write (std::ostream&) override;
+	void set (EqAdr * dcsAddr, EqData * dataFromUser, EqData * dataToUser, EqFct * location) override;
+public:
+	bool m_closeFile;
 };
 
 

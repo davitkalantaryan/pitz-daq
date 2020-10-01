@@ -94,7 +94,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(EqFctCollector* a_pParent,
 		switch(a_creationType){
 		case entryCreationType::fromConfigFile:
 			m_isLoadedFromLine = 0;
-			IncrementError(UNABLE_TO_INITIALIZE,errorString);
+			IncrementError(NETWORK_ERROR,errorString);
 			return;
 		default:
 			throw ::std::bad_alloc();
@@ -119,6 +119,7 @@ pitz::daq::SingleEntryDoocsBase::SingleEntryDoocsBase(EqFctCollector* a_pParent,
 		throw ::std::bad_alloc();
 	}
 	m_samples = (out.inOutSamples);
+	m_dataType.set(in.dataType);
 	m_nMaxBufferForNextIter = static_cast<decltype (m_nMaxBufferForNextIter)>(out.inOutSamples * out.oneItemSize);
 
 }
@@ -163,7 +164,7 @@ void pitz::daq::SingleEntryDoocsBase::LoadEntryFromLine()
 
 	if(!GetEntryInfoFromDoocsServer(&dataOut,m_doocsUrl.value(),&in.dataType,&out.inOutSamples,&errorString)){
 		m_isLoadedFromLine = 0;
-		IncrementError(UNABLE_TO_INITIALIZE,errorString);
+		IncrementError(NETWORK_ERROR,errorString);
 		return ;
 	}
 
@@ -180,6 +181,7 @@ void pitz::daq::SingleEntryDoocsBase::LoadEntryFromLine()
 		throw ::std::bad_alloc();
 	}
 	m_samples = (out.inOutSamples);
+	m_dataType.set(in.dataType);
 	m_nMaxBufferForNextIter = static_cast<decltype (m_nMaxBufferForNextIter)>(out.inOutSamples * out.oneItemSize);
 }
 
