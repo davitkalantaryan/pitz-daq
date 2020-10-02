@@ -29,8 +29,8 @@ private:
 	void RecalculateSamples();
 
 private:
-	void		InitializeRootTree() OVERRIDE2;
-	void		FinalizeRootTree() OVERRIDE2;
+	void		InitializeRootTreeVirt() OVERRIDE2;
+	void		FinalizeRootTreeVirt() OVERRIDE2;
 	void		FreeUsedMemory(DEC_OUT_PD(Header)* a_usedMemory) OVERRIDE2;
 
 private:

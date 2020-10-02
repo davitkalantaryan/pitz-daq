@@ -1,8 +1,10 @@
+#
 # File daqcollector_common.pri
 # File created : 02 Feb 2017
 # Created by : Davit Kalantaryan (davit.kalantaryan@desy.de)
 # This file can be used to produce Makefile for daqadcreceiver application
 # for PITZ
+#
 
 message("!!! daqcollector_common.pri:")
 
@@ -15,7 +17,7 @@ win32{
 	SOURCES += \
 }
 
-include(../../common/common_qt/root_no_gui_common.pri)
+include($${PWD}/../../common/common_qt/root_no_gui_common.pri)
 include($${PWD}/../../../contrib/data_handling/contrib/matlab/prj/common/common_qt/matlab_matrix_without_libs_common.pri)
 
 DEFINES += ROOT_APP
@@ -28,7 +30,7 @@ optionsTest = $$find(CONFIG, "1test")
 count(optionsTest, 1):message("!!! test1 version") DEFINES += TEST_VERSION111
 options = $$find(CONFIG, "2test")
 count(options, 1):message("!!! test2 version") DEFINES += TEST_VERSION112
-include(../../common/common_qt/doocs_server_common.pri)
+include($${PWD}/../../common/common_qt/doocs_server_common.pri)
 equals(CODENAME,"Boron") { 
     #message ("!!!!! No cpp 11 used")
     DEFINES += no_cpp11

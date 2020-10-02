@@ -19,8 +19,9 @@
 #include <iostream>
 #include <pitz_daq_collector_global.h>
 
-#define DATA_SIZE_TO_SAVE   50000  // 40 kB
-#define MIN_NUMBER_OF_FILLS 20
+#define DATA_SIZE_TO_SAVE			50000  // 40 kB
+#define MIN_NUMBER_OF_FILLS			20
+#define MAX_ALLOWED_TIME_SHIFT_SEC	30
 
 
 namespace pitz{ namespace daq{
@@ -115,6 +116,7 @@ pitz::daq::SingleEntry::SingleEntry(EqFctCollector* a_pParent,/*DEC_OUT_PD(BOOL2
     memset(&m_firstHeader,0,static_cast<size_t>(reinterpret_cast<char*>(&m_nReserved2)-reinterpret_cast<char*>(&m_firstHeader)));
     //m_branchInfo = {PITZ_DAQ_UNSPECIFIED_DATA_TYPE,PITZ_DAQ_UNSPECIFIED_NUMBER_OF_SAMPLES};
 
+	m_collectForThisFile = 1;
     m_expirationTime.setDateSeconds(NON_EXPIRE_TIME);
 
     strStart = strspn (pLine,POSIIBLE_TERM_SYMBOLS);
@@ -326,6 +328,26 @@ pitz::daq::SNetworkStruct* pitz::daq::SingleEntry::networkParent()const
 }
 
 
+void pitz::daq::SingleEntry::InitializeRootTree()
+{
+	//m_collectForThisFile = 1;
+	InitializeRootTreeVirt();
+}
+
+
+void pitz::daq::SingleEntry::FinalizeRootTree()
+{
+	m_collectForThisFile = 1;
+	FinalizeRootTreeVirt();
+}
+
+
+uint64_t pitz::daq::SingleEntry::collectForThisFile()const
+{
+	return m_collectForThisFile;
+}
+
+
 uint64_t pitz::daq::SingleEntry::isDataLoaded() const
 {
 	return m_isDataLoaded ;
@@ -337,7 +359,7 @@ uint64_t pitz::daq::SingleEntry::isLoadedFromLine()
 	if(!m_isLoadedFromLine) {
 		LoadEntryFromLine();
 		if(m_isLoadedFromLine) {
-			DecrementError(UNABLE_TO_INITIALIZE);
+			DecrementError(NETWORK_ERROR);
 		}
 	}
 	return m_isLoadedFromLine;
@@ -358,7 +380,7 @@ void pitz::daq::SingleEntry::set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqDat
 }
 
 
-void pitz::daq::SingleEntry::write ( ::std::fstream &)
+void pitz::daq::SingleEntry::write ( ::std::ostream &)
 {
 #ifdef DEBUG_APP
     ::std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! fnc:"<< __FUNCTION__ << ::std::endl;
@@ -399,6 +421,8 @@ int64_t pitz::daq::SingleEntry::Fill( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_
 int64_t pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(Header)* a_pNewMemory/*, int a_second, int a_eventNumber*/)
 {
 	int64_t genEventToReturn(-1);
+	time_t secondsFromNetwork, secondsLocal;
+	
 	if(!lockEntryForRoot()){return -1;}
 	if(!CheckBranchExistanceAndCreateIfNecessary()){return -1;}
 
@@ -410,6 +434,16 @@ int64_t pitz::daq::SingleEntry::FillRaw( DEC_OUT_PD(Header)* a_pNewMemory/*, int
 	//if(g_shareptr[nGenEventNormalized].gen_event == a_pNewMemory->gen_event){
 	//	a_pNewMemory->seconds = g_shareptr[nGenEventNormalized].seconds;
 	//}
+	
+	secondsFromNetwork=static_cast<time_t>(a_pNewMemory->seconds);
+	secondsLocal=time(&secondsLocal);
+	
+	if(
+			((secondsLocal>secondsFromNetwork)&&((secondsLocal-secondsFromNetwork)>MAX_ALLOWED_TIME_SHIFT_SEC))||
+			((secondsFromNetwork>secondsLocal)&&((secondsFromNetwork-secondsLocal)>MAX_ALLOWED_TIME_SHIFT_SEC))    )  
+	{
+		a_pNewMemory->seconds = static_cast<int32_t>(secondsLocal);
+	}
 	
 	genEventToReturn = a_pNewMemory->gen_event;
 	if(genEventToReturn<1) {

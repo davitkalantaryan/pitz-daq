@@ -108,7 +108,7 @@ protected:
 private:
     void init(void) OVERRIDE2 FINAL2 ; // use complete (called before init) and post_init (called after init) or online (before)
     CLEAR_RET_TYPE CLEAR_FUNC_NAME(void) OVERRIDE2 FINAL2 ;  // use 'virtual void cancel(void)' in the child (called before cancel)
-	int  write          ( ::std::fstream &fprt) OVERRIDE2 FINAL2;
+	int  write          ( ::std::ostream &fprt) OVERRIDE2 FINAL2;
 
     // API for internal usage
 private:
@@ -138,6 +138,7 @@ public:
 
 private:
     //D_fct                               m_testProp;
+	D_closeFile							m_closeFile;
     D_int                               m_genEvent; // +
     D_int                               m_fileMaxSize; //+
     D_int                               m_numberOfEntries; // +

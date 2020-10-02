@@ -4,7 +4,6 @@
  */
 
 #include "pitz_daq_eqfctudpmcast.hpp"
-#include "printtostderr.h"
 #include <sys/stat.h>
 #include <sys/shm.h>
 #include <signal.h>
@@ -18,7 +17,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include "eq_errors.h"
-#include "eq_sts_codes.h"
 #include "eq_fct_errors.h"
 #include "mclistener.hpp"
 #include "udpmcastdaq_commonheader.h"

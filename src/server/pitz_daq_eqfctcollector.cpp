@@ -45,6 +45,7 @@ pitz::daq::EqFctCollector::EqFctCollector()
         :
           EqFct("Name = location"),
           //m_testProp("TEST_VOID",this),
+		  m_closeFile("CLOSE_CURRENT_FILE closes current root file",this),
           m_genEvent("GEN_EVENT value",this),
           m_fileMaxSize("FILE_SIZE_DESIGNED approximate size of final file", this),
           m_numberOfEntries("NUMBER.OF.ENTRIES",this),
@@ -136,7 +137,7 @@ void pitz::daq::EqFctCollector::CalculateRemoteDirPathAndFileName(std::string* a
 }
 
 
-int pitz::daq::EqFctCollector::write( ::std::fstream &a_fprt)
+int pitz::daq::EqFctCollector::write( ::std::ostream &a_fprt)
 {
     int nReturn = EqFct::write(a_fprt);
     NewSharedLockGuard< ::STDN::shared_mutex > aSharedGuard(&m_lockForEntries);
@@ -718,7 +719,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
             llnMaxFileSize = static_cast<Long64_t>(m_fileMaxSize.value());
             m_currentFileSize.set_value(static_cast<int>(llnCurFileSize));
 
-            if(llnCurFileSize>=llnMaxFileSize){ // close root file
+            if((llnCurFileSize>=llnMaxFileSize)||m_closeFile.m_closeFile){ // close root file
 				m_pRootFile->FinalizeAndSaveAllTrees();
 				m_pRootFile->TDirectory::DeleteAll();
 				m_pRootFile->TDirectory::Close();
@@ -727,6 +728,7 @@ void pitz::daq::EqFctCollector::RootThreadFunction()
 				m_pRootFile = NEWNULLPTR2;
                 m_currentFileSize.set_value(-1);
                 CopyFileToRemoteAndMakeIndexing(filePathLocal,filePathRemote);
+				m_closeFile.m_closeFile = false;
             }
 
         } // while( m_fifoToFill.frontAndPop(&strToFill) ){
@@ -826,14 +828,22 @@ uint64_t pitz::daq::EqFctCollector::shouldWork()const
 
 bool pitz::daq::EqFctCollector::AddJobForRootThread(DEC_OUT_PD(Header)* a_data, SingleEntry* a_pEntry)
 {
-    bool bPossibleToAdd = a_pEntry->lockEntryForRoot();
-
-    if(bPossibleToAdd){
-        m_fifoToFill.pushBack({a_pEntry,a_data});
-        m_semaForRootThread.post();
-    }
-
-    return bPossibleToAdd;
+	if(a_pEntry->collectForThisFile()) {
+		bool bPossibleToAdd = a_pEntry->lockEntryForRoot();
+	
+		if(bPossibleToAdd){
+			a_pEntry->DecrementError(NETWORK_ERROR);
+			m_fifoToFill.pushBack({a_pEntry,a_data});
+			m_semaForRootThread.post();
+		}
+	
+		return bPossibleToAdd;
+	}
+	else {
+		a_pEntry->FreeUsedMemory(a_data);
+	}
+	
+	return false;
 }
 
 

@@ -57,13 +57,7 @@
 //#define UNABLE_TO_GET_DOOCS_DATA    (1<<6)
 
 #define ROOT_ERROR                  0
-#define NETWORK_READ_ERROR          1
-#define DATA_TYPE_MISMATCH_ERROR    2
-#define UNABLE_TO_PREPARE_DATA      3
-#define DATA_TYPE_MISMATCH          4
-#define LOW_MEMORY_DQ               5
-#define UNABLE_TO_GET_DOOCS_DATA    6
-#define UNABLE_TO_INITIALIZE		7
+#define NETWORK_ERROR				1
 
 class EqData;
 
@@ -373,11 +367,16 @@ protected:
 private:
 	virtual const char* rootFormatString()const=0;
 	virtual void        FreeUsedMemory(DEC_OUT_PD(Header)* usedMemory)=0;
-	virtual void		InitializeRootTree(){}
-	virtual void		FinalizeRootTree(){}
+	virtual void		InitializeRootTreeVirt(){}
+	virtual void		FinalizeRootTreeVirt(){}
 	virtual void		LoadEntryFromLine(){}
+	
+private:
+	void				InitializeRootTree();
+	void				FinalizeRootTree();
 
 public:
+	uint64_t			collectForThisFile()const;
 	uint64_t			isDataLoaded()const;
 	SNetworkStruct*     networkParent()const;
 	void                IncrementError(uint8_t errorMask, const ::std::string& a_errorString);
@@ -417,7 +416,7 @@ private:
 	// DOOCS callbacks
 	void                get(EqAdr* /*a_dcsAddr*/, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* /*a_loc*/) OVERRIDE2;
 	void                set(EqAdr* a_dcsAddr, EqData* a_dataFromUser, EqData* a_dataToUser,EqFct* a_loc) OVERRIDE2 ;
-	void                write ( ::std::fstream &) OVERRIDE2;
+	void                write ( ::std::ostream &) OVERRIDE2;
 
 private:
 	::std::list< SingleEntry* >::iterator   m_thisIter;
@@ -463,6 +462,7 @@ protected:
 	uint64_t                                m_isDataLoaded : 1;
 	uint64_t                                m_isLoadedFromLine : 1;
 	uint64_t								m_recalculateNumberOfSamples : 1;
+	uint64_t								m_collectForThisFile : 1;
 	uint64_t                                m_bitwise64Reserved : 61;
 
 	EqFctCollector*                         m_pParent;  // hope will be deleted
