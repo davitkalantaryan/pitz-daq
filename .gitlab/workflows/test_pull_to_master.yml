@@ -82,6 +82,8 @@ test pull to master build win:
     #    key: sys_directory_cache
     #    paths:
     #        - sys/
+    before_script:
+        - echo "preventing git pull 01"
     after_script:
         - echo "Preventing cleanup"
 
