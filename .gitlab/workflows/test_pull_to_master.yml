@@ -91,7 +91,7 @@ test pull to master build win:
         - release
         - prebuild
     tags:
-        - win-ers01
+        - sl6-ers01
     script:
         - echo "Building DAQ for sl6. Username is $GITLAB_USER_LOGIN! username='$env:USERNAME'"
         #- git submodule sync --recursive
@@ -116,7 +116,7 @@ test pull to master unit tests win:
         - release
         - prebuild
     tags:
-        - win-ers01
+        - sl6-ers01
     before_script:
         - echo "preventing git pull"
     script:
