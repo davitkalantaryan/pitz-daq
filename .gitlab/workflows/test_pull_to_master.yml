@@ -35,14 +35,14 @@ test pull to master build sl6:
         - sl6-ers01
     script:
         - echo "Building DAQ for sl6. Username is $GITLAB_USER_LOGIN! username='$env:USERNAME'"
-        - git submodule sync --recursive
-        - git submodule update --init --recursive
+        #- git submodule sync --recursive
+        #- git submodule update --init --recursive
         #- cmd /C msbuild_all.bat
         - echo "compilation done"
 
 # In this stage we test code pulled to master
 # as a trigger to this merge request to master branch is used
-test pull to master unit tests:
+test pull to master unit tests sl6:
     # Build the library
     stage: test-pull-to-master-unit-tests
     dependencies: 
@@ -94,14 +94,14 @@ test pull to master build win:
         - win-ers01
     script:
         - echo "Building DAQ for sl6. Username is $GITLAB_USER_LOGIN! username='$env:USERNAME'"
-        - git submodule sync --recursive
-        - git submodule update --init --recursive
+        #- git submodule sync --recursive
+        #- git submodule update --init --recursive
         #- cmd /C msbuild_all.bat
         - echo "compilation done"
 
 # In this stage we test code pulled to master
 # as a trigger to this merge request to master branch is used
-test pull to master unit tests:
+test pull to master unit tests win:
     # Build the library
     stage: test-pull-to-master-unit-tests
     dependencies: 
