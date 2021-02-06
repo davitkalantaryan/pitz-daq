@@ -117,7 +117,7 @@ void pitz::daq::EqFctEventBased::DataGetterFunctionWithWait(const SNetworkStruct
             }
             else{
                 // set network error
-                pEntry->IncrementError(NETWORK_READ_ERROR, "Unable to get data via zmq");
+                pEntry->IncrementError(NETWORK_ERROR, "Unable to get data via zmq");
             }
 
         }
@@ -295,7 +295,7 @@ DEC_OUT_PD(Header)* SingleEntryZmqDoocs::ReadData()
     }
 
     if(nDataType != m_dataType.value()){
-        IncrementError(DATA_TYPE_MISMATCH_ERROR,"Data type mismatch");
+		printtostderr(__FUNCTION__,"format changed. Collection will be stopped for this file.");
 		goto errorReturn;
     }
 
@@ -446,7 +446,7 @@ bool SingleEntryZmqDoocs::LoadOrValidateData(void* a_pContext)
 }
 
 
-void SingleEntryZmqDoocs::InitializeRootTree()
+void SingleEntryZmqDoocs::InitializeRootTreeVirt()
 {
 	if(!isDataLoaded()){
 		const SNetworkStructZmqDoocs* pNetZmq = static_cast< const SNetworkStructZmqDoocs* >( networkParent() );
@@ -480,7 +480,7 @@ void SingleEntryZmqDoocs::InitializeRootTree()
 }
 
 
-void SingleEntryZmqDoocs::FinalizeRootTree()
+void SingleEntryZmqDoocs::FinalizeRootTreeVirt()
 {
 	// if we have non correspondend root format string then not possible to save last data
 	if(m_expectedDataLength>0){

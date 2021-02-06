@@ -16,6 +16,6 @@ LIBS += -lEqServer
 LIBS += -lCom
 LIBS += -lca
 
-include(../../common/common_qt/doocs_client_common.pri)
+include($${PWD}/../../common/common_qt/doocs_client_common.pri)
 
 LIBS += -L$$MYDOOCS/system_arch/$$CODENAME/MAIN/base/lib/linux-x86_64

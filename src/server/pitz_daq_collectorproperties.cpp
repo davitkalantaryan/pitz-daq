@@ -154,3 +154,24 @@ void pitz::daq::D_loadOldConfig::set (EqAdr * a_adr, EqData * a_dataFromUser, Eq
 
 }
 
+
+// D_closeFile
+/*////////////////////////////////////////////////////////////////////////////////////////////////*/
+pitz::daq::D_closeFile::D_closeFile(const char* a_pn, EqFct* a_loc)
+        :
+        D_fct(a_pn,a_loc)
+{
+	m_closeFile = false;
+}
+
+
+void pitz::daq::D_closeFile::write (std::ostream&)
+{
+	//
+}
+
+
+void pitz::daq::D_closeFile::set (EqAdr * , EqData * , EqData * , EqFct * )
+{
+	m_closeFile = true;
+}
