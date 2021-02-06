@@ -10,8 +10,8 @@ include:
     - local: '/.gitlab/workflows/deploy.yml'
 
 # We have 3 different cases
-#stages:
-#    - prebuild
-#    - test-pull-to-master-build
-#    - test-pull-to-master-unit-tests
-#    - deploy
+stages:
+    - prebuild
+    - test-pull-to-master-build
+    - test-pull-to-master-unit-tests
+    - deploy
