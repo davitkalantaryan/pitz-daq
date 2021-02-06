@@ -50,3 +50,5 @@ contrib/doocs/*
 .test/*/*
 .test/*/*/*
 /tests/*.root
+
+.vs

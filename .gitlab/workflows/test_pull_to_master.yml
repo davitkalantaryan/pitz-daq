@@ -1,0 +1,69 @@
+# 
+# file:     test_pull_to_master.yml
+# YAML file for gitlab CI/CI
+# created on:   2021 Jan 28
+# 
+
+# We have 3 different cases
+stages:
+    - test-pull-to-master-build
+    - test-pull-to-master-unit-tests
+
+
+# In this stage we test code pulled to master
+# as a trigger to this merge request to master branch is used
+test pull to master build:
+    # Build the library
+    stage: test-pull-to-master-build
+    #artifacts:
+    #    paths:
+    #        - sys/
+    #    expire_in: 3 week
+    #cache:
+    #    key: sys_directory_cache
+    #    paths:
+    #        - sys/
+    after_script:
+        - echo "Preventing cleanup"
+
+    only:
+        - merge_requests
+    except:
+        - release
+        - prebuild
+    tags:
+        - sl6-ers01
+    script:
+        - echo "Building DAQ for sl6. Username is $GITLAB_USER_LOGIN! username='$env:USERNAME'"
+        - git submodule sync --recursive
+        - git submodule update --init --recursive
+        #- cmd /C msbuild_all.bat
+        - echo "compilation done"
+
+# In this stage we test code pulled to master
+# as a trigger to this merge request to master branch is used
+test pull to master unit tests:
+    # Build the library
+    stage: test-pull-to-master-unit-tests
+    dependencies: 
+        - test pull to master build
+    #cache:
+    #    key: sys_directory_cache
+    #    paths:
+    #        - sys/
+    only:
+        - merge_requests
+    except:
+        - release
+        - prebuild
+    tags:
+        - sl6-ers01
+    before_script:
+        - echo "preventing git pull"
+    script:
+        #- dir sys
+        #- cd prj\test\googletest_mkfl
+        #- nmake /f windows.Makefile
+        #- cd ..\..\..\sys\win_x64\Debug\test
+        #- .\googletest.exe
+        - echo "Unit test will be implemented"
